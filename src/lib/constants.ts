@@ -1,3 +1,9 @@
+/**
+ * What command doc and impl ids derive from: nosedive's repo id, fixed so the
+ * ids stay put whichever repo builds the core.
+ */
+export const COMMAND_ID_NAMESPACE = "019f514e-d8d5-7bc1-bf3f-d8e5092c6596";
+
 export const MANAGED_EXCLUDE_BEGIN = "# BEGIN nosedive-managed exclude";
 export const MANAGED_EXCLUDE_END = "# END nosedive-managed exclude";
 export const FOUNDATION_EXCLUDE_BEGIN = "# BEGIN nosedive-managed package-foundation exclude";

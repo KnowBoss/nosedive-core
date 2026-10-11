@@ -13,7 +13,7 @@ import {
 	type CommandIo,
 	type KbDoc,
 } from "./lib/commands.js";
-import { CURRENT_COMPATIBILITY_LEVEL } from "./lib/constants.js";
+import { COMMAND_ID_NAMESPACE, CURRENT_COMPATIBILITY_LEVEL } from "./lib/constants.js";
 import { namespacedUuid } from "./lib/index.js";
 
 const USAGE_HEADER = "Usage: nosedive <command>";
@@ -29,16 +29,8 @@ export interface ContractDoc extends KbDoc {
 	useInstead: string;
 }
 
-function packageProjectId(): string {
-	const refPath = join(packageRoot(), ".nosedive-ref");
-	const match = /^id:\s*(\S+)\s*$/m.exec(readFileSync(refPath, "utf8"));
-	const id = match?.[1];
-	if (!id) throw new Error(`${formatPath(refPath)} is missing id`);
-	return id;
-}
-
 function commandDocId(command: string, compatibilityLevel: number): string {
-	return namespacedUuid(packageProjectId(), `command:${command}@${compatibilityLevel}`);
+	return namespacedUuid(COMMAND_ID_NAMESPACE, `command:${command}@${compatibilityLevel}`);
 }
 
 function parseContractName(

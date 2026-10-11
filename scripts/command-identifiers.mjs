@@ -5,19 +5,12 @@ import { fileURLToPath } from "node:url";
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-function frontmatterish(text) {
-	const values = {};
-	for (const line of text.split(/\r?\n/)) {
-		const match = /^([A-Za-z0-9_-]+):\s*(.*?)\s*$/.exec(line);
-		if (match) values[match[1]] = match[2];
-	}
-	return values;
-}
-
+/** Mirrors `COMMAND_ID_NAMESPACE` in src/lib/constants.ts. */
 function projectId() {
-	const ref = frontmatterish(readFileSync(resolve(root, ".nosedive-ref"), "utf8"));
-	if (!ref.id) throw new Error(".nosedive-ref is missing id");
-	return ref.id;
+	const constants = readFileSync(resolve(root, "src/lib/constants.ts"), "utf8");
+	const id = /export const COMMAND_ID_NAMESPACE = "([0-9a-f-]+)";/.exec(constants)?.[1];
+	if (!id) throw new Error("src/lib/constants.ts is missing COMMAND_ID_NAMESPACE");
+	return id;
 }
 
 function uuidBytes(uuid) {
