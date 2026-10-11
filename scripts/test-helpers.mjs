@@ -26,7 +26,8 @@ export const packageVersion = JSON.parse(readFileSync(join(root, "package.json")
 /** `packageVersion` escaped for use inside a regular expression. */
 export const packageVersionPattern = packageVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export const lib = join(root, "dist", "nosedive.js");
+/** The core bundle the build makes: what the suite tests is what ships. */
+export const lib = join(root, "dist", `core-${packageVersion}.js`);
 export const libUrl = pathToFileURL(lib).href;
 
 export const packageFoundationDocs = [

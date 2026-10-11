@@ -200,7 +200,7 @@ interface UnmovableScope {
  * worktrees is not a refusal -- callers hand the entire hydrated set here
  * before touching any of it.
  *
- * The refusal is prose rather than the bare error id. `src/cli.ts` only renders
+ * The refusal is prose rather than the bare error id. `src/core.ts` only renders
  * the `more info: ... render <id>` line when the whole thrown message is
  * uuid-shaped, and a refusal that does not say which repo it is about is
  * unactionable -- so the message carries the repo context and names the memo

@@ -1,120 +1,12 @@
-<p align="center">
-  <img src="docs/assets/nosedive-logo-circle.png" alt="Nosedive logo" width="180" height="180">
-</p>
+# nosedive-core
 
-# [Nosedive](https://nosedive.dev): intentional velocity
-
-> note input, know output
-
-Nosedive turns a plain notes repo into a [bridge](kb/00000000-0000-79ef-b942-3b52824471f3.md) -- one repo that holds the plan
-and drives the work across your other repos. Work is split into small vertical slices
-before anything is built, and what "done" looks like is captured as executable checks
-that agents can run to find out whether they are actually finished.
-
-[Watch a dive](https://nosedive.dev/#demo) -- empty repo to a pushed branch, delegated to opencode with a free model.
-
-## Install
+Private. nosedive's library and free commands, built into one minified bundle that the public
+`nosedive` package ships. The design is the nosedive feat's body in the mi bridge
+(kb/01a12b6f-95bc-7c83-b0fb-5d0a41b4d246.md).
 
 ```sh
-npm i -g nosedive
+npm run build   # dist/core-<version>.js, plus the dist/cli.js and dist/nosedive.js shims
+npm test        # runs against the built bundle, so build first
 ```
 
-Requires Node 22 or newer.
-
-## Quickstart
-
-Start from a clone of a repo you control -- an empty GitHub repo on the free tier is
-enough. Nosedive pushes to that repo's remote, so it needs an `origin`.
-
-```sh
-git clone <your-notes-repo> ~/BASE && cd ~/BASE
-
-# the tool commits on your behalf, so give it an identity
-git config user.name "Test Pilot"
-git config user.email "test@nosedive.invalid"
-
-nosedive seed                                 # commits and pushes bridge config,
-                                              # AGENTS.md, and a repo doc for the bridge
-                                              # add --headless if you are an agent
-
-nosedive record.feat --gist "Add a hello note"
-echo "Done when hello.md exists" |
-  nosedive record.dive --feat add-a-hello-note --gist "..." --brief -
-nosedive jump                                 # hydrates the workspace and rebuilds context
-
-# do the work in the hydrated workspace/__self worktree, and commit
-
-nosedive pack                                 # stopping partway; banks the WIP
-nosedive jump                                 # picks the same dive back up
-nosedive land                                 # publishes the note on the bridge's main
-```
-
-Every command prints a suggestion for the next one, so you can follow the prompts.
-
-A few things worth knowing:
-
-- `seed` registers the bridge itself as a `repo` in the `kb`, named after its own
-  directory -- `BASE` above -- using a self-referential worktree (`__self`). Add other
-  repos with `record.repo` when you need them.
-- You never have to commit or push the bridge between steps. Nosedive does it for you.
-- `land` only pushes committed work in the scoped repos. Uncommitted edits cause a
-  refusal, even if the gate is green.
-- Made a wrong turn? `nosedive bail --reason "<why>"` abandons the active dive. The
-  reason is always required, so it never fires by accident.
-
-Next: [your first gate](kb/01a031cd-a1e1-7c6d-9a71-4ab49b96da0a.md), which is how an agent
-learns when its work is done.
-
-## The problem
-
-Agents can make code appear quickly. Getting from there to something we understand and
-are willing to ship still takes work.
-
-A change can span days, people, agents, and repositories. When its context is scattered
-across tickets, chats, branches, and people's heads, three basic questions get harder to
-answer: What are we doing? Where did we leave off? How will we know it works?
-
-Nosedive keeps the answers next to the work, so a human or an agent can pick it up
-without relying on one machine, one chat, or one person's memory.
-
-## Concepts
-
-The entity roles Nosedive tracks in the knowledge base:
-
-- [bridge](kb/00000000-0000-79ef-b942-3b52824471f3.md) -- the notes repo itself,
-  holding the plan and driving the work.
-- [repo](kb/00000000-0000-7a04-a8f4-6f75484220cb.md) -- an implementation boundary.
-- [feat](kb/00000000-0000-7433-9095-caa4a7369645.md) -- a goal we want to accomplish.
-- [dive](kb/00000000-0000-749c-844b-2318117bffb0.md) -- one bounded attempt at that goal.
-- [gate](kb/00000000-0000-76cb-a899-f8e90db8ca5c.md) -- a repeatable check on the work.
-- [memo](kb/00000000-0000-70fd-9a8c-5b0f34e248e2.md) -- durable information found by
-  following a breadcrumb.
-
-The lifecycle actions that move them:
-
-- [jump](kb/00000000-0000-713d-b87c-9c86d93fd66c.md) -- begin or resume scoped work and
-  rebuild context.
-- [pack](kb/00000000-0000-7565-a984-ad5d34a2cffa.md) -- hand off work for review or later
-  pickup.
-- [land](kb/00000000-0000-70db-810d-748b23bd9e7c.md) -- publish a completed dive and
-  record its outcome.
-- [bail](kb/00000000-0000-708a-8e3a-7cf44717d66f.md) -- abandon a dive while preserving
-  its history.
-- [test](kb/00000000-0000-7fec-a565-74e036da27f4.md) -- run regression gates and plan work
-  to fix failures.
-
-## Reference
-
-- [Commands](COMMANDS.md) -- every command, what it does, and the doc behind it.
-  Also carries the compatibility level Nosedive is on.
-- [Contributing](CONTRIBUTING.md) -- development setup and conventions.
-
-<!-- BEGIN nosedive-faq -->
-<!-- Generated by `npm run faq:surface`; do not edit by hand. -->
-
-## FAQ
-
-- [How do I add a command?](kb/01a0433d-0f09-7345-bc48-4bd91cb00e6b.md) — Clone repo, run deterministic id script, create command doc, adapter and impl files.
-- [How do I change what Nosedive adds to commit messages?](kb/01a00fe4-0f56-75d1-8abe-eb5974bf8701.md) — Configure per-repo Nosedive commit provenance trailers.
-- [How do I rebase my pull request onto trunk and publish it?](kb/01a017d4-1cb3-70cd-a27a-a9eee56ad321.md) — Open a new dive pinned at the branch head, rebase there by hand, and publish with `nosedive land --hard`.
-<!-- END nosedive-faq -->
+The bundle exports the library, `commands`, `needs`, `version` and `smoke(ctx)`.

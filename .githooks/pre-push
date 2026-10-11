@@ -29,8 +29,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
 	fi
 done
 
-echo "pre-push: format check + typecheck + build + test"
+echo "pre-push: format check + typecheck + build"
 npm run format:check
 npm run typecheck
 npm run build
-npm run test:pack-bin

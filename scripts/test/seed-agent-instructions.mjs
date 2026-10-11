@@ -3,8 +3,16 @@ import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { assertOk, createTmp, giveOrigin, run, runTool, write } from "../test-helpers.mjs";
-import { createRequire } from "node:module";
+import {
+	assertOk,
+	createTmp,
+	giveOrigin,
+	libUrl,
+	packageVersion,
+	run,
+	runTool,
+	write,
+} from "../test-helpers.mjs";
 
 const tmp = createTmp("seed-agent-instructions");
 
@@ -13,10 +21,7 @@ const END = "<!-- END nosedive managed instructions -->";
 const MARKER_PAIR = ["```md", BEGIN, END, "```"].join("\n");
 /** Mirrors `SURFACE_STAMP_PATTERN` in src/lib/packageBacklog.ts. */
 const SURFACE_STAMP_PATTERN = /^<!-- nosedive v=(\S+) surface=([0-9a-f]{8}) -->$/m;
-const require = createRequire(import.meta.url);
-const { describeInstructionDrift, isPackageCheckout, renderedSurfaceDigest } = require(
-	join(process.cwd(), "dist", "nosedive.js"),
-);
+const { describeInstructionDrift, isPackageCheckout, renderedSurfaceDigest } = await import(libUrl);
 
 function newBridge(name) {
 	const bridgeDir = join(tmp, name);
@@ -179,7 +184,7 @@ test("seed-agent-instructions", () => {
 	const stamp = SURFACE_STAMP_PATTERN.exec(stampLine);
 	assert.ok(stamp, `unexpected surface stamp line: ${stampLine}`);
 	const [, stampedVersion, stampedDigest] = stamp;
-	assert.equal(stampedVersion, require(join(process.cwd(), "package.json")).version);
+	assert.equal(stampedVersion, packageVersion);
 	assert.equal(stampedDigest, digest);
 	// Stamps no longer carry a commit segment; the check is purely version + digest.
 	assert.match(managedBlock, /If `nosedive` is not in your env/);
@@ -278,7 +283,7 @@ test("seed's env fallback names the published package, not a local path", () => 
 	const portableBridge = newBridge("portable-invocation");
 	assertOk(run(["seed", "--headless"], portableBridge, ""), "seed failed");
 	const text = readFileSync(join(portableBridge, "AGENTS.md"), "utf8");
-	const { version } = require(join(process.cwd(), "package.json"));
+	const version = packageVersion;
 	const expected =
 		"- If `nosedive` is not in your env, call it with `npx -y nosedive@" + version + "` instead.";
 	assert.ok(text.includes(expected), `seeded AGENTS.md is missing: ${expected}`);

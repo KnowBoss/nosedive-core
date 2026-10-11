@@ -50,10 +50,10 @@ const SOURCE_BOUNDARIES = [
 	},
 	{
 		id: "entrypoint",
-		name: "CLI entrypoint",
-		path: "cli.ts",
-		allows: ["entrypoint", "router", "core"],
-		matches: (path) => path === "cli.ts",
+		name: "bundle entrypoint",
+		path: "core.ts",
+		allows: ["entrypoint", "router", "docs", "core"],
+		matches: (path) => path === "core.ts",
 	},
 ];
 
