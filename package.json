@@ -6,6 +6,12 @@
 	"license": "UNLICENSED",
 	"author": "Dan Stace <dstace@gmail.com>",
 	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/core.d.ts",
+			"default": "./dist/core.js"
+		}
+	},
 	"engines": {
 		"node": ">=24"
 	},

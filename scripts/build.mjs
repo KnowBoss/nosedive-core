@@ -58,6 +58,14 @@ const entryText = [
 	"\tprocess.exitCode = await launch(argv, consoleCtx([{ id, name, commit, version, docs, index }]));",
 	"}",
 	"",
+	// A cape repo's own tests import core's functions by these names; a built cape reads them from the index instead.
+	`export { ${Object.values(entries).map((entry) => entry.name).join(", ")} };`,
+	"",
+].join("\n");
+const typesText = [
+	'export type * from "../src/a01a1336a958f71c7beec4db3195c7966.ts";',
+	...Object.values(entries).map((entry) => `export { ${entry.name} } from ${JSON.stringify(`../src/${entry.name}.ts`)};`),
+	"",
 ].join("\n");
 
 rmSync(buildDir, { recursive: true, force: true });
@@ -73,6 +81,8 @@ await build({
 	target: "node24",
 	outfile,
 	minify,
+	// Building capes loads esbuild at runtime, from next to the installed core.
+	external: ["esbuild"],
 	// The CommonJS dependencies require node builtins, and an ESM bundle has no `require` of its own.
 	banner: {
 		js: `/*!\n${licence}\n*/\nimport { createRequire as __createRequire } from "node:module";\nconst require = __createRequire(import.meta.url);`,
@@ -80,6 +90,7 @@ await build({
 	logLevel: "warning",
 });
 writeFileSync(join(repoDir, "dist", "cli.js"), '#!/usr/bin/env node\nimport { main } from "./core.js";\n\nawait main();\n');
+writeFileSync(join(repoDir, "dist", "core.d.ts"), typesText);
 
 const sha256 = createHash("sha256").update(readFileSync(outfile)).digest("hex");
 console.log(`${name} ${version}\n  id      ${id}\n  commit  ${commit}\n  file    dist/core.js, ${statSync(outfile).size} bytes, sha256 ${sha256}`);

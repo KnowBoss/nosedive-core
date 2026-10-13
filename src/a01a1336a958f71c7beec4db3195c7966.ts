@@ -1,5 +1,6 @@
 import { a01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./a01a1335480147d0686528aee80f8ee34.ts";
 import { a01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./a01a1335482437c9eb145885f65f12aa1.ts";
+import { a01a1337c825f7457b879d5c039ffeccd as findCape } from "./a01a1337c825f7457b879d5c039ffeccd.ts";
 
 export type Ctx = {
 	cwd: string;
@@ -39,7 +40,14 @@ export async function a01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 			ctx.out(renderActions(ctx.capes));
 			return 0;
 		}
-		const found = findAction(ctx.capes, name);
+		let found = findAction(ctx.capes, name);
+		if (!found) {
+			const cape = await findCape(ctx, name, ctx.capes[0]!);
+			if (cape) {
+				ctx.capes = [...ctx.capes, cape];
+				found = findAction([cape], name);
+			}
+		}
 		if (!found) throw new Error(`unknown action: ${name}\n\n${renderActions(ctx.capes)}`);
 		const { cape, docId, doc } = found;
 		if (rest[0] === "--help" || rest[0] === "--more") {
