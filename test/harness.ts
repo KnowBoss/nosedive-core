@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { a01a133548178739398941123114401ad as usageId } from "../src/a01a133548178739398941123114401ad.ts";
 import { a01a1336cb234701bb0338faf5183960c as codeSection } from "../src/a01a1336cb234701bb0338faf5183960c.ts";
+import { a01a1335480c776ba8945020d0af333eb as mintUuid } from "../src/a01a1335480c776ba8945020d0af333eb.ts";
 import { after } from "node:test";
 import { a01a1336a958f71c7beec4db3195c7966 as launch, type Cape, type Ctx } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
@@ -67,7 +68,7 @@ export function greetCapeRepo(options: { link?: boolean; importing?: string } = 
 	const usage = usageId("greet <who>", GREET);
 	const hex = GREET.replace(/-/g, "");
 	const links = options.link === false ? "" : `links:\n  - nosedive-core:${options.importing ?? NAMESPACED_UUID}:\n      rel: uses.action\n`;
-	const doc = { name: "greet", gist: "Greets", usages: [{ id: usage, text: "greet <who>" }], text: "", body: "" };
+	const doc = { name: "greet", gist: "Greets", usages: [{ id: usage, text: "greet <who>" }], top: true, text: "", body: "" };
 	const files: Record<string, string> = {
 		[`kb/${GREET}.md`]: `---\nkind: action\nid: ${GREET}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${links}---\n${codeSection("\n# Greet\n", doc, `a${hex}`)}`,
 		[`src/a${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function a${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(String(call.args.who), call.ctx);\n}\n`,
@@ -83,10 +84,11 @@ export function greetCapeRepo(options: { link?: boolean; importing?: string } = 
 	return dir;
 }
 
-/** Registers a repo doc named `name` in a bridge, cloned from `path`; returns its id. */
-export async function registerRepo(bridge: string, name: string, path: string): Promise<string> {
-	const id = ok(await run(["crud", "repo", "a", "cape", "repo", "--name", name], bridge)).replace(/^kb\/|\.md$/g, "");
-	ok(await run(["crud", id, "--meta", "-"], bridge, JSON.stringify({ remotes: { local: path } })));
+/** Registers a repo doc named `name` in a bridge, cloned from `path` when given; returns its id. */
+export async function registerRepo(bridge: string, name: string, path?: string): Promise<string> {
+	const id = mintUuid();
+	const meta = path === undefined ? "" : `meta:\n  remotes:\n    local: ${JSON.stringify(path)}\n`;
+	writeFileSync(join(bridge, "kb", `${id}.md`), `---\nkind: repo\nid: ${id}\nname: ${name}\n${meta}---\n`);
 	return id;
 }
 

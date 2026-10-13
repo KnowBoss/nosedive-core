@@ -40,7 +40,7 @@ test("builds the capes config names, so their actions run", async () => {
 	const commit = git(["rev-parse", "HEAD"], repo);
 	assert.match(ok(await run(["seed"], bridge)), new RegExp(`built cape greet-cape \\S+ \\(${commit.slice(0, 7)}\\) for greet`));
 	assert.match(ok(await run(["greet", "ann"], bridge)), /^hello ann [0-9a-f-]{36}$/);
-	assert.equal(git(["status", "--porcelain"], bridge), "M .nosedive/config.yaml", "built capes stay out of git");
+	assert.doesNotMatch(git(["status", "--porcelain", "--untracked-files=all"], bridge), /capes/, "built capes stay out of git");
 });
 
 test("builds a pinned commit once, and --no-capes builds nothing", async () => {

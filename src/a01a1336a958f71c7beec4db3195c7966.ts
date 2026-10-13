@@ -1,6 +1,7 @@
 import { a01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./a01a1335480147d0686528aee80f8ee34.ts";
 import { a01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./a01a1335482437c9eb145885f65f12aa1.ts";
 import { a01a1337c825f7457b879d5c039ffeccd as findCape } from "./a01a1337c825f7457b879d5c039ffeccd.ts";
+import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
 
 export type Ctx = {
 	cwd: string;
@@ -18,6 +19,8 @@ export type CapeDoc = {
 	name: string;
 	gist: string;
 	usages: { id: string; text: string }[];
+	/** False for an action under another action: it runs by name, and help does not list it. */
+	top: boolean;
 	/** The whole doc, frontmatter included. */
 	text: string;
 	body: string;
@@ -32,12 +35,12 @@ export type Cape = {
 	index: Record<string, unknown>;
 };
 
-/** Runs one command line against the capes in `ctx`, first match wins; returns the exit code. */
+/** Runs one command line, core's actions first and never shadowed; returns the exit code. */
 export async function a01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx): Promise<number> {
 	try {
 		const [name, ...rest] = argv;
 		if (name === undefined || name === "help" || name === "--help") {
-			ctx.out(renderActions(ctx.capes));
+			ctx.out(await renderActions(ctx));
 			return 0;
 		}
 		let found = findAction(ctx.capes, name);
@@ -46,9 +49,10 @@ export async function a01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 			if (cape) {
 				ctx.capes = [...ctx.capes, cape];
 				found = findAction([cape], name);
+				if (!found) throw new Error(`config names the ${cape.name} cape for ${name}, which has no such action`);
 			}
 		}
-		if (!found) throw new Error(`unknown action: ${name}\n\n${renderActions(ctx.capes)}`);
+		if (!found) throw new Error(`unknown action: ${name}\n\n${await renderActions(ctx)}`);
 		const { cape, docId, doc } = found;
 		if (rest[0] === "--help" || rest[0] === "--more") {
 			ctx.out(renderHelp(doc, rest[0] === "--more"));
@@ -93,12 +97,26 @@ function findAction(capes: Cape[], name: string) {
 	return undefined;
 }
 
-function renderActions(capes: Cape[]): string {
-	const actions = capes.flatMap((cape) => Object.values(cape.docs).filter((doc) => doc.usages.length > 0));
-	const width = Math.max(0, ...actions.map((doc) => doc.name.length));
-	const lines = actions
-		.sort((a, b) => a.name.localeCompare(b.name))
-		.map((doc) => `  ${doc.name.padEnd(width)}  ${doc.gist}`);
+/** Core's top-level actions, then each action config names, from its cape when built. */
+async function renderActions(ctx: Ctx): Promise<string> {
+	const core = ctx.capes[0]!;
+	const rows = new Map<string, string>();
+	for (const doc of Object.values(core.docs)) if (doc.top && doc.usages.length > 0) rows.set(doc.name, doc.gist);
+	const actions = findBridge(ctx.cwd)?.config.actions;
+	for (const name of Object.keys(actions && typeof actions === "object" ? actions : {})) {
+		if (findAction([core], name)) continue;
+		try {
+			const cape = (await findCape(ctx, name, core))!;
+			const doc = Object.values(cape.docs).find((candidate) => candidate.name === name);
+			rows.set(name, doc ? `${doc.gist} (${cape.name})` : `not an action of ${cape.name}`);
+		} catch {
+			rows.set(name, "not built: run `nosedive seed`");
+		}
+	}
+	const width = Math.max(0, ...[...rows.keys()].map((name) => name.length));
+	const lines = [...rows]
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([name, gist]) => `  ${name.padEnd(width)}  ${gist}`);
 	return ["Usage: nosedive <action> [<args>]", "", ...lines, "", "nosedive <action> --help for its usages."].join("\n");
 }
 

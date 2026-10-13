@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { a01a1336cb234701bb0338faf5183960c as codeSection } from "../src/a01a1336cb234701bb0338faf5183960c.ts";
 
-const action = { name: "greet", gist: "", text: "", body: "", usages: [{ id: "abc", text: "greet <who>" }] };
+const action = { name: "greet", gist: "", text: "", body: "", top: true, usages: [{ id: "abc", text: "greet <who>" }] };
 const helper = { ...action, usages: [] };
 
 test("links a user action's entrypoint and each usage's impl and tests", () => {

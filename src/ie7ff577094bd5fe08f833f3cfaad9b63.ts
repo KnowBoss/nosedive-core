@@ -54,10 +54,14 @@ export async function ie7ff577094bd5fe08f833f3cfaad9b63(noCapes: boolean, ctx: C
 	}
 
 	const actions = (config.toJS()?.actions ?? {}) as Record<string, unknown>;
+	const core = ctx.capes[0]!;
+	const shadowing = Object.keys(actions).filter((action) => Object.values(core.docs).some((doc) => doc.name === action));
+	if (shadowing.length > 0) {
+		throw new Error(`config actions cannot replace core's own: remove ${shadowing.join(", ")} from ${configPath}`);
+	}
 	const specs = [...new Set(Object.values(actions).filter((spec): spec is string => typeof spec === "string"))];
 	if (noCapes || specs.length === 0) return;
 	const bridgeAt = findBridge(dir)!;
-	const core = ctx.capes[0]!;
 	for (const spec of specs) {
 		const [repoName, ref = ""] = spec.split("@", 2) as [string, string | undefined];
 		const repo = findRepoDoc(bridgeAt, repoName);

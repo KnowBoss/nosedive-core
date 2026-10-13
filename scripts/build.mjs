@@ -63,7 +63,12 @@ const entryText = [
 	"",
 ].join("\n");
 const typesText = [
+	'import type { Cape } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";',
 	'export type * from "../src/a01a1336a958f71c7beec4db3195c7966.ts";',
+	"export declare const id: string, name: string, commit: string, version: string;",
+	'export declare const docs: Cape["docs"];',
+	'export declare const index: Cape["index"];',
+	"export declare function main(argv?: string[]): Promise<void>;",
 	...Object.values(entries).map((entry) => `export { ${entry.name} } from ${JSON.stringify(`../src/${entry.name}.ts`)};`),
 	"",
 ].join("\n");
