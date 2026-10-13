@@ -7,6 +7,8 @@ export type CapeBuild = {
 	ref: string;
 	commit: string;
 	core: string;
+	/** The capes it imports, by repo name: their ids. */
+	needs: Record<string, string>;
 	version: string;
 	builtAt: string;
 };

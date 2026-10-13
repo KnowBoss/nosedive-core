@@ -84,6 +84,31 @@ export function greetCapeRepo(options: { link?: boolean; importing?: string } = 
 	return dir;
 }
 
+export const WAVE = "01a13565-da1a-740c-82a8-179828018344";
+
+/** A committed cape repo with one action, `wave <who>`, which runs greet-cape's greet, imported by id, then waves. */
+export function waveCapeRepo(): string {
+	const dir = gitRepo("wave-cape");
+	const usage = usageId("wave <who>", WAVE);
+	const greetUsage = usageId("greet <who>", GREET);
+	const hex = WAVE.replace(/-/g, "");
+	const greet = `a${GREET.replace(/-/g, "")}`;
+	const doc = { name: "wave", gist: "Waves", usages: [{ id: usage, text: "wave <who>" }], top: true, text: "", body: "" };
+	const files: Record<string, string> = {
+		[`kb/${WAVE}.md`]: `---\nkind: action\nid: ${WAVE}\nname: wave\ngist: "Waves"\nmeta:\n  usages:\n    - wave <who>\nlinks:\n  - greet-cape:${GREET}:\n      rel: uses.action\n---\n${codeSection("\n# Wave\n", doc, `a${hex}`)}`,
+		[`src/a${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function a${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(call);\n}\n`,
+		[`src/i${usage}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { ${greet} as greet } from "greet-cape";\n\nexport async function i${usage}(call: ActionCall) {\n\tawait greet({ ...call, usage: "u${greetUsage}" });\n\tcall.ctx.out("and waves");\n}\n`,
+		[`test/t${usage}.test.ts`]: 'import { test } from "node:test";\n\ntest("wave <who>", () => {});\n',
+	};
+	for (const [file, text] of Object.entries(files)) {
+		mkdirSync(join(dir, dirname(file)), { recursive: true });
+		writeFileSync(join(dir, file), text);
+	}
+	git(["add", "-A"], dir);
+	git(["commit", "-qm", "wave cape"], dir);
+	return dir;
+}
+
 /** Registers a repo doc named `name` in a bridge, cloned from `path` when given; returns its id. */
 export async function registerRepo(bridge: string, name: string, path?: string): Promise<string> {
 	const id = mintUuid();

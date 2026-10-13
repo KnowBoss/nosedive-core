@@ -7,7 +7,6 @@ import { a01a1335480c776ba8945020d0af333eb as mintUuid } from "./a01a1335480c776
 import { a01a13354894273b1be253424511ba82c as commitFiles } from "./a01a13354894273b1be253424511ba82c.ts";
 import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { a01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./a01a1337d2c14754f9772dc22c1f2edfc.ts";
-import { a01a1337c806075ca96d637c9ece7316e as capeId } from "./a01a1337c806075ca96d637c9ece7316e.ts";
 import { a01a1337c81b57799820f96a757b791d0 as buildCape } from "./a01a1337c81b57799820f96a757b791d0.ts";
 
 const CAPES_IGNORE = ".nosedive/capes/";
@@ -55,7 +54,9 @@ export async function ie7ff577094bd5fe08f833f3cfaad9b63(noCapes: boolean, ctx: C
 
 	const actions = (config.toJS()?.actions ?? {}) as Record<string, unknown>;
 	const core = ctx.capes[0]!;
-	const shadowing = Object.keys(actions).filter((action) => Object.values(core.docs).some((doc) => doc.name === action));
+	const shadowing = Object.keys(actions).filter((action) =>
+		Object.values(core.docs).some((doc) => doc.name === action && doc.usages.length > 0),
+	);
 	if (shadowing.length > 0) {
 		throw new Error(`config actions cannot replace core's own: remove ${shadowing.join(", ")} from ${configPath}`);
 	}
@@ -64,13 +65,11 @@ export async function ie7ff577094bd5fe08f833f3cfaad9b63(noCapes: boolean, ctx: C
 	const bridgeAt = findBridge(dir)!;
 	for (const spec of specs) {
 		const [repoName, ref = ""] = spec.split("@", 2) as [string, string | undefined];
-		const repo = findRepoDoc(bridgeAt, repoName);
-		const pinned = /^[0-9a-f]{40}$/.test(ref) ? capeId(repo.id, ref, core.id) : undefined;
-		if (pinned && existsSync(join(dir, ".nosedive", "capes", `${pinned}.js`))) {
+		const built = await buildCape(bridgeAt, findRepoDoc(bridgeAt, repoName), ref, core);
+		if (!built.fresh) {
 			ctx.out(`cape ${spec} is built`);
 			continue;
 		}
-		const built = await buildCape(bridgeAt, repo, ref, core);
 		const serves = Object.keys(actions).filter((action) => actions[action] === spec);
 		ctx.out(`built cape ${spec} ${built.version} (${built.commit.slice(0, 7)}) for ${serves.join(", ")}`);
 	}
