@@ -4,6 +4,9 @@ import { dirname, join } from "node:path";
 import type { Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 import { a01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./a01a1335487e477549d84a6fc2c901bf6.ts";
 import { a01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "./a01a1335488937f1c8c3983dd2950028e.ts";
+import { a01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./a01a13354845c7253a55b60bba87285d8.ts";
+import { a01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./a01a1335483aa776cb84df698b04adc06.ts";
+import { a01a1336cb234701bb0338faf5183960c as codeSection } from "./a01a1336cb234701bb0338faf5183960c.ts";
 
 export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined, ctx: Ctx): Promise<void> {
 	const repoDir = gitRoot(ctx.cwd);
@@ -23,9 +26,16 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 		created.push(file);
 	};
 
+	const updated: string[] = [];
 	for (const entry of chosen) {
 		const doc = docs[entry.id]!;
 		const hex = entry.name.slice(1);
+		const raw = findKbDoc(join(repoDir, "kb"), entry.id)!;
+		const body = codeSection(raw.body, doc, entry.name);
+		if (body !== raw.body) {
+			writeKbDoc(raw.path, raw.yaml, body);
+			updated.push(`kb/${entry.id}.md`);
+		}
 		if (doc.usages.length === 0) {
 			write(`src/${entry.name}.ts`, internalStub(entry.name, doc.name));
 			write(`test/t${hex}.test.ts`, testStub(doc.name));
@@ -39,9 +49,10 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 	}
 
 	for (const file of created) ctx.out(`created ${file}`);
+	for (const file of updated) ctx.out(`updated ${file}`);
 	const left = checkCapeSource(repoDir);
 	if (left.length > 0) ctx.out(["still to do:", ...left.map((problem) => `  ${problem}`)].join("\n"));
-	else if (created.length === 0) ctx.out("nothing to scaffold");
+	else if (created.length === 0 && updated.length === 0) ctx.out("nothing to scaffold");
 }
 
 function gitRoot(cwd: string): string {

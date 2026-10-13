@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { a01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./a01a1335487e477549d84a6fc2c901bf6.ts";
+import { a01a1336cb234701bb0338faf5183960c as codeSection } from "./a01a1336cb234701bb0338faf5183960c.ts";
 
 const FRAMEWORK = new Set(["test/harness.ts"]);
 
@@ -18,6 +19,9 @@ export function a01a1335488937f1c8c3983dd2950028e(repoDir: string): string[] {
 		const clash = names.get(doc.name);
 		if (clash) problems.push(`${label}: name also used by kb/${clash}.md`);
 		names.set(doc.name, entry.id);
+		if (codeSection(doc.body, doc, entry.name).trim() !== doc.body.trim()) {
+			problems.push(`${label}: its ## Code section is missing or stale; run scaf`);
+		}
 
 		const entryFile = `src/${entry.name}.ts`;
 		expected.add(entryFile);

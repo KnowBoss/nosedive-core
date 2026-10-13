@@ -22,7 +22,9 @@ function capeRepo(): string {
 test("writes every missing file, then nothing on a second run", async () => {
 	const dir = capeRepo();
 	const out = ok(await run(["scaf"], dir));
-	const created = out.split("\n").map((line) => line.replace(/^created /, ""));
+	const lines = out.split("\n");
+	const created = lines.filter((line) => line.startsWith("created ")).map((line) => line.slice(8));
+	assert.deepEqual(lines.filter((line) => line.startsWith("updated ")).sort(), [`updated kb/${ACTION}.md`, `updated kb/${HELPER}.md`]);
 	const usage = created.find((file) => /^src\/i[0-9a-f]{32}\.ts$/.test(file))!;
 	const hex = usage.slice(5, 37);
 	assert.deepEqual(created.sort(), [
