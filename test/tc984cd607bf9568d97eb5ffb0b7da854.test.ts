@@ -13,7 +13,7 @@ function capeRepo(): string {
 	mkdirSync(join(dir, "kb"));
 	writeFileSync(
 		join(dir, "kb", `${ACTION}.md`),
-		`---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nusages:\n  - greet <who>\n---\n`,
+		`---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n---\n`,
 	);
 	writeFileSync(join(dir, "kb", `${HELPER}.md`), `---\nkind: action\nid: ${HELPER}\nname: shout\ngist: "Shouts"\n---\n`);
 	return dir;

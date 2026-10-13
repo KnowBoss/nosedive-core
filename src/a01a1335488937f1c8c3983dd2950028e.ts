@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { a01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./a01a1335487e477549d84a6fc2c901bf6.ts";
 
-const FRAMEWORK = new Set(["src/main.ts", "test/harness.ts"]);
+const FRAMEWORK = new Set(["test/harness.ts"]);
 
 export function a01a1335488937f1c8c3983dd2950028e(repoDir: string): string[] {
 	const { docs, entries } = describeCapeSource(repoDir);

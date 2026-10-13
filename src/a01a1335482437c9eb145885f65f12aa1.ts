@@ -1,4 +1,4 @@
-import type { Args } from "./main.ts";
+import type { Args } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 
 type Element =
 	| { kind: "literal"; word: string; optional: boolean }

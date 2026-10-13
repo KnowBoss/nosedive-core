@@ -41,7 +41,7 @@ const { names, entries } = capeIndex(source, id);
 const buildDir = join(repoDir, "build");
 const toEntry = (file) => `./${relative(buildDir, file).replace(/\\/g, "/")}`;
 const entryText = [
-	'import { consoleCtx, launch, type Cape } from "../src/main.ts";',
+	'import { consoleCtx, a01a1336a958f71c7beec4db3195c7966 as launch, type Cape } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";',
 	...Object.values(entries).map((entry) => `import { ${entry.name} } from ${JSON.stringify(toEntry(entry.file))};`),
 	"",
 	`export const id = ${JSON.stringify(id)};`,

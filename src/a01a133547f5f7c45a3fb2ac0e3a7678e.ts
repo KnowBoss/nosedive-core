@@ -1,4 +1,4 @@
-import type { ActionCall } from "./main.ts";
+import type { ActionCall } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 import { ic984cd607bf9568d97eb5ffb0b7da854 } from "./ic984cd607bf9568d97eb5ffb0b7da854.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

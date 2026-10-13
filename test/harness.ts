@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
-import { launch, type Cape, type Ctx } from "../src/main.ts";
+import { a01a1336a958f71c7beec4db3195c7966 as launch, type Cape, type Ctx } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 

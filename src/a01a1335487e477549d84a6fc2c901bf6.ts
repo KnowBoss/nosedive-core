@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { CapeDoc } from "./main.ts";
+import type { CapeDoc } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 import { a01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "./a01a13354850c7ba3ba5b8ac41a7b6b11.ts";
 import { a01a133548178739398941123114401ad as usageId } from "./a01a133548178739398941123114401ad.ts";
 
@@ -15,7 +15,8 @@ export function a01a1335487e477549d84a6fc2c901bf6(repoDir: string): CapeSource {
 	for (const doc of listKbDocs(join(repoDir, "kb"))) {
 		if (doc.fm.kind !== "action") continue;
 		const id = String(doc.fm.id);
-		const usages = Array.isArray(doc.fm.usages) ? doc.fm.usages.map(String) : [];
+		const meta = (doc.fm.meta ?? {}) as { usages?: unknown };
+		const usages = Array.isArray(meta.usages) ? meta.usages.map(String) : [];
 		docs[id] = {
 			name: String(doc.fm.name ?? ""),
 			gist: String(doc.fm.gist ?? ""),

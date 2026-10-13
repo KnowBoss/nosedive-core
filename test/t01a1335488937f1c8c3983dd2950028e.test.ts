@@ -18,7 +18,7 @@ test("this repo accounts for every file", () => {
 test("names every way a cape repo can disagree with its docs", () => {
 	const dir = tempDir("check");
 	for (const sub of ["kb", "src", "test"]) mkdirSync(join(dir, sub));
-	writeFileSync(join(dir, "kb", `${ID}.md`), `---\nkind: action\nid: ${ID}\nname: greet\nusages:\n  - wave <who>\n---\n`);
+	writeFileSync(join(dir, "kb", `${ID}.md`), `---\nkind: action\nid: ${ID}\nname: greet\nmeta:\n  usages:\n    - wave <who>\n---\n`);
 	writeFileSync(join(dir, "src", `a${HEX}.ts`), `export function a${HEX}() {}\n`);
 	writeFileSync(join(dir, "src", "stray.ts"), "");
 	const problems = checkCapeSource(dir).join("\n");

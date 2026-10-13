@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Ctx } from "./main.ts";
+import type { Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 import { a01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./a01a1335487e477549d84a6fc2c901bf6.ts";
 import { a01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "./a01a1335488937f1c8c3983dd2950028e.ts";
 
@@ -10,7 +10,9 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 	const { docs, entries } = describeCapeSource(repoDir);
 	const chosen = quid === undefined ? entries : entries.filter((entry) => entry.id === quid);
 	if (chosen.length === 0) throw new Error(quid ? `no action doc ${quid} in ${join(repoDir, "kb")}` : "no action docs in kb/");
-	const types = existsSync(join(repoDir, "src", "main.ts")) ? "./main.ts" : "nosedive-core";
+	// Core imports the launcher's types from its own source; any other cape, from core.
+	const launcher = "a01a1336a958f71c7beec4db3195c7966";
+	const types = existsSync(join(repoDir, "src", `${launcher}.ts`)) ? `./${launcher}.ts` : "nosedive-core";
 
 	const created: string[] = [];
 	const write = (file: string, text: string) => {

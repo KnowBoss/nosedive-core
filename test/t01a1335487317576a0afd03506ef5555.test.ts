@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { Ctx } from "../src/main.ts";
+import type { Ctx } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";
 import { a01a1335487317576a0afd03506ef5555 as readSource } from "../src/a01a1335487317576a0afd03506ef5555.ts";
 import { tempDir } from "./harness.ts";
 

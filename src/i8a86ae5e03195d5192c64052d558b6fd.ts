@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { Document } from "yaml";
-import type { Ctx } from "./main.ts";
+import type { Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { a01a1335480c776ba8945020d0af333eb as mintUuid } from "./a01a1335480c776ba8945020d0af333eb.ts";
 import { a01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./a01a1335483aa776cb84df698b04adc06.ts";

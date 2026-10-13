@@ -1,5 +1,3 @@
-// The launcher: finds the action an argv names in the loaded capes, matches a usage, and calls its entrypoint.
-// @see kb/01a13354-7d34-72f3-ad11-9c44b4d5de6e.md
 import { a01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./a01a1335480147d0686528aee80f8ee34.ts";
 import { a01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./a01a1335482437c9eb145885f65f12aa1.ts";
 
@@ -34,7 +32,7 @@ export type Cape = {
 };
 
 /** Runs one command line against the capes in `ctx`, first match wins; returns the exit code. */
-export async function launch(argv: string[], ctx: Ctx): Promise<number> {
+export async function a01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx): Promise<number> {
 	try {
 		const [name, ...rest] = argv;
 		if (name === undefined || name === "help" || name === "--help") {
