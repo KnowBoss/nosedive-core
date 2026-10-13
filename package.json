@@ -1,0 +1,27 @@
+{
+	"name": "nosedive-core",
+	"version": "0.0.0",
+	"private": true,
+	"description": "nosedive's core cape: the launcher, the basic actions, and the functions other capes import.",
+	"license": "UNLICENSED",
+	"author": "Dan Stace <dstace@gmail.com>",
+	"type": "module",
+	"engines": {
+		"node": ">=24"
+	},
+	"scripts": {
+		"dev": "node --disable-warning=ExperimentalWarning scripts/dev.mjs",
+		"check": "node --disable-warning=ExperimentalWarning scripts/check.mjs",
+		"typecheck": "tsc",
+		"test": "npm run check && node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\"",
+		"build": "node --disable-warning=ExperimentalWarning scripts/build.mjs"
+	},
+	"dependencies": {
+		"yaml": "^2.9.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.0.0",
+		"esbuild": "^0.25.0",
+		"typescript": "^5.9.0"
+	}
+}
