@@ -58,11 +58,21 @@ export function gitRepo(label: string): string {
 export const GREET = "01a1337c-830d-7ef7-b5b2-ab0bc3a666e9";
 const NAMESPACED_UUID = "01a13354-8014-7d06-8652-8aee80f8ee34";
 
+export const REPO_TESTS_PASS = "01a138b2-b8f3-7d32-82d2-274fae0f5007";
+
+/** Makes a repo a bridge whose root links core's repo-tests-pass gate as its test gate. */
+function asBridge(dir: string, files: Record<string, string>): void {
+	const root = mintUuid();
+	files[".nosedive/config.yaml"] = `bridge: ${mintUuid()}\nkb: ./kb\nbacklog: ${root}\n`;
+	files[`kb/${root}.md`] = `---\nkind: memo\nid: ${root}\nname: root\nlinks:\n  - nosedive-core:${REPO_TESTS_PASS}:\n      rel: test.gate\n---\n`;
+}
+
 /**
  * A committed cape repo with one action, `greet <who>`, whose impl imports core's namespaced-uuid.
- * `link: false` leaves that import unlinked; `importing` swaps the imported core doc.
+ * `link: false` leaves that import unlinked; `importing` swaps the imported core doc. `bridge`
+ * seeds it with a root linking core's test gate; `failing` makes its test fail.
  */
-export function greetCapeRepo(options: { link?: boolean; importing?: string } = {}): string {
+export function greetCapeRepo(options: { link?: boolean; importing?: string; bridge?: boolean; failing?: boolean } = {}): string {
 	const dir = gitRepo("greet-cape");
 	const imported = (options.importing ?? NAMESPACED_UUID).replace(/-/g, "");
 	const usage = usageId("greet <who>", GREET);
@@ -73,8 +83,20 @@ export function greetCapeRepo(options: { link?: boolean; importing?: string } = 
 		[`kb/${GREET}.md`]: `---\nkind: action\nid: ${GREET}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${links}---\n${codeSection("\n# Greet\n", doc, `a${hex}`)}`,
 		[`src/a${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function a${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(String(call.args.who), call.ctx);\n}\n`,
 		[`src/i${usage}.ts`]: `import { a${imported} as namespacedUuid } from "nosedive-core";\n\nexport async function i${usage}(who: string, ctx: { out(text: string): void }) {\n\tctx.out(\`hello \${who} \${namespacedUuid(who, "${GREET}")}\`);\n}\n`,
-		[`test/t${usage}.test.ts`]: 'import { test } from "node:test";\n\ntest("greet <who>", () => {});\n',
+		[`test/t${usage}.test.ts`]: [
+			'import assert from "node:assert/strict";',
+			'import { test } from "node:test";',
+			`import { i${usage} } from "../src/i${usage}.ts";`,
+			"",
+			'test("greet <who>", async () => {',
+			"\tconst out: string[] = [];",
+			`\tawait i${usage}("ann", { out: (text) => void out.push(text) });`,
+			`\tassert.equal(out[0]!.slice(0, 10), ${JSON.stringify(options.failing ? "goodbye an" : "hello ann ")});`,
+			"});",
+			"",
+		].join("\n"),
 	};
+	if (options.bridge) asBridge(dir, files);
 	for (const [file, text] of Object.entries(files)) {
 		mkdirSync(join(dir, dirname(file)), { recursive: true });
 		writeFileSync(join(dir, file), text);
@@ -86,8 +108,11 @@ export function greetCapeRepo(options: { link?: boolean; importing?: string } = 
 
 export const WAVE = "01a13565-da1a-740c-82a8-179828018344";
 
-/** A committed cape repo with one action, `wave <who>`, which runs greet-cape's greet, imported by id, then waves. */
-export function waveCapeRepo(): string {
+/**
+ * A committed cape repo with one action, `wave <who>`, which runs greet-cape's greet, imported by id, then waves.
+ * `bridge` seeds it with a root linking core's test gate.
+ */
+export function waveCapeRepo(options: { bridge?: boolean } = {}): string {
 	const dir = gitRepo("wave-cape");
 	const usage = usageId("wave <who>", WAVE);
 	const greetUsage = usageId("greet <who>", GREET);
@@ -98,8 +123,20 @@ export function waveCapeRepo(): string {
 		[`kb/${WAVE}.md`]: `---\nkind: action\nid: ${WAVE}\nname: wave\ngist: "Waves"\nmeta:\n  usages:\n    - wave <who>\nlinks:\n  - greet-cape:${GREET}:\n      rel: uses.action\n---\n${codeSection("\n# Wave\n", doc, `a${hex}`)}`,
 		[`src/a${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function a${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(call);\n}\n`,
 		[`src/i${usage}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { ${greet} as greet } from "greet-cape";\n\nexport async function i${usage}(call: ActionCall) {\n\tawait greet({ ...call, usage: "u${greetUsage}" });\n\tcall.ctx.out("and waves");\n}\n`,
-		[`test/t${usage}.test.ts`]: 'import { test } from "node:test";\n\ntest("wave <who>", () => {});\n',
+		[`test/t${usage}.test.ts`]: [
+			'import assert from "node:assert/strict";',
+			'import { test } from "node:test";',
+			`import { i${usage} } from "../src/i${usage}.ts";`,
+			"",
+			'test("wave <who>", async () => {',
+			"\tconst out: string[] = [];",
+			`\tawait i${usage}({ usage: "u${usage}", args: { who: "bo" }, ctx: { out: (text: string) => void out.push(text) } } as never);`,
+			'\tassert.equal(out.join("|").replace(/[0-9a-f-]{36}/, "id"), "hello bo id|and waves");',
+			"});",
+			"",
+		].join("\n"),
 	};
+	if (options.bridge) asBridge(dir, files);
 	for (const [file, text] of Object.entries(files)) {
 		mkdirSync(join(dir, dirname(file)), { recursive: true });
 		writeFileSync(join(dir, file), text);

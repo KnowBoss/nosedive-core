@@ -36,6 +36,8 @@ export type Cape = {
 	index: Record<string, unknown>;
 	/** Each kind the cape declares: its name, to its meta schema. */
 	kinds: Record<string, unknown>;
+	/** A module exporting the cape's functions by their ids, for code running outside this process. */
+	url?: string;
 };
 
 /** What a gate is called with. It throws to fail. */
