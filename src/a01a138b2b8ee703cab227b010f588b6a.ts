@@ -7,7 +7,8 @@ import { a01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "./a01a138b2b
 export function a01a138b2b8ee703cab227b010f588b6a(bridge: Bridge, id: string) {
 	const inBridge = findKbDoc(bridge.kbDir, id);
 	if (inBridge) return { ...inBridge, repoDir: bridge.dir, kbDir: bridge.kbDir };
-	const workspace = resolve(bridge.dir, typeof bridge.config.workspace === "string" ? bridge.config.workspace : "workspace");
+	if (typeof bridge.config.workspace !== "string") return undefined;
+	const workspace = resolve(bridge.dir, bridge.config.workspace);
 	if (!existsSync(workspace)) return undefined;
 	for (const entry of readdirSync(workspace, { withFileTypes: true })) {
 		if (!entry.isDirectory() || entry.name.startsWith(".")) continue;

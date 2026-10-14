@@ -58,15 +58,15 @@ export function gitRepo(label: string): string {
 export const GREET = "01a1337c-830d-7ef7-b5b2-ab0bc3a666e9";
 const NAMESPACED_UUID = "01a13354-8014-7d06-8652-8aee80f8ee34";
 
-export const REPO_TESTS_PASS = "01a138b2-b8f3-7d32-82d2-274fae0f5007";
+export const CAPE_TESTS_PASS = "01a138b2-b8f3-7d32-82d2-274fae0f5007";
 
 type Fixture = { gated?: boolean; plain?: boolean };
 
-/** Makes a repo a cape: a bridge whose root is a cape, linking core's repo-tests-pass when gated. */
+/** Makes a repo a cape: a bridge whose root is a cape, linking core's cape-tests-pass when gated. */
 function asCape(files: Record<string, string>, options: Fixture): void {
 	if (options.plain) return;
 	const root = mintUuid();
-	const gate = options.gated ? `links:\n  - nosedive-core:${REPO_TESTS_PASS}:\n      rel: test.gate\n` : "";
+	const gate = options.gated ? `links:\n  - nosedive-core:${CAPE_TESTS_PASS}:\n      rel: test.gate\n` : "";
 	files[".nosedive/config.yaml"] = `self: ${mintUuid()}\nkb: ./kb\nroot: ${root}\n`;
 	files[`kb/${root}.md`] = `---\nkind: cape\nid: ${root}\nname: root\n${gate}---\n`;
 }
@@ -176,9 +176,9 @@ export function checkedOut(bridge: string, name: string): string {
 	return dir;
 }
 
-/** A seeded bridge in a fresh temp repo. */
+/** A base, seeded in a fresh temp repo: the repo a team works from, with a workspace. */
 export async function tempBridge(label: string): Promise<string> {
 	const dir = gitRepo(label);
-	ok(await run(["seed"], dir));
+	ok(await run(["seed", "--root-kind", "base"], dir));
 	return dir;
 }

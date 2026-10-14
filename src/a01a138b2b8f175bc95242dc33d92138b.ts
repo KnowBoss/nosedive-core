@@ -49,7 +49,8 @@ export function a01a138b2b8f175bc95242dc33d92138b(ctx: GateCtx): void {
 /** The cape repos checked out in the bridge's workspace, other than the one being tested. */
 function workspaceCapes(ctx: GateCtx): [string, string][] {
 	const bridge = findBridge(ctx.bridgeDir);
-	const workspace = resolve(ctx.bridgeDir, typeof bridge?.config.workspace === "string" ? bridge.config.workspace : "workspace");
+	if (typeof bridge?.config.workspace !== "string") return [];
+	const workspace = resolve(ctx.bridgeDir, bridge.config.workspace);
 	if (!existsSync(workspace)) return [];
 	return readdirSync(workspace, { withFileTypes: true })
 		.filter((entry) => entry.isDirectory() && resolve(workspace, entry.name) !== resolve(ctx.repoDir))

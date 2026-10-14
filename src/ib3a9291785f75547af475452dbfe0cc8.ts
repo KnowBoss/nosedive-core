@@ -9,6 +9,7 @@ import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c6
 import { a01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./a01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { a01a1337c81b57799820f96a757b791d0 as buildCape } from "./a01a1337c81b57799820f96a757b791d0.ts";
 import { a01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./a01a138b2b8ef7e8097e19d599ba39bcc.ts";
+import { a01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./a01a13354845c7253a55b60bba87285d8.ts";
 
 const CAPES_IGNORE = ".nosedive/capes/";
 
@@ -37,6 +38,9 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 		config.set("root", rootId);
 		changed.push(rootPath);
 	}
+	// A base is a repo other repos are checked out in, so only a base has a workspace.
+	const isBase = findKbDoc(kbDir, String(config.get("root") ?? config.get("backlog")))?.fm.kind === "base";
+	if (isBase && !config.has("workspace")) config.set("workspace", "./workspace");
 	const configText = config.toString({ lineWidth: 0 });
 	if (!existsSync(configPath) || readFileSync(configPath, "utf8") !== configText) {
 		mkdirSync(join(dir, ".nosedive"), { recursive: true });
@@ -46,8 +50,8 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 
 	const ignorePath = join(dir, ".gitignore");
 	const ignore = existsSync(ignorePath) ? readFileSync(ignorePath, "utf8") : "";
-	const workspace = `${String(config.get("workspace") ?? "workspace").replace(/^\.\//, "").replace(/\/$/, "")}/`;
-	const missing = [CAPES_IGNORE, workspace].filter((line) => !ignore.split(/\r?\n/).includes(line));
+	const workspace = config.has("workspace") ? [`${String(config.get("workspace")).replace(/^\.\//, "").replace(/\/$/, "")}/`] : [];
+	const missing = [CAPES_IGNORE, ...workspace].filter((line) => !ignore.split(/\r?\n/).includes(line));
 	if (missing.length > 0) {
 		writeFileSync(ignorePath, `${ignore}${ignore && !ignore.endsWith("\n") ? "\n" : ""}${missing.map((line) => `${line}\n`).join("")}`);
 		changed.push(ignorePath);

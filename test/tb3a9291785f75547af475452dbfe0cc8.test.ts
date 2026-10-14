@@ -14,7 +14,7 @@ test("makes a git repo a bridge, in one commit", async () => {
 	const root = /\nroot: (\S+)\n/.exec(config)?.[1];
 	assert.equal(config, `self: ${bridge}\nkb: ./kb\nroot: ${root}\n`);
 	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), new RegExp(`^---\\nkind: memo\\nid: ${root}\\nname: root\\n`));
-	assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), ".nosedive/capes/\nworkspace/\n");
+	assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), ".nosedive/capes/\n", "only a base has a workspace");
 	assert.equal(git(["log", "--format=%s"], dir), `seed: bridge ${bridge} set up`);
 	assert.equal(git(["status", "--porcelain"], dir), "");
 });
@@ -23,11 +23,11 @@ test("leaves an existing bridge's config alone, and says it is seeded", async ()
 	const dir = gitRepo("seed-again");
 	ok(await run(["seed"], dir));
 	const config = join(dir, ".nosedive", "config.yaml");
-	writeFileSync(config, `${readFileSync(config, "utf8")}workspace: ./workspace # kept\n`);
+	writeFileSync(config, `${readFileSync(config, "utf8")}custom: value # kept\n`);
 	git(["commit", "-qam", "custom"], dir);
 	const out = ok(await run(["seed"], dir));
 	assert.match(out, /^bridge \S+ is already seeded$/);
-	assert.match(readFileSync(config, "utf8"), /workspace: \.\/workspace # kept\n/);
+	assert.match(readFileSync(config, "utf8"), /custom: value # kept\n/);
 });
 
 test("builds the capes config names, so their actions run", async () => {
@@ -82,4 +82,18 @@ test("takes a config's backlog as its root, and adds no other", async () => {
 	const before = readFileSync(config, "utf8");
 	ok(await run(["seed"], dir));
 	assert.equal(readFileSync(config, "utf8"), before);
+});
+
+test("a base gets a workspace, ignored; nothing else can check a repo out", async () => {
+	const base = gitRepo("seed-base");
+	ok(await run(["seed", "--root-kind", "base"], base));
+	assert.match(readFileSync(join(base, ".nosedive", "config.yaml"), "utf8"), /\nworkspace: \.\/workspace\n/);
+	assert.equal(readFileSync(join(base, ".gitignore"), "utf8"), ".nosedive/capes/\nworkspace/\n");
+
+	const memo = gitRepo("seed-not-base");
+	ok(await run(["seed"], memo));
+	await registerRepo(memo, "greet-cape", greetCapeRepo());
+	const refused = await run(["test", "greet-cape"], memo);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, /greet-cape cannot be checked out here: only a base has a workspace \(`nosedive seed --root-kind base`\)/);
 });

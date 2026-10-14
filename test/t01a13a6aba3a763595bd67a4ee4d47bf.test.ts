@@ -22,5 +22,5 @@ test("reads the root the config names, as root or as backlog, and its kind", asy
 test("finds nothing for a repo that is no bridge, even inside a bridge's workspace", async () => {
 	const bridge = await tempBridge("find-root-none");
 	assert.equal(findRoot(checkedOut(bridge, "plain")), undefined);
-	assert.equal(findRoot(bridge)?.kind, "memo", "a seeded bridge has a memo root");
+	assert.equal(findRoot(bridge)?.kind, "base", "a base's root is a base");
 });
