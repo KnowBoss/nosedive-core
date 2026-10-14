@@ -12,7 +12,7 @@ test("makes a git repo a bridge, in one commit", async () => {
 	assert.ok(bridge, out);
 	const config = readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8");
 	const root = /\nroot: (\S+)\n/.exec(config)?.[1];
-	assert.equal(config, `bridge: ${bridge}\nkb: ./kb\nroot: ${root}\n`);
+	assert.equal(config, `self: ${bridge}\nkb: ./kb\nroot: ${root}\n`);
 	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), new RegExp(`^---\\nkind: memo\\nid: ${root}\\nname: root\\n`));
 	assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), ".nosedive/capes/\nworkspace/\n");
 	assert.equal(git(["log", "--format=%s"], dir), `seed: bridge ${bridge} set up`);
