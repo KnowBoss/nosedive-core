@@ -36,6 +36,10 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 			writeKbDoc(raw.path, raw.yaml, body);
 			updated.push(`kb/${entry.id}.md`);
 		}
+		if (doc.kind === "gate") {
+			write(`src/${entry.name}.ts`, gateStub(entry.name, doc.name, types));
+			continue;
+		}
 		if (doc.usages.length === 0) {
 			write(`src/${entry.name}.ts`, internalStub(entry.name, doc.name));
 			write(`test/t${hex}.test.ts`, testStub(doc.name));
@@ -87,6 +91,17 @@ function implStub(name: string, usage: string, types: string): string {
 		"",
 		`export async function ${name}(args: Args, ctx: Ctx): Promise<void> {`,
 		`\tthrow new Error(${JSON.stringify(`not written yet: ${usage}`)});`,
+		"}",
+		"",
+	].join("\n");
+}
+
+function gateStub(name: string, gate: string, types: string): string {
+	return [
+		`import type { GateCtx } from "${types}";`,
+		"",
+		`export async function ${name}(ctx: GateCtx): Promise<void> {`,
+		`\tthrow new Error(${JSON.stringify(`not written yet: ${gate}`)});`,
 		"}",
 		"",
 	].join("\n");

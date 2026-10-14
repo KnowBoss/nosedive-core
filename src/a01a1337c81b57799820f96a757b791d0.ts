@@ -90,6 +90,7 @@ export async function a01a1337c81b57799820f96a757b791d0(
 			`export const core = ${JSON.stringify(core.id)};`,
 			`export const needs = ${JSON.stringify(needs)};`,
 			`export const docs = ${JSON.stringify(source.docs)};`,
+			`export const kinds = ${JSON.stringify(source.kinds)};`,
 			"export const index = {",
 			...Object.entries(names).map(([key, docId]) => `\t${JSON.stringify(key)}: ${JSON.stringify(docId)},`),
 			...Object.entries(entries).map(([key, entry]) => `\t${JSON.stringify(key)}: ${entry.name},`),

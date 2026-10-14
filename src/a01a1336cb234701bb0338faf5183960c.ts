@@ -4,7 +4,9 @@ export function a01a1336cb234701bb0338faf5183960c(body: string, doc: CapeDoc, en
 	const hex = entryName.slice(1);
 	const file = (path: string) => `[${path}](../${path})`;
 	const lines = ["## Code", ""];
-	if (doc.usages.length === 0) {
+	if (doc.kind === "gate") {
+		lines.push(`- Gate: ${file(`src/${entryName}.ts`)}`);
+	} else if (doc.usages.length === 0) {
 		lines.push(`- Function: ${file(`src/${entryName}.ts`)}`, `- Tests: ${file(`test/t${hex}.test.ts`)}`);
 	} else {
 		lines.push(`- Entrypoint: ${file(`src/${entryName}.ts`)}`);

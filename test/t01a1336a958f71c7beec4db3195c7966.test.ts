@@ -5,7 +5,7 @@ import { greetCapeRepo, ok, registerRepo, run, setActions, tempBridge, tempDir }
 
 test("lists core's top-level actions, never internal functions", async () => {
 	const out = ok(await run([], tempDir("launch-help")));
-	assert.match(out, /^Usage: nosedive <action> \[<args>\]\n\n {2}mint {2}Prints new uuid v7 ids/);
+	assert.match(out, /^Usage: nosedive <action> \[<args>\]\n\n {2}crud {2}Reads, mints and edits kb docs\n {2}mint {2}Prints new uuid v7 ids/);
 	assert.match(out, /\n {2}scaf {2}Writes the files/);
 	assert.match(out, /\n {2}seed {2}Makes the current git repo a bridge/);
 	assert.doesNotMatch(out, /match-usage|launch/);

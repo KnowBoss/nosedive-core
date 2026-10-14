@@ -27,7 +27,8 @@ export function a01a1335488937f1c8c3983dd2950028e(repoDir: string): string[] {
 		expected.add(entryFile);
 		const entrySource = exportingSource(repoDir, entryFile, entry.name, label, problems);
 
-		if (doc.usages.length === 0) {
+		// A gate is a test, so it has none of its own.
+		if (doc.kind === "action" && doc.usages.length === 0) {
 			expected.add(`test/t${hex}.test.ts`);
 			if (!existsSync(join(repoDir, `test/t${hex}.test.ts`))) problems.push(`${label}: missing test/t${hex}.test.ts`);
 		}

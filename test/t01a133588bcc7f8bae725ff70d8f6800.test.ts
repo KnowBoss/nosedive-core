@@ -25,5 +25,5 @@ test("sets, then removes, one field and commits each change", async () => {
 test("refuses outside a bridge and for a missing doc", async () => {
 	assert.throws(() => updateKbDocField(tempDir("update-none"), "x", "f", () => 1), /not in a bridge/);
 	const bridge = await tempBridge("update-missing");
-	assert.throws(() => updateKbDocField(bridge, "01a1335b-f3bd-7ef4-9eb1-98115e3ba276", "f", () => 1), /no doc 01a1335b-f3bd/);
+	assert.throws(() => updateKbDocField(bridge, "01a1335b-f3bd-7ef4-9eb1-98115e3ba276", "f", () => 1), /no doc 01a1335b-f3bd-7ef4-9eb1-98115e3ba276 in the bridge or its workspace/);
 });

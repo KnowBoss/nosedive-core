@@ -68,7 +68,7 @@ export function greetCapeRepo(options: { link?: boolean; importing?: string } = 
 	const usage = usageId("greet <who>", GREET);
 	const hex = GREET.replace(/-/g, "");
 	const links = options.link === false ? "" : `links:\n  - nosedive-core:${options.importing ?? NAMESPACED_UUID}:\n      rel: uses.action\n`;
-	const doc = { name: "greet", gist: "Greets", usages: [{ id: usage, text: "greet <who>" }], top: true, text: "", body: "" };
+	const doc = { kind: "action" as const, name: "greet", gist: "Greets", usages: [{ id: usage, text: "greet <who>" }], top: true, text: "", body: "" };
 	const files: Record<string, string> = {
 		[`kb/${GREET}.md`]: `---\nkind: action\nid: ${GREET}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${links}---\n${codeSection("\n# Greet\n", doc, `a${hex}`)}`,
 		[`src/a${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function a${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(String(call.args.who), call.ctx);\n}\n`,
@@ -93,7 +93,7 @@ export function waveCapeRepo(): string {
 	const greetUsage = usageId("greet <who>", GREET);
 	const hex = WAVE.replace(/-/g, "");
 	const greet = `a${GREET.replace(/-/g, "")}`;
-	const doc = { name: "wave", gist: "Waves", usages: [{ id: usage, text: "wave <who>" }], top: true, text: "", body: "" };
+	const doc = { kind: "action" as const, name: "wave", gist: "Waves", usages: [{ id: usage, text: "wave <who>" }], top: true, text: "", body: "" };
 	const files: Record<string, string> = {
 		[`kb/${WAVE}.md`]: `---\nkind: action\nid: ${WAVE}\nname: wave\ngist: "Waves"\nmeta:\n  usages:\n    - wave <who>\nlinks:\n  - greet-cape:${GREET}:\n      rel: uses.action\n---\n${codeSection("\n# Wave\n", doc, `a${hex}`)}`,
 		[`src/a${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function a${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(call);\n}\n`,
@@ -122,6 +122,17 @@ export function setActions(bridge: string, actions: Record<string, string>): voi
 	const config = join(bridge, ".nosedive", "config.yaml");
 	const kept = readFileSync(config, "utf8").replace(/\nactions:\n( {2}.*\n)*/, "\n");
 	writeFileSync(config, `${kept}actions:\n${Object.entries(actions).map(([action, spec]) => `  ${action}: ${spec}\n`).join("")}`);
+}
+
+/** A git repo with an empty kb, checked out at `workspace/<name>` in a bridge. */
+export function checkedOut(bridge: string, name: string): string {
+	const dir = join(bridge, "workspace", name);
+	mkdirSync(join(dir, "kb"), { recursive: true });
+	git(["init", "-q", "-b", "main"], dir);
+	git(["config", "user.name", "Core Test"], dir);
+	git(["config", "user.email", "core@example.com"], dir);
+	git(["commit", "-q", "--allow-empty", "-m", "start"], dir);
+	return dir;
 }
 
 /** A seeded bridge in a fresh temp repo. */

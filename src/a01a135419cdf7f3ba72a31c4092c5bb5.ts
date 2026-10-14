@@ -11,5 +11,5 @@ export async function a01a135419cdf7f3ba72a31c4092c5bb5(repoDir: string, id: str
 	for (const [key, entry] of Object.entries(entries)) {
 		if (existsSync(entry.file)) index[key] = (await import(pathToFileURL(entry.file).href))[entry.name];
 	}
-	return { id, name, commit: "source", version: "source", docs: source.docs, index };
+	return { id, name, commit: "source", version: "source", docs: source.docs, index, kinds: source.kinds };
 }

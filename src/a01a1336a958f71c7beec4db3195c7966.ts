@@ -16,6 +16,7 @@ export type Args = Record<string, string | string[] | boolean | undefined>;
 export type ActionCall = { usage: string; args: Args; ctx: Ctx };
 
 export type CapeDoc = {
+	kind: "action" | "gate";
 	name: string;
 	gist: string;
 	usages: { id: string; text: string }[];
@@ -33,6 +34,18 @@ export type Cape = {
 	version: string;
 	docs: Record<string, CapeDoc>;
 	index: Record<string, unknown>;
+	/** Each kind the cape declares: its name, to its meta schema. */
+	kinds: Record<string, unknown>;
+};
+
+/** What a gate is called with. It throws to fail. */
+export type GateCtx = {
+	core: Cape;
+	/** The repo the gate checks. */
+	repoDir: string;
+	bridgeDir: string;
+	out(text: string): void;
+	err(text: string): void;
 };
 
 /** Runs one command line, core's actions first and never shadowed; returns the exit code. */
