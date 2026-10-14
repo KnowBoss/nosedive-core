@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { Document, parseDocument } from "yaml";
 import type { Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 import { a01a1335480c776ba8945020d0af333eb as mintUuid } from "./a01a1335480c776ba8945020d0af333eb.ts";
@@ -22,6 +22,16 @@ export async function ie7ff577094bd5fe08f833f3cfaad9b63(noCapes: boolean, ctx: C
 	if (config.errors.length > 0) throw new Error(`${configPath}: ${config.errors[0]!.message}`);
 	if (!config.has("bridge")) config.set("bridge", mintUuid());
 	if (!config.has("kb")) config.set("kb", "./kb");
+	const kbDir = join(dir, String(config.get("kb")));
+	mkdirSync(kbDir, { recursive: true });
+	if (!config.has("backlog")) {
+		// The root every action, kind and gate of this bridge hangs from.
+		const rootId = mintUuid();
+		const rootPath = join(kbDir, `${rootId}.md`);
+		writeFileSync(rootPath, `---\nkind: memo\nid: ${rootId}\nname: root\ngist: ${JSON.stringify(`What ${basename(dir)} holds`)}\n---\n\n# ${basename(dir)}\n`);
+		config.set("backlog", rootId);
+		changed.push(rootPath);
+	}
 	const configText = config.toString({ lineWidth: 0 });
 	if (!existsSync(configPath) || readFileSync(configPath, "utf8") !== configText) {
 		mkdirSync(join(dir, ".nosedive"), { recursive: true });
@@ -29,18 +39,12 @@ export async function ie7ff577094bd5fe08f833f3cfaad9b63(noCapes: boolean, ctx: C
 		changed.push(configPath);
 	}
 
-	const kbDir = join(dir, String(config.get("kb")));
-	const keep = join(kbDir, ".gitkeep");
-	if (!existsSync(kbDir)) {
-		mkdirSync(kbDir, { recursive: true });
-		writeFileSync(keep, "");
-		changed.push(keep);
-	}
-
 	const ignorePath = join(dir, ".gitignore");
 	const ignore = existsSync(ignorePath) ? readFileSync(ignorePath, "utf8") : "";
-	if (!ignore.split(/\r?\n/).includes(CAPES_IGNORE)) {
-		writeFileSync(ignorePath, `${ignore}${ignore && !ignore.endsWith("\n") ? "\n" : ""}${CAPES_IGNORE}\n`);
+	const workspace = `${String(config.get("workspace") ?? "workspace").replace(/^\.\//, "").replace(/\/$/, "")}/`;
+	const missing = [CAPES_IGNORE, workspace].filter((line) => !ignore.split(/\r?\n/).includes(line));
+	if (missing.length > 0) {
+		writeFileSync(ignorePath, `${ignore}${ignore && !ignore.endsWith("\n") ? "\n" : ""}${missing.map((line) => `${line}\n`).join("")}`);
 		changed.push(ignorePath);
 	}
 

@@ -39,7 +39,7 @@ test("<repo>:<kind> mints into that repo's checkout in the workspace, and commit
 	const path = ok(await run(["crud", "other:memo", "over", "there"], bridge));
 	assert.match(path, /^workspace\/other\/kb\/[0-9a-f-]{36}\.md$/);
 	assert.match(git(["log", "-1", "--format=%s"], repo), /^crud\(\S+\): created memo over-there-/);
-	assert.equal(git(["status", "--porcelain"], bridge), "?? workspace/");
+	assert.equal(git(["status", "--porcelain"], bridge), "", "the workspace is ignored");
 	const missing = await run(["crud", "elsewhere:memo", "x"], bridge);
 	assert.equal(missing.code, 1);
 	assert.match(missing.err, /elsewhere is not checked out at workspace\/elsewhere/);
