@@ -1,4 +1,4 @@
-// crud <kind> <gist>... [--name <name>]
+// crud <kind> <gist>... [--name <name>] [--meta <source>]
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -57,4 +57,13 @@ test("checks the kind: warns when nothing declares it, refuses a schema an empty
 	const refused = await run(["crud", "task", "a", "task"], bridge);
 	assert.equal(refused.code, 1);
 	assert.match(refused.err, /meta does not fit kind task:\n {2}meta must have required property 'owner'/);
+});
+
+test("--meta mints the doc with its meta, checked against its kind, so a repo can be registered", async () => {
+	const bridge = await tempBridge("crud-mint-meta");
+	const path = ok(await run(["crud", "repo", "the", "hello", "cape", "--name", "nosedive-hello", "--meta", "-"], bridge, "remotes:\n  local: ../hello\n"));
+	assert.match(readFileSync(join(bridge, path), "utf8"), /\ngist: "the hello cape"\nmeta:\n {2}remotes:\n {4}local: \.\.\/hello\n---\n/);
+	const refused = await run(["crud", "repo", "no", "remotes"], bridge);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, /meta does not fit kind repo:\n {2}meta must have required property 'remotes'/);
 });

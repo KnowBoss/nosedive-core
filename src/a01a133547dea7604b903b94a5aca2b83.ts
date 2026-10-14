@@ -1,6 +1,6 @@
 import type { ActionCall } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 import { if4a09298430355a2a473394fbb5103f2 } from "./if4a09298430355a2a473394fbb5103f2.ts";
-import { i8a86ae5e03195d5192c64052d558b6fd } from "./i8a86ae5e03195d5192c64052d558b6fd.ts";
+import { i6c9390d5a8e5583881960839391345db } from "./i6c9390d5a8e5583881960839391345db.ts";
 import { i3ac641d4a9d757a48df1f1de031be120 } from "./i3ac641d4a9d757a48df1f1de031be120.ts";
 import { i7820a39cffb9511493085038a7e19447 } from "./i7820a39cffb9511493085038a7e19447.ts";
 import { i21be7cc759fb5c758e11cffdb2630902 } from "./i21be7cc759fb5c758e11cffdb2630902.ts";
@@ -13,8 +13,11 @@ export async function a01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 	switch (call.usage) {
 		case "uf4a09298430355a2a473394fbb5103f2": // crud <quid>
 			return if4a09298430355a2a473394fbb5103f2(quid(args.quid), ctx);
-		case "u8a86ae5e03195d5192c64052d558b6fd": // crud <kind> <gist>... [--name <name>]
-			return i8a86ae5e03195d5192c64052d558b6fd({ ...repoKind(args.kind), gist: (args.gist as string[]).join(" "), name: optionalSlug(args.name) }, ctx);
+		case "u6c9390d5a8e5583881960839391345db": // crud <kind> <gist>... [--name <name>] [--meta <source>]
+			return i6c9390d5a8e5583881960839391345db(
+				{ ...repoKind(args.kind), gist: (args.gist as string[]).join(" "), name: optionalSlug(args.name), meta: args.meta as string | undefined },
+				ctx,
+			);
 		case "u3ac641d4a9d757a48df1f1de031be120": // crud <quid> --meta <source>
 			return i3ac641d4a9d757a48df1f1de031be120(quid(args.quid), String(args.meta), ctx);
 		case "u7820a39cffb9511493085038a7e19447": // crud <quid> --scopes <source>
