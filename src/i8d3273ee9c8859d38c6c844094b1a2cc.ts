@@ -1,11 +1,9 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import type { Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 import { a01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./a01a1335480147d0686528aee80f8ee34.ts";
 import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { a01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./a01a13354845c7253a55b60bba87285d8.ts";
 import { a01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./a01a138b2b8ee703cab227b010f588b6a.ts";
 import { a01a138b2b8f0793495b66bc7935c93be as hydrateRepo } from "./a01a138b2b8f0793495b66bc7935c93be.ts";
+import { a01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./a01a13a6aba3a763595bd67a4ee4d47bf.ts";
 
 const QUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 
@@ -23,10 +21,8 @@ export async function i8d3273ee9c8859d38c6c844094b1a2cc(ref: string, ctx: Ctx): 
 		const name = located ? String(located.fm.name) : ref;
 		const repo = hydrateRepo(bridge, name);
 		ctx.out(repo.said);
-		const own = existsSync(join(repo.dir, ".nosedive", "config.yaml")) ? findBridge(repo.dir) : undefined;
-		if (!own || own.dir !== repo.dir) throw new Error(`${name} is not a bridge, so it has no root to link test gates from: seed it`);
-		const root = findKbDoc(own.kbDir, String(own.config.backlog));
-		if (!root) throw new Error(`${name}'s root, ${String(own.config.backlog)}, is not in its kb`);
+		const root = findRoot(repo.dir);
+		if (!root) throw new Error(`${name} is not a bridge with a root, so nothing links test gates for it: seed it`);
 		target = { links: root.fm.links, repoDir: repo.dir, label: `${name}'s root` };
 	}
 

@@ -10,6 +10,7 @@ import { a01a133588c7971b5b116d9c8c1706e04 as capeIndex } from "./a01a133588c797
 import { a01a1337c806075ca96d637c9ece7316e as capeId } from "./a01a1337c806075ca96d637c9ece7316e.ts";
 import { a01a1337c810a7456876b831d0c873396 as capeManifest, type CapeBuild } from "./a01a1337c810a7456876b831d0c873396.ts";
 import { a01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./a01a1337d2c14754f9772dc22c1f2edfc.ts";
+import { a01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./a01a13a6aba3a763595bd67a4ee4d47bf.ts";
 
 const COMMIT = /^[0-9a-f]{40}$/;
 const CORE = "nosedive-core";
@@ -35,6 +36,8 @@ export async function a01a1337c81b57799820f96a757b791d0(
 	const commit = git(dir, "rev-parse", `${target}^{commit}`);
 	git(dir, "checkout", "-q", "--detach", commit);
 
+	const root = findRoot(dir);
+	if (root?.kind !== "cape") throw new Error(`${repo.name} is not a cape: ${root ? `its root is a ${root.kind}` : "it has no root"}`);
 	const problems = checkCapeSource(dir);
 	if (problems.length > 0) throw new Error(`${repo.name} at ${commit.slice(0, 7)} does not check out:\n  ${problems.join("\n  ")}`);
 	const source = describeCapeSource(dir);

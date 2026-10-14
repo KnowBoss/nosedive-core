@@ -8,9 +8,9 @@ import { gitRepo, ok, run } from "./harness.ts";
 const ACTION = "01a1335b-f253-7b80-ab64-d2f9a03c9634";
 const HELPER = "01a1335b-f30a-7dd2-a1d4-b675fd419238";
 
-function capeRepo(): string {
+async function capeRepo(): Promise<string> {
 	const dir = gitRepo("scaf");
-	mkdirSync(join(dir, "kb"));
+	ok(await run(["seed", "--root-kind", "cape"], dir));
 	writeFileSync(
 		join(dir, "kb", `${ACTION}.md`),
 		`---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n---\n`,
@@ -20,7 +20,7 @@ function capeRepo(): string {
 }
 
 test("writes every missing file, then nothing on a second run", async () => {
-	const dir = capeRepo();
+	const dir = await capeRepo();
 	const out = ok(await run(["scaf"], dir));
 	const lines = out.split("\n");
 	const created = lines.filter((line) => line.startsWith("created ")).map((line) => line.slice(8));
@@ -39,7 +39,7 @@ test("writes every missing file, then nothing on a second run", async () => {
 });
 
 test("one action only, and lists what it cannot fix", async () => {
-	const dir = capeRepo();
+	const dir = await capeRepo();
 	mkdirSync(join(dir, "src"));
 	writeFileSync(join(dir, "src", "stray.ts"), "export {};\n");
 	const out = ok(await run(["scaf", HELPER], dir));
@@ -48,4 +48,14 @@ test("one action only, and lists what it cannot fix", async () => {
 	assert.match(out, /still to do:\n(.|\n)*greet .*missing src\/a01a1335bf2537b80ab64d2f9a03c9634\.ts/);
 	assert.match(out, /src\/stray\.ts: no action doc accounts for it/);
 	assert.equal(existsSync(join(dir, "src", "stray.ts")), true);
+});
+
+test("refuses a repo that is not a cape", async () => {
+	const memo = gitRepo("scaf-memo");
+	ok(await run(["seed"], memo));
+	const refused = await run(["scaf"], memo);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, /scaf runs in a cape repo, and this one's root is a memo: `nosedive seed --root-kind cape` makes one/);
+	const bare = await run(["scaf"], gitRepo("scaf-bare"));
+	assert.match(bare.err, /this one has no root/);
 });

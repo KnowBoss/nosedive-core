@@ -63,3 +63,7 @@ test("builds the capes a cape imports first, and runs across them", async () => 
 	assert.match(ok(await run(["seed"], bridge)), /built cape wave-cape/, "a new greet means a new wave");
 	assert.match(ok(await run(["wave", "bo"], bridge)), /^hello bo /);
 });
+
+test("refuses a repo whose root is not a cape", async () => {
+	await assert.rejects((await build(greetCapeRepo({ plain: true }))).built(), /greet-cape is not a cape: it has no root/);
+});

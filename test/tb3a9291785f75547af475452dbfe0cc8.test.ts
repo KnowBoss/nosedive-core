@@ -1,4 +1,4 @@
-// seed [--no-capes]
+// seed [--no-capes] [--root-kind <kind>]
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -11,8 +11,8 @@ test("makes a git repo a bridge, in one commit", async () => {
 	const bridge = /^seeded bridge (\S+)$/.exec(out)?.[1];
 	assert.ok(bridge, out);
 	const config = readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8");
-	const root = /\nbacklog: (\S+)\n/.exec(config)?.[1];
-	assert.equal(config, `bridge: ${bridge}\nkb: ./kb\nbacklog: ${root}\n`);
+	const root = /\nroot: (\S+)\n/.exec(config)?.[1];
+	assert.equal(config, `bridge: ${bridge}\nkb: ./kb\nroot: ${root}\n`);
 	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), new RegExp(`^---\\nkind: memo\\nid: ${root}\\nname: root\\n`));
 	assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), ".nosedive/capes/\nworkspace/\n");
 	assert.equal(git(["log", "--format=%s"], dir), `seed: bridge ${bridge} set up`);
@@ -61,4 +61,25 @@ test("refuses outside a git repo", async () => {
 	const result = await run(["seed"], tempDir("seed-no-git"));
 	assert.equal(result.code, 1);
 	assert.match(result.err, /not a git repo/);
+});
+
+test("--root-kind makes the root a declared kind, such as cape", async () => {
+	const dir = gitRepo("seed-root-kind");
+	ok(await run(["seed", "--root-kind", "cape"], dir));
+	const root = /\nroot: (\S+)\n/.exec(readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8"))?.[1];
+	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), /^---\nkind: cape\n/);
+	const undeclared = await run(["seed", "--root-kind", "ship"], gitRepo("seed-root-ship"));
+	assert.equal(undeclared.code, 1);
+	assert.match(undeclared.err, /no kind ship is declared, so it cannot be the root's kind/);
+});
+
+test("takes a config's backlog as its root, and adds no other", async () => {
+	const dir = gitRepo("seed-backlog");
+	writeFileSync(join(dir, ".gitignore"), "");
+	ok(await run(["seed"], dir));
+	const config = join(dir, ".nosedive", "config.yaml");
+	writeFileSync(config, readFileSync(config, "utf8").replace(/^root: /m, "backlog: "));
+	const before = readFileSync(config, "utf8");
+	ok(await run(["seed"], dir));
+	assert.equal(readFileSync(config, "utf8"), before);
 });

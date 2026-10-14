@@ -7,7 +7,7 @@ import { git, greetCapeRepo, ok, REPO_TESTS_PASS, registerRepo, run, tempBridge,
 
 test("checks a repo out and runs its root's test gates, by name or by its repo doc", async () => {
 	const bridge = await tempBridge("test-repo");
-	const source = greetCapeRepo({ bridge: true });
+	const source = greetCapeRepo({ gated: true });
 	const id = await registerRepo(bridge, "greet-cape", source);
 	const out = ok(await run(["test", "greet-cape"], bridge));
 	assert.match(out, new RegExp(`^workspace/greet-cape: cloned main at ${git(["rev-parse", "--short", "HEAD"], source)}\n`));
@@ -18,22 +18,22 @@ test("checks a repo out and runs its root's test gates, by name or by its repo d
 test("tests the checkout as it is, beside the capes it imports", async () => {
 	const bridge = await tempBridge("test-capes");
 	git(["clone", "-q", greetCapeRepo(), join(bridge, "workspace", "greet-cape")], bridge);
-	await registerRepo(bridge, "wave-cape", waveCapeRepo({ bridge: true }));
+	await registerRepo(bridge, "wave-cape", waveCapeRepo({ gated: true }));
 	assert.match(ok(await run(["test", "wave-cape"], bridge)), /✔ wave <who>[\s\S]*gate repo-tests-pass: passed$/);
 });
 
 test("fails when the repo's tests fail, and refuses a repo that is no bridge", async () => {
 	const bridge = await tempBridge("test-failing");
-	await registerRepo(bridge, "greet-cape", greetCapeRepo({ bridge: true, failing: true }));
+	await registerRepo(bridge, "greet-cape", greetCapeRepo({ gated: true, failing: true }));
 	const failed = await run(["test", "greet-cape"], bridge);
 	assert.equal(failed.code, 1);
 	assert.match(failed.out, /gate repo-tests-pass: failed: the tests of greet-cape failed/);
 	assert.match(failed.err, /1 of 1 test gates failed: repo-tests-pass/);
 
-	await registerRepo(bridge, "plain-cape", greetCapeRepo());
+	await registerRepo(bridge, "plain-cape", greetCapeRepo({ plain: true }));
 	const plain = await run(["test", "plain-cape"], bridge);
 	assert.equal(plain.code, 1);
-	assert.match(plain.err, /plain-cape is not a bridge, so it has no root to link test gates from/);
+	assert.match(plain.err, /plain-cape is not a bridge with a root, so nothing links test gates for it/);
 });
 
 test("runs a doc's own test gates against the repo it lives in", async () => {

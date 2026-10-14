@@ -60,19 +60,23 @@ const NAMESPACED_UUID = "01a13354-8014-7d06-8652-8aee80f8ee34";
 
 export const REPO_TESTS_PASS = "01a138b2-b8f3-7d32-82d2-274fae0f5007";
 
-/** Makes a repo a bridge whose root links core's repo-tests-pass gate as its test gate. */
-function asBridge(dir: string, files: Record<string, string>): void {
+type Fixture = { gated?: boolean; plain?: boolean };
+
+/** Makes a repo a cape: a bridge whose root is a cape, linking core's repo-tests-pass when gated. */
+function asCape(files: Record<string, string>, options: Fixture): void {
+	if (options.plain) return;
 	const root = mintUuid();
-	files[".nosedive/config.yaml"] = `bridge: ${mintUuid()}\nkb: ./kb\nbacklog: ${root}\n`;
-	files[`kb/${root}.md`] = `---\nkind: memo\nid: ${root}\nname: root\nlinks:\n  - nosedive-core:${REPO_TESTS_PASS}:\n      rel: test.gate\n---\n`;
+	const gate = options.gated ? `links:\n  - nosedive-core:${REPO_TESTS_PASS}:\n      rel: test.gate\n` : "";
+	files[".nosedive/config.yaml"] = `bridge: ${mintUuid()}\nkb: ./kb\nroot: ${root}\n`;
+	files[`kb/${root}.md`] = `---\nkind: cape\nid: ${root}\nname: root\n${gate}---\n`;
 }
 
 /**
  * A committed cape repo with one action, `greet <who>`, whose impl imports core's namespaced-uuid.
- * `link: false` leaves that import unlinked; `importing` swaps the imported core doc. `bridge`
- * seeds it with a root linking core's test gate; `failing` makes its test fail.
+ * `link: false` leaves that import unlinked; `importing` swaps the imported core doc. `gated`
+ * links core's test gate from its root; `plain` makes it no bridge at all; `failing` fails its test.
  */
-export function greetCapeRepo(options: { link?: boolean; importing?: string; bridge?: boolean; failing?: boolean } = {}): string {
+export function greetCapeRepo(options: Fixture & { link?: boolean; importing?: string; failing?: boolean } = {}): string {
 	const dir = gitRepo("greet-cape");
 	const imported = (options.importing ?? NAMESPACED_UUID).replace(/-/g, "");
 	const usage = usageId("greet <who>", GREET);
@@ -96,7 +100,7 @@ export function greetCapeRepo(options: { link?: boolean; importing?: string; bri
 			"",
 		].join("\n"),
 	};
-	if (options.bridge) asBridge(dir, files);
+	asCape(files, options);
 	for (const [file, text] of Object.entries(files)) {
 		mkdirSync(join(dir, dirname(file)), { recursive: true });
 		writeFileSync(join(dir, file), text);
@@ -110,9 +114,9 @@ export const WAVE = "01a13565-da1a-740c-82a8-179828018344";
 
 /**
  * A committed cape repo with one action, `wave <who>`, which runs greet-cape's greet, imported by id, then waves.
- * `bridge` seeds it with a root linking core's test gate.
+ * `gated` links core's test gate from its root.
  */
-export function waveCapeRepo(options: { bridge?: boolean } = {}): string {
+export function waveCapeRepo(options: Fixture = {}): string {
 	const dir = gitRepo("wave-cape");
 	const usage = usageId("wave <who>", WAVE);
 	const greetUsage = usageId("greet <who>", GREET);
@@ -136,7 +140,7 @@ export function waveCapeRepo(options: { bridge?: boolean } = {}): string {
 			"",
 		].join("\n"),
 	};
-	if (options.bridge) asBridge(dir, files);
+	asCape(files, options);
 	for (const [file, text] of Object.entries(files)) {
 		mkdirSync(join(dir, dirname(file)), { recursive: true });
 		writeFileSync(join(dir, file), text);

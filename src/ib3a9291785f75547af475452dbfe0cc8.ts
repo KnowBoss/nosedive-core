@@ -8,10 +8,12 @@ import { a01a13354894273b1be253424511ba82c as commitFiles } from "./a01a13354894
 import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { a01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./a01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { a01a1337c81b57799820f96a757b791d0 as buildCape } from "./a01a1337c81b57799820f96a757b791d0.ts";
+import { a01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./a01a138b2b8ef7e8097e19d599ba39bcc.ts";
 
 const CAPES_IGNORE = ".nosedive/capes/";
 
-export async function ie7ff577094bd5fe08f833f3cfaad9b63(noCapes: boolean, ctx: Ctx): Promise<void> {
+export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: boolean; rootKind: string }, ctx: Ctx): Promise<void> {
+	const { noCapes, rootKind } = options;
 	const root = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: ctx.cwd, encoding: "utf8" });
 	if (root.status !== 0) throw new Error("seed makes a git repo a bridge, and this is not a git repo");
 	const dir = root.stdout.trim();
@@ -24,12 +26,14 @@ export async function ie7ff577094bd5fe08f833f3cfaad9b63(noCapes: boolean, ctx: C
 	if (!config.has("kb")) config.set("kb", "./kb");
 	const kbDir = join(dir, String(config.get("kb")));
 	mkdirSync(kbDir, { recursive: true });
-	if (!config.has("backlog")) {
-		// The root every action, kind and gate of this bridge hangs from.
+	// `backlog` is the root's older name; a bridge with either has its root.
+	if (!config.has("root") && !config.has("backlog")) {
+		// The root every action, kind and gate of this bridge hangs from; its kind says what the repo is.
+		if (checkMeta(rootKind, {}, [kbDir], ctx.capes)) throw new Error(`no kind ${rootKind} is declared, so it cannot be the root's kind`);
 		const rootId = mintUuid();
 		const rootPath = join(kbDir, `${rootId}.md`);
-		writeFileSync(rootPath, `---\nkind: memo\nid: ${rootId}\nname: root\ngist: ${JSON.stringify(`What ${basename(dir)} holds`)}\n---\n\n# ${basename(dir)}\n`);
-		config.set("backlog", rootId);
+		writeFileSync(rootPath, `---\nkind: ${rootKind}\nid: ${rootId}\nname: root\ngist: ${JSON.stringify(`What ${basename(dir)} holds`)}\n---\n\n# ${basename(dir)}\n`);
+		config.set("root", rootId);
 		changed.push(rootPath);
 	}
 	const configText = config.toString({ lineWidth: 0 });

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
+import { a01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./a01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { a01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./a01a1335487e477549d84a6fc2c901bf6.ts";
 import { a01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "./a01a1335488937f1c8c3983dd2950028e.ts";
 import { a01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./a01a13354845c7253a55b60bba87285d8.ts";
@@ -10,6 +11,10 @@ import { a01a1336cb234701bb0338faf5183960c as codeSection } from "./a01a1336cb23
 
 export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined, ctx: Ctx): Promise<void> {
 	const repoDir = gitRoot(ctx.cwd);
+	const root = findRoot(repoDir);
+	if (root?.kind !== "cape") {
+		throw new Error(`scaf runs in a cape repo, and ${root ? `this one's root is a ${root.kind}` : "this one has no root"}: \`nosedive seed --root-kind cape\` makes one`);
+	}
 	const { docs, entries } = describeCapeSource(repoDir);
 	const chosen = quid === undefined ? entries : entries.filter((entry) => entry.id === quid);
 	if (chosen.length === 0) throw new Error(quid ? `no action doc ${quid} in ${join(repoDir, "kb")}` : "no action docs in kb/");
