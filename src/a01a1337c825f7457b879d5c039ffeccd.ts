@@ -3,29 +3,20 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Cape, Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { a01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./a01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { a01a1337c810a7456876b831d0c873396 as capeManifest, type CapeBuild } from "./a01a1337c810a7456876b831d0c873396.ts";
+import { a01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./a01a141f869bf7f76b5bc81aa991ff9b9.ts";
 
-const COMMIT = /^[0-9a-f]{40}$/;
 type Loaded = { __nosediveCore?: Cape; __nosediveCapes?: Record<string, Cape> };
 
+/** Loads the configured cape whose build provides `action`; undefined when none does. */
 export async function a01a1337c825f7457b879d5c039ffeccd(ctx: Ctx, action: string, core: Cape): Promise<Cape | undefined> {
 	const bridge = findBridge(ctx.cwd);
-	const actions = bridge?.config.actions as Record<string, unknown> | undefined;
-	const spec = actions?.[action];
-	if (!bridge || typeof spec !== "string") return undefined;
-	const [repoName, ref = ""] = spec.split("@", 2) as [string, string | undefined];
-	const repo = findRepoDoc(bridge, repoName);
-
-	const builds = capeManifest(bridge.dir);
-	const built = builds
-		.filter((build) => build.repo === repo.id && build.core === core.id && (COMMIT.test(ref) ? build.commit === ref : build.ref === ref))
-		.sort((a, b) => a.builtAt.localeCompare(b.builtAt))
-		.at(-1);
-	const missing = `${action} needs the ${repoName} cape at ${ref || "its trunk"}, built for this core: run \`nosedive seed\``;
-	if (!built) throw new Error(missing);
+	if (!bridge) return undefined;
+	const built = configuredCapes(bridge, core).find((cape) => cape.build?.actions?.[action] !== undefined)?.build;
+	if (!built) return undefined;
+	const missing = `${action} needs capes this core has not built: run \`nosedive seed\``;
 	(globalThis as Loaded).__nosediveCore = core;
-	return load(bridge.dir, built, builds, missing);
+	return load(bridge.dir, built, capeManifest(bridge.dir), missing);
 }
 
 /** Loads a cape after the capes it imports, each published where their imports look for it. */

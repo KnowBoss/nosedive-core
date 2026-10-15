@@ -3,13 +3,16 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { Document, parseDocument } from "yaml";
 import type { Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
-import { a01a1335480c776ba8945020d0af333eb as mintUuid } from "./a01a1335480c776ba8945020d0af333eb.ts";
 import { a01a13354894273b1be253424511ba82c as commitFiles } from "./a01a13354894273b1be253424511ba82c.ts";
 import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { a01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./a01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { a01a1337c81b57799820f96a757b791d0 as buildCape } from "./a01a1337c81b57799820f96a757b791d0.ts";
 import { a01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./a01a138b2b8ef7e8097e19d599ba39bcc.ts";
 import { a01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./a01a13354845c7253a55b60bba87285d8.ts";
+import { a01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./a01a141f869c07c4da8288927a559c8ae.ts";
+import { a01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./a01a141f869bf7f76b5bc81aa991ff9b9.ts";
+import { a01a141fbba027b2684d5b1c1879d9337 as actionClashes } from "./a01a141fbba027b2684d5b1c1879d9337.ts";
+import { a01a1337c810a7456876b831d0c873396 as capeManifest } from "./a01a1337c810a7456876b831d0c873396.ts";
 
 /** Relative to .nosedive/: built capes, and what this checkout remembers for itself. */
 const NOSEDIVE_IGNORES = ["capes/", "local/"];
@@ -49,13 +52,17 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 	if (!config.has("root") && !config.has("backlog")) {
 		// The root every action, kind and gate of this bridge hangs from; its kind says what the repo is.
 		if (checkMeta(rootKind, {}, [kbDir], ctx.capes)) throw new Error(`no kind ${rootKind} is declared, so it cannot be the root's kind`);
-		const rootId = mintUuid();
-		const rootPath = join(kbDir, `${rootId}.md`);
+		// The root takes the repo's name, which is what bases call it: a cape's name is its root's.
 		// A base is a repo other repos are checked out in; its workspace is where.
-		const meta = rootKind === "base" ? "meta:\n  workspace: ./workspace\n" : "";
-		writeFileSync(rootPath, `---\nkind: ${rootKind}\nid: ${rootId}\nname: root\ngist: ${JSON.stringify(`What ${basename(dir)} holds`)}\n${meta}---\n\n# ${basename(dir)}\n`);
-		config.set("root", rootId);
-		changed.push(rootPath);
+		const root = mintKbDoc(kbDir, {
+			kind: rootKind,
+			name: basename(dir),
+			gist: `What ${basename(dir)} holds`,
+			title: basename(dir),
+			meta: rootKind === "base" ? { workspace: "./workspace" } : undefined,
+		});
+		config.set("root", root.id);
+		changed.push(root.path);
 	}
 	const configText = config.toString({ lineWidth: 0 });
 	if (!existsSync(configPath) || readFileSync(configPath, "utf8") !== configText) {
@@ -87,25 +94,31 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 		ctx.out(`${repo} is already seeded`);
 	}
 
-	const actions = (config.toJS()?.actions ?? {}) as Record<string, unknown>;
+	if (noCapes) return;
 	const core = ctx.capes[0]!;
-	const shadowing = Object.keys(actions).filter((action) =>
-		Object.values(core.docs).some((doc) => doc.name === action && doc.usages.length > 0),
-	);
-	if (shadowing.length > 0) {
-		throw new Error(`config actions cannot replace core's own: remove ${shadowing.join(", ")} from ${configPath}`);
-	}
-	const specs = [...new Set(Object.values(actions).filter((spec): spec is string => typeof spec === "string"))];
-	if (noCapes || specs.length === 0) return;
 	const bridgeAt = findBridge(dir)!;
-	for (const spec of specs) {
-		const [repoName, ref = ""] = spec.split("@", 2) as [string, string | undefined];
-		const built = await buildCape(bridgeAt, findRepoDoc(bridgeAt, repoName), ref, core);
-		if (!built.fresh) {
-			ctx.out(`cape ${spec} is built`);
-			continue;
+	const failed: string[] = [];
+	for (const cape of configuredCapes(bridgeAt, core)) {
+		try {
+			const built = await buildCape(bridgeAt, cape.repo ?? findRepoDoc(bridgeAt, cape.name), cape.ref, core);
+			if (!built.fresh) ctx.out(`cape ${cape.spec} is built`);
+			else ctx.out(`built cape ${cape.spec} ${built.version} (${built.commit.slice(0, 7)}): ${Object.keys(built.actions).join(", ") || "no actions"}`);
+		} catch (err) {
+			failed.push(`${cape.spec}: ${err instanceof Error ? err.message : String(err)}${lastBuilt(bridgeAt.dir, cape.name, cape.repo?.id, core.id)}`);
 		}
-		const serves = Object.keys(actions).filter((action) => actions[action] === spec);
-		ctx.out(`built cape ${spec} ${built.version} (${built.commit.slice(0, 7)}) for ${serves.join(", ")}`);
 	}
+	const built = configuredCapes(bridgeAt, core).flatMap((cape) => (cape.build ? [{ name: cape.name, actions: cape.build.actions }] : []));
+	const clashes = actionClashes(core, built);
+	if (clashes.length > 0) failed.push(`capes clash, so drop or pin one of them:\n  ${clashes.join("\n  ")}`);
+	if (failed.length > 0) throw new Error(`some capes are not usable:\n${failed.map((failure) => `- ${failure}`).join("\n")}`);
+}
+
+/** Where a cape that failed to build last built: the way back to a core it works with. */
+function lastBuilt(bridgeDir: string, name: string, repo: string | undefined, coreId: string): string {
+	const last = capeManifest(bridgeDir)
+		.filter((build) => build.repo === repo && build.core !== coreId && build.coreVersion)
+		.sort((a, b) => a.builtAt.localeCompare(b.builtAt))
+		.at(-1);
+	if (!last) return "";
+	return `\n  it last built at ${last.commit.slice(0, 7)} with core ${last.coreVersion}: pin it there, as \`${name}@${last.commit}\` in config \`capes\`, or go back to that core`;
 }

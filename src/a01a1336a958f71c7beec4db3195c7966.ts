@@ -2,6 +2,7 @@ import { a01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./a01a13354
 import { a01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./a01a1335482437c9eb145885f65f12aa1.ts";
 import { a01a1337c825f7457b879d5c039ffeccd as findCape } from "./a01a1337c825f7457b879d5c039ffeccd.ts";
 import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { a01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./a01a141f869bf7f76b5bc81aa991ff9b9.ts";
 
 export type Ctx = {
 	cwd: string;
@@ -64,7 +65,7 @@ export async function a01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 			if (cape) {
 				ctx.capes = [...ctx.capes, cape];
 				found = findAction([cape], name);
-				if (!found) throw new Error(`config names the ${cape.name} cape for ${name}, which has no such action`);
+				if (!found) throw new Error(`the ${cape.name} cape was built with ${name}, but its bundle has no such action`);
 			}
 		}
 		if (!found) throw new Error(`unknown action: ${name}\n\n${await renderActions(ctx)}`);
@@ -112,21 +113,15 @@ function findAction(capes: Cape[], name: string) {
 	return undefined;
 }
 
-/** Core's top-level actions, then each action config names, from its cape when built. */
+/** Core's top-level actions, then those of each configured cape, as its build recorded them. */
 async function renderActions(ctx: Ctx): Promise<string> {
 	const core = ctx.capes[0]!;
 	const rows = new Map<string, string>();
 	for (const doc of Object.values(core.docs)) if (doc.top && doc.usages.length > 0) rows.set(doc.name, doc.gist);
-	const actions = findBridge(ctx.cwd)?.config.actions;
-	for (const name of Object.keys(actions && typeof actions === "object" ? actions : {})) {
-		if (findAction([core], name)) continue;
-		try {
-			const cape = (await findCape(ctx, name, core))!;
-			const doc = Object.values(cape.docs).find((candidate) => candidate.name === name);
-			rows.set(name, doc ? `${doc.gist} (${cape.name})` : `not an action of ${cape.name}`);
-		} catch {
-			rows.set(name, "not built: run `nosedive seed`");
-		}
+	const bridge = findBridge(ctx.cwd);
+	for (const cape of bridge ? configuredCapes(bridge, core) : []) {
+		if (!cape.build) rows.set(cape.name, "cape not built: run `nosedive seed`");
+		for (const [name, gist] of Object.entries(cape.build?.actions ?? {})) if (!rows.has(name)) rows.set(name, `${gist} (${cape.name})`);
 	}
 	const width = Math.max(0, ...[...rows.keys()].map((name) => name.length));
 	const lines = [...rows]

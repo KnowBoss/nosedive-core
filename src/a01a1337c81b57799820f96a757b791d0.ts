@@ -134,7 +134,12 @@ export async function a01a1337c81b57799820f96a757b791d0(
 	});
 	rmSync(buildDir, { recursive: true, force: true });
 
-	const build = { id, repo: repo.id, ref, commit, core: core.id, needs, version, builtAt: new Date().toISOString() };
+	const actions = Object.fromEntries(
+		Object.values(source.docs)
+			.filter((doc) => doc.top && doc.usages.length > 0)
+			.map((doc) => [doc.name, doc.gist]),
+	);
+	const build = { id, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, needs, version, builtAt: new Date().toISOString() };
 	capeManifest(bridge.dir, build);
 	return { ...build, fresh: true };
 }
@@ -160,12 +165,9 @@ function bareImports(dir: string): Map<string, Set<string>> {
 
 /** The ref this bridge uses for a repo: the one its config names, or the trunk. */
 function refFor(bridge: Bridge, repo: string): string {
-	const specs = Object.values((bridge.config.actions ?? {}) as Record<string, unknown>).filter(
-		(spec): spec is string => typeof spec === "string" && spec.split("@")[0] === repo,
-	);
-	const refs = [...new Set(specs.map((spec) => spec.split("@", 2)[1] ?? ""))];
-	if (refs.length > 1) throw new Error(`config names ${repo} at more than one ref: ${refs.map((ref) => ref || "trunk").join(", ")}`);
-	return refs[0] ?? "";
+	const specs = Array.isArray(bridge.config.capes) ? (bridge.config.capes as unknown[]) : [];
+	const spec = specs.find((spec): spec is string => typeof spec === "string" && spec.split("@")[0] === repo);
+	return spec?.split("@", 2)[1] ?? "";
 }
 
 function tryFindRepoDoc(bridge: Bridge, name: string): Repo | undefined {

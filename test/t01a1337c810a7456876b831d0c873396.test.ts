@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { a01a1337c810a7456876b831d0c873396 as capeManifest } from "../src/a01a1337c810a7456876b831d0c873396.ts";
 import { tempDir } from "./harness.ts";
 
-const build = { id: "x", repo: "r", ref: "", commit: "c", core: "k", needs: {}, version: "v", builtAt: "2026-10-13T00:00:00.000Z" };
+const build = { id: "x", repo: "r", ref: "", commit: "c", core: "k", coreVersion: "kv", actions: {}, needs: {}, version: "v", builtAt: "2026-10-13T00:00:00.000Z" };
 
 test("starts empty, records builds, and replaces a rebuild of the same id", () => {
 	const bridge = tempDir("cape-manifest");

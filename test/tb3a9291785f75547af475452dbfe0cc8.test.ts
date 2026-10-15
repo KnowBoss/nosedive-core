@@ -1,9 +1,9 @@
 // seed [--no-capes] [--root-kind <kind>]
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
-import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setActions, tempBridge, tempDir } from "./harness.ts";
+import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "./harness.ts";
 
 test("makes a git repo a base by default, in one commit", async () => {
 	const dir = gitRepo("seed");
@@ -12,7 +12,11 @@ test("makes a git repo a base by default, in one commit", async () => {
 	const config = readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8");
 	const root = /^root: (\S+)\n/m.exec(config)?.[1];
 	assert.equal(config, `kb: ./kb\nroot: ${root}\n`);
-	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), new RegExp(`^---\\nkind: base\\nid: ${root}\\nname: root\\n`));
+	assert.equal(
+		readFileSync(join(dir, "kb", `${root}.md`), "utf8"),
+		`---\nkind: base\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\nmeta:\n  workspace: ./workspace\n---\n\n# ${repo}\n`,
+		"the root is named after the repo",
+	);
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "capes/\nlocal/\n");
 	assert.equal(existsSync(join(dir, ".gitignore")), false, "the repo's own .gitignore is the user's");
 	assert.equal(git(["log", "--format=%s"], dir), `seed: ${repo} set up`);
@@ -40,14 +44,14 @@ test("builds the capes config names, so their actions run", async () => {
 	const bridge = await tempBridge("seed-capes");
 	const repo = greetCapeRepo();
 	await registerRepo(bridge, "greet-cape", repo);
-	setActions(bridge, { greet: "greet-cape" });
+	setCapes(bridge, ["greet-cape"]);
 
 	const missing = await run(["greet", "ann"], bridge);
 	assert.equal(missing.code, 1);
-	assert.match(missing.err, /greet needs the greet-cape cape at its trunk, built for this core: run `nosedive seed`/);
+	assert.match(missing.err, /unknown action: greet\n[^]*greet-cape {2}cape not built: run `nosedive seed`/);
 
 	const commit = git(["rev-parse", "HEAD"], repo);
-	assert.match(ok(await run(["seed"], bridge)), new RegExp(`built cape greet-cape \\S+ \\(${commit.slice(0, 7)}\\) for greet`));
+	assert.match(ok(await run(["seed"], bridge)), new RegExp(`built cape greet-cape \\S+ \\(${commit.slice(0, 7)}\\): greet`));
 	assert.match(ok(await run(["greet", "ann"], bridge)), /^hello ann [0-9a-f-]{36}$/);
 	assert.doesNotMatch(git(["status", "--porcelain", "--untracked-files=all"], bridge), /capes/, "built capes stay out of git");
 });
@@ -56,11 +60,38 @@ test("builds a pinned commit once, and --no-capes builds nothing", async () => {
 	const bridge = await tempBridge("seed-pinned");
 	const repo = greetCapeRepo();
 	await registerRepo(bridge, "greet-cape", repo);
-	setActions(bridge, { greet: `greet-cape@${git(["rev-parse", "HEAD"], repo)}` });
+	setCapes(bridge, [`greet-cape@${git(["rev-parse", "HEAD"], repo)}`]);
 	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], bridge)), /cape/);
 	assert.match(ok(await run(["seed"], bridge)), /built cape greet-cape@/);
 	assert.match(ok(await run(["seed"], bridge)), /cape greet-cape@\S+ is built/);
 	assert.match(ok(await run(["greet", "bo"], bridge)), /^hello bo /);
+});
+
+test("builds every cape it can, then names each that failed and the core that last built it", async () => {
+	const bridge = await tempBridge("seed-failing");
+	await registerRepo(bridge, "greet-cape", greetCapeRepo());
+	const broken = await registerRepo(bridge, "broken-cape", greetCapeRepo({ plain: true }));
+	const manifest = join(bridge, ".nosedive", "capes", "manifest.json");
+	mkdirSync(dirname(manifest), { recursive: true });
+	const old = { id: "old", repo: broken, ref: "", commit: "c0ffee0000000000000000000000000000000000", core: "older-core", coreVersion: "2026.1.1-1" };
+	writeFileSync(manifest, JSON.stringify([{ ...old, actions: {}, needs: {}, version: "v", builtAt: "2026-01-01T00:00:00.000Z" }]));
+	setCapes(bridge, ["broken-cape", "greet-cape"]);
+
+	const seeded = await run(["seed"], bridge);
+	assert.equal(seeded.code, 1);
+	assert.match(seeded.out, /built cape greet-cape /);
+	assert.match(seeded.err, /- broken-cape: broken-cape is not a cape: it has no root\n {2}it last built at c0ffee0 with core 2026\.1\.1-1: pin it there, as `broken-cape@c0ffee0{34}` in config `capes`, or go back to that core/);
+	assert.match(ok(await run(["greet", "ann"], bridge)), /^hello ann /, "the capes that built still run");
+});
+
+test("refuses capes whose actions clash", async () => {
+	const bridge = await tempBridge("seed-clash");
+	await registerRepo(bridge, "greet-cape", greetCapeRepo());
+	await registerRepo(bridge, "other-greet", greetCapeRepo());
+	setCapes(bridge, ["greet-cape", "other-greet"]);
+	const seeded = await run(["seed"], bridge);
+	assert.equal(seeded.code, 1);
+	assert.match(seeded.err, /capes clash, so drop or pin one of them:\n {2}greet is provided by greet-cape and other-greet/);
 });
 
 test("refuses outside a git repo", async () => {

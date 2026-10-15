@@ -10,7 +10,7 @@ import { a01a1337c81b57799820f96a757b791d0 as buildCape } from "../src/a01a1337c
 import { a01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "../src/a01a1337d2c14754f9772dc22c1f2edfc.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
-import { git, greetCapeRepo, ok, registerRepo, run, setActions, tempBridge, waveCapeRepo } from "./harness.ts";
+import { git, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, waveCapeRepo } from "./harness.ts";
 
 const core: Cape = await sourceCape();
 
@@ -51,8 +51,8 @@ test("builds the capes a cape imports first, and runs across them", async () => 
 	const greet = greetCapeRepo();
 	await registerRepo(bridge, "greet-cape", greet);
 	await registerRepo(bridge, "wave-cape", waveCapeRepo());
-	setActions(bridge, { wave: "wave-cape" });
-	assert.match(ok(await run(["seed"], bridge)), /^built cape wave-cape \S+ \(\w{7}\) for wave$/m);
+	setCapes(bridge, ["wave-cape"]);
+	assert.match(ok(await run(["seed"], bridge)), /^built cape wave-cape \S+ \(\w{7}\): wave$/m);
 	assert.match(ok(await run(["wave", "ann"], bridge)), /^hello ann [0-9a-f-]{36}\nand waves$/);
 
 	const before = ok(await run(["seed"], bridge));

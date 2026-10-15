@@ -7,6 +7,10 @@ export type CapeBuild = {
 	ref: string;
 	commit: string;
 	core: string;
+	/** The version of that core, for saying which core last built it. */
+	coreVersion: string;
+	/** The top-level user actions it provides: name to gist. */
+	actions: Record<string, string>;
 	/** The capes it imports, by repo name: their ids. */
 	needs: Record<string, string>;
 	version: string;
