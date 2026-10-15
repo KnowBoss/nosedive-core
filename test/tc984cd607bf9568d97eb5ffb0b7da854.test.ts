@@ -52,7 +52,7 @@ test("one action only, and lists what it cannot fix", async () => {
 
 test("refuses a repo that is not a cape", async () => {
 	const memo = gitRepo("scaf-memo");
-	ok(await run(["seed"], memo));
+	ok(await run(["seed", "--root-kind", "memo"], memo));
 	const refused = await run(["scaf"], memo);
 	assert.equal(refused.code, 1);
 	assert.match(refused.err, /scaf runs in a cape repo, and this one's root is a memo: `nosedive seed --root-kind cape` makes one/);

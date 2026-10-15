@@ -67,7 +67,7 @@ function asCape(files: Record<string, string>, options: Fixture): void {
 	if (options.plain) return;
 	const root = mintUuid();
 	const gate = options.gated ? `links:\n  - nosedive-core:${CAPE_TESTS_PASS}:\n      rel: test.gate\n` : "";
-	files[".nosedive/config.yaml"] = `self: ${mintUuid()}\nkb: ./kb\nroot: ${root}\n`;
+	files[".nosedive/config.yaml"] = `kb: ./kb\nroot: ${root}\n`;
 	files[`kb/${root}.md`] = `---\nkind: cape\nid: ${root}\nname: root\n${gate}---\n`;
 }
 

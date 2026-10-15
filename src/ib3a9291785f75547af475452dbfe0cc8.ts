@@ -42,8 +42,6 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 	const configPath = join(dir, ".nosedive", "config.yaml");
 	const config = existsSync(configPath) ? parseDocument(readFileSync(configPath, "utf8")) : new Document({});
 	if (config.errors.length > 0) throw new Error(`${configPath}: ${config.errors[0]!.message}`);
-	// `bridge` is `self`'s older name; a repo with either has its id.
-	if (!config.has("self") && !config.has("bridge")) config.set("self", mintUuid());
 	if (!config.has("kb")) config.set("kb", "./kb");
 	const kbDir = join(dir, String(config.get("kb")));
 	mkdirSync(kbDir, { recursive: true });
@@ -81,12 +79,12 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 		placeWorkspace(dir, resolve(dir, typeof path === "string" ? path : "workspace"));
 	}
 
-	const bridge = String(config.get("self") ?? config.get("bridge"));
+	const repo = basename(dir);
 	if (changed.length > 0) {
-		commitFiles(dir, changed, `seed: bridge ${bridge} set up`);
-		ctx.out(`seeded bridge ${bridge}`);
+		commitFiles(dir, changed, `seed: ${repo} set up`);
+		ctx.out(`seeded ${repo}`);
 	} else {
-		ctx.out(`bridge ${bridge} is already seeded`);
+		ctx.out(`${repo} is already seeded`);
 	}
 
 	const actions = (config.toJS()?.actions ?? {}) as Record<string, unknown>;

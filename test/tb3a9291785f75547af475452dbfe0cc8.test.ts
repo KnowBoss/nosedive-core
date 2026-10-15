@@ -1,24 +1,28 @@
 // seed [--no-capes] [--root-kind <kind>]
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { test } from "node:test";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setActions, tempBridge, tempDir } from "./harness.ts";
 
-test("makes a git repo a bridge, in one commit", async () => {
+test("makes a git repo a base by default, in one commit", async () => {
 	const dir = gitRepo("seed");
-	const out = ok(await run(["seed"], dir));
-	const bridge = /^seeded bridge (\S+)$/.exec(out)?.[1];
-	assert.ok(bridge, out);
+	const repo = basename(dir);
+	assert.equal(ok(await run(["seed"], dir)), `seeded ${repo}`);
 	const config = readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8");
-	const root = /\nroot: (\S+)\n/.exec(config)?.[1];
-	assert.equal(config, `self: ${bridge}\nkb: ./kb\nroot: ${root}\n`);
-	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), new RegExp(`^---\\nkind: memo\\nid: ${root}\\nname: root\\n`));
+	const root = /^root: (\S+)\n/m.exec(config)?.[1];
+	assert.equal(config, `kb: ./kb\nroot: ${root}\n`);
+	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), new RegExp(`^---\\nkind: base\\nid: ${root}\\nname: root\\n`));
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "capes/\nlocal/\n");
 	assert.equal(existsSync(join(dir, ".gitignore")), false, "the repo's own .gitignore is the user's");
-	assert.equal(existsSync(join(dir, "workspace")), false, "only a base has a workspace");
-	assert.equal(git(["log", "--format=%s"], dir), `seed: bridge ${bridge} set up`);
+	assert.equal(git(["log", "--format=%s"], dir), `seed: ${repo} set up`);
 	assert.equal(git(["status", "--porcelain"], dir), "");
+});
+
+test("any other root kind gets no workspace", async () => {
+	const dir = gitRepo("seed-memo");
+	ok(await run(["seed", "--root-kind", "memo"], dir));
+	assert.equal(existsSync(join(dir, "workspace")), false, "only a base has a workspace");
 });
 
 test("leaves an existing bridge's config alone, and says it is seeded", async () => {
@@ -28,7 +32,7 @@ test("leaves an existing bridge's config alone, and says it is seeded", async ()
 	writeFileSync(config, `${readFileSync(config, "utf8")}custom: value # kept\n`);
 	git(["commit", "-qam", "custom"], dir);
 	const out = ok(await run(["seed"], dir));
-	assert.match(out, /^bridge \S+ is already seeded$/);
+	assert.equal(out, `${basename(dir)} is already seeded`);
 	assert.match(readFileSync(config, "utf8"), /custom: value # kept\n/);
 });
 
@@ -105,7 +109,7 @@ test("a base gets a workspace that ignores itself, and moves it when its path ch
 	assert.equal(readFileSync(join(base, "repos", "clone.txt"), "utf8"), "checked out\n", "moved, clones and all");
 
 	const memo = gitRepo("seed-not-base");
-	ok(await run(["seed"], memo));
+	ok(await run(["seed", "--root-kind", "memo"], memo));
 	await registerRepo(memo, "greet-cape", greetCapeRepo());
 	const refused = await run(["test", "greet-cape"], memo);
 	assert.equal(refused.code, 1);

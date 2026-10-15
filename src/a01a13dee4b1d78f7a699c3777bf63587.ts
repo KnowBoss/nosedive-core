@@ -14,5 +14,5 @@ export function a01a13dee4b1d78f7a699c3777bf63587(dir: string): Bridge | undefin
 	const rootDoc = root ? findKbDoc(kbDir, root) : undefined;
 	const meta = (rootDoc?.fm.meta ?? {}) as { workspace?: unknown };
 	const workspace = rootDoc?.fm.kind === "base" ? resolve(dir, text(meta.workspace) ?? "workspace") : undefined;
-	return { dir: resolve(dir), configPath, config, kbDir, self: text(config.self ?? config.bridge), root, workspace };
+	return { dir: resolve(dir), configPath, config, kbDir, root, workspace };
 }

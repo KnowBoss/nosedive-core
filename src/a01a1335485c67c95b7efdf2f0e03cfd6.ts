@@ -6,8 +6,6 @@ export type Bridge = {
 	configPath: string;
 	config: Record<string, unknown>;
 	kbDir: string;
-	/** The repo's own id: config `self`, or `bridge`, its older name. */
-	self: string | undefined;
 	/** The id of the bridge's root doc: config `root`, or `backlog`, its older name. */
 	root: string | undefined;
 	/** Where other repos are checked out, which only a base has: its root's `meta.workspace`. */
