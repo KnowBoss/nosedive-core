@@ -1,6 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { parse } from "yaml";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { a01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./a01a13dee4b1d78f7a699c3777bf63587.ts";
 
 export type Bridge = {
 	dir: string;
@@ -11,19 +10,27 @@ export type Bridge = {
 	self: string | undefined;
 	/** The id of the bridge's root doc: config `root`, or `backlog`, its older name. */
 	root: string | undefined;
+	/** Where other repos are checked out, which only a base has: its root's `meta.workspace`. */
+	workspace: string | undefined;
 };
 
 export function a01a1335485c67c95b7efdf2f0e03cfd6(start: string): Bridge | undefined {
+	const found: Bridge[] = [];
 	for (let dir = resolve(start); ; dir = dirname(dir)) {
-		const configPath = join(dir, ".nosedive", "config.yaml");
-		if (existsSync(configPath)) {
-			const config = (parse(readFileSync(configPath, "utf8")) ?? {}) as Record<string, unknown>;
-			const kb = typeof config.kb === "string" ? config.kb : "kb";
-			const self = config.self ?? config.bridge;
-			const root = config.root ?? config.backlog;
-			const text = (value: unknown) => (typeof value === "string" ? value : undefined);
-			return { dir, configPath, config, kbDir: resolve(dir, kb), self: text(self), root: text(root) };
-		}
-		if (dirname(dir) === dir) return undefined;
+		const config = readRepoConfig(dir);
+		if (config) found.push(config);
+		if (dirname(dir) === dir) break;
 	}
+	// The nearest base, unless it is checked out in another base's workspace: then that base.
+	let bridge = found.find((candidate) => candidate.workspace !== undefined);
+	if (!bridge) return found[0];
+	for (const outer of found.slice(found.indexOf(bridge) + 1)) {
+		if (outer.workspace !== undefined && within(outer.workspace, bridge.dir)) bridge = outer;
+	}
+	return bridge;
+}
+
+function within(parent: string, child: string): boolean {
+	const rel = relative(parent, child);
+	return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }

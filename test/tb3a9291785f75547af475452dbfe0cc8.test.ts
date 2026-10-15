@@ -1,6 +1,6 @@
 // seed [--no-capes] [--root-kind <kind>]
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setActions, tempBridge, tempDir } from "./harness.ts";
@@ -14,7 +14,9 @@ test("makes a git repo a bridge, in one commit", async () => {
 	const root = /\nroot: (\S+)\n/.exec(config)?.[1];
 	assert.equal(config, `self: ${bridge}\nkb: ./kb\nroot: ${root}\n`);
 	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), new RegExp(`^---\\nkind: memo\\nid: ${root}\\nname: root\\n`));
-	assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), ".nosedive/capes/\n", "only a base has a workspace");
+	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "capes/\nlocal/\n");
+	assert.equal(existsSync(join(dir, ".gitignore")), false, "the repo's own .gitignore is the user's");
+	assert.equal(existsSync(join(dir, "workspace")), false, "only a base has a workspace");
 	assert.equal(git(["log", "--format=%s"], dir), `seed: bridge ${bridge} set up`);
 	assert.equal(git(["status", "--porcelain"], dir), "");
 });
@@ -84,11 +86,23 @@ test("takes a config's backlog as its root, and adds no other", async () => {
 	assert.equal(readFileSync(config, "utf8"), before);
 });
 
-test("a base gets a workspace, ignored; nothing else can check a repo out", async () => {
+test("a base gets a workspace that ignores itself, and moves it when its path changes", async () => {
 	const base = gitRepo("seed-base");
 	ok(await run(["seed", "--root-kind", "base"], base));
-	assert.match(readFileSync(join(base, ".nosedive", "config.yaml"), "utf8"), /\nworkspace: \.\/workspace\n/);
-	assert.equal(readFileSync(join(base, ".gitignore"), "utf8"), ".nosedive/capes/\nworkspace/\n");
+	const config = readFileSync(join(base, ".nosedive", "config.yaml"), "utf8");
+	assert.doesNotMatch(config, /workspace/, "the workspace is the root's, not the config's");
+	const root = join(base, "kb", `${/\nroot: (\S+)\n/.exec(config)![1]}.md`);
+	assert.match(readFileSync(root, "utf8"), /\nmeta:\n {2}workspace: \.\/workspace\n/);
+	assert.equal(readFileSync(join(base, "workspace", ".gitignore"), "utf8"), "*\n");
+	assert.equal(existsSync(join(base, ".gitignore")), false, "the repo's own .gitignore is the user's");
+	writeFileSync(join(base, "workspace", "clone.txt"), "checked out\n");
+	assert.equal(git(["status", "--porcelain", "--untracked-files=all"], base), "");
+
+	writeFileSync(root, readFileSync(root, "utf8").replace("workspace: ./workspace", "workspace: ./repos"));
+	git(["commit", "-qam", "move the workspace"], base);
+	ok(await run(["seed"], base));
+	assert.equal(existsSync(join(base, "workspace")), false);
+	assert.equal(readFileSync(join(base, "repos", "clone.txt"), "utf8"), "checked out\n", "moved, clones and all");
 
 	const memo = gitRepo("seed-not-base");
 	ok(await run(["seed"], memo));

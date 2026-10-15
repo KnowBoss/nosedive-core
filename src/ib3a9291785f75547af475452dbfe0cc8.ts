@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { Document, parseDocument } from "yaml";
 import type { Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
 import { a01a1335480c776ba8945020d0af333eb as mintUuid } from "./a01a1335480c776ba8945020d0af333eb.ts";
@@ -11,7 +11,26 @@ import { a01a1337c81b57799820f96a757b791d0 as buildCape } from "./a01a1337c81b57
 import { a01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./a01a138b2b8ef7e8097e19d599ba39bcc.ts";
 import { a01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./a01a13354845c7253a55b60bba87285d8.ts";
 
-const CAPES_IGNORE = ".nosedive/capes/";
+/** Relative to .nosedive/: built capes, and what this checkout remembers for itself. */
+const NOSEDIVE_IGNORES = ["capes/", "local/"];
+
+/**
+ * Makes the base's workspace, which ignores everything in it, itself included, so nothing checked
+ * out there is ever committed. A workspace whose path changed since the last seed is moved, clones
+ * and all, rather than left behind.
+ */
+function placeWorkspace(dir: string, workspace: string): void {
+	const record = join(dir, ".nosedive", "local", "workspace");
+	const previous = existsSync(record) ? resolve(dir, readFileSync(record, "utf8").trim()) : undefined;
+	if (previous && previous !== workspace && existsSync(previous) && !existsSync(workspace)) {
+		mkdirSync(dirname(workspace), { recursive: true });
+		renameSync(previous, workspace);
+	}
+	mkdirSync(workspace, { recursive: true });
+	if (!existsSync(join(workspace, ".gitignore"))) writeFileSync(join(workspace, ".gitignore"), "*\n");
+	mkdirSync(dirname(record), { recursive: true });
+	writeFileSync(record, `${relative(dir, workspace).replace(/\\/g, "/")}\n`);
+}
 
 export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: boolean; rootKind: string }, ctx: Ctx): Promise<void> {
 	const { noCapes, rootKind } = options;
@@ -34,13 +53,12 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 		if (checkMeta(rootKind, {}, [kbDir], ctx.capes)) throw new Error(`no kind ${rootKind} is declared, so it cannot be the root's kind`);
 		const rootId = mintUuid();
 		const rootPath = join(kbDir, `${rootId}.md`);
-		writeFileSync(rootPath, `---\nkind: ${rootKind}\nid: ${rootId}\nname: root\ngist: ${JSON.stringify(`What ${basename(dir)} holds`)}\n---\n\n# ${basename(dir)}\n`);
+		// A base is a repo other repos are checked out in; its workspace is where.
+		const meta = rootKind === "base" ? "meta:\n  workspace: ./workspace\n" : "";
+		writeFileSync(rootPath, `---\nkind: ${rootKind}\nid: ${rootId}\nname: root\ngist: ${JSON.stringify(`What ${basename(dir)} holds`)}\n${meta}---\n\n# ${basename(dir)}\n`);
 		config.set("root", rootId);
 		changed.push(rootPath);
 	}
-	// A base is a repo other repos are checked out in, so only a base has a workspace.
-	const isBase = findKbDoc(kbDir, String(config.get("root") ?? config.get("backlog")))?.fm.kind === "base";
-	if (isBase && !config.has("workspace")) config.set("workspace", "./workspace");
 	const configText = config.toString({ lineWidth: 0 });
 	if (!existsSync(configPath) || readFileSync(configPath, "utf8") !== configText) {
 		mkdirSync(join(dir, ".nosedive"), { recursive: true });
@@ -48,13 +66,19 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 		changed.push(configPath);
 	}
 
-	const ignorePath = join(dir, ".gitignore");
+	// nosedive's own ignores live beside its config, so the repo's own .gitignore stays the user's.
+	const ignorePath = join(dir, ".nosedive", ".gitignore");
 	const ignore = existsSync(ignorePath) ? readFileSync(ignorePath, "utf8") : "";
-	const workspace = config.has("workspace") ? [`${String(config.get("workspace")).replace(/^\.\//, "").replace(/\/$/, "")}/`] : [];
-	const missing = [CAPES_IGNORE, ...workspace].filter((line) => !ignore.split(/\r?\n/).includes(line));
+	const missing = NOSEDIVE_IGNORES.filter((line) => !ignore.split(/\r?\n/).includes(line));
 	if (missing.length > 0) {
 		writeFileSync(ignorePath, `${ignore}${ignore && !ignore.endsWith("\n") ? "\n" : ""}${missing.map((line) => `${line}\n`).join("")}`);
 		changed.push(ignorePath);
+	}
+
+	const rootDoc = findKbDoc(kbDir, String(config.get("root") ?? config.get("backlog")));
+	if (rootDoc?.fm.kind === "base") {
+		const path = (rootDoc.fm.meta as { workspace?: unknown } | undefined)?.workspace;
+		placeWorkspace(dir, resolve(dir, typeof path === "string" ? path : "workspace"));
 	}
 
 	const bridge = String(config.get("self") ?? config.get("bridge"));
