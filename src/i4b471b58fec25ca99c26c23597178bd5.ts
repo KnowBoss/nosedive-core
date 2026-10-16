@@ -5,10 +5,10 @@ import { a01a13354894273b1be253424511ba82c as commitFiles } from "./a01a13354894
 import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { a01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./a01a141f869bf7f76b5bc81aa991ff9b9.ts";
 
-export async function i266ba59c262a57c28ca1c4b80c444f94(args: Args, ctx: Ctx): Promise<void> {
+export async function i4b471b58fec25ca99c26c23597178bd5(args: Args, ctx: Ctx): Promise<void> {
 	const bridge = findBridge(ctx.cwd);
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");
-	const name = String(args.name);
+	const name = String(args.drop);
 	const specs = configuredCapes(bridge, ctx.capes[0]!).map((cape) => cape.spec);
 	const kept = specs.filter((spec) => spec.split("@")[0] !== name);
 	if (kept.length === specs.length) throw new Error(`${name} is not in config \`capes\``);

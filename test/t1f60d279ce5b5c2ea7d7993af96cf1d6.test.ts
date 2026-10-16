@@ -53,7 +53,7 @@ test("refuses a repo that is not a cape, one already listed or registered elsewh
 test("builds the capes a cape imports, by the repo docs the bridge has", async () => {
 	const bridge = await tempBridge("cape-add-imports");
 	ok(await run(["cape", greetCapeRepo()], bridge));
-	ok(await run(["cape", "greet-cape", "--drop"], bridge));
+	ok(await run(["cape", "--drop", "greet-cape"], bridge));
 	assert.match(ok(await run(["cape", waveCapeRepo()], bridge)), /\n {2}wave {2}Waves$/);
 	assert.match(ok(await run(["wave", "bo"], bridge)), /^hello bo [0-9a-f-]{36}\nand waves$/);
 });
