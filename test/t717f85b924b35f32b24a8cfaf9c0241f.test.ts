@@ -24,6 +24,8 @@ test("refuses while anything links to it, naming each link, and edits nothing", 
 	ok(await run(["crud", idOf(child), "--links", "-"], bridge, `kb/${id}.md:\n  rel: parent.feat\n`));
 	const there = ok(await run(["crud", "other:goal", "elsewhere"], (checkedOut(bridge, "other"), bridge)));
 	ok(await run(["crud", idOf(there), "--links", "-"], bridge, `kb/${id}.md:\n  rel: uses.goal\n`));
+	const note = ok(await run(["crud", "memo", "a", "note"], bridge));
+	ok(await run(["crud", idOf(note), "--body", "-"], bridge, `See [the parent](${id}.md).\n`));
 
 	const head = git(["rev-parse", "HEAD"], bridge);
 	const refused = await run(["crud", "--drop", id], bridge);
@@ -31,6 +33,7 @@ test("refuses while anything links to it, naming each link, and edits nothing", 
 	assert.match(refused.err, /goal parent-\w{6} is still linked, so it was not dropped:/);
 	assert.match(refused.err, new RegExp(`\n {2}${child} links it as parent\\.feat`));
 	assert.match(refused.err, new RegExp(`\n {2}${there} links it as uses\\.goal`));
+	assert.match(refused.err, new RegExp(`\n {2}${note} mentions it in its body`));
 	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
 });
 

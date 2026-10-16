@@ -37,6 +37,7 @@ export async function i717f85b924b35f32b24a8cfaf9c0241f(quid: string, hard: bool
 					if (target.includes(quid)) blockers.push(`${at(other.path)} links it as ${String(value?.rel ?? "a link")}`);
 				}
 			}
+			if (other.body.includes(quid)) blockers.push(`${at(other.path)} mentions it in its body`);
 		}
 	}
 	for (const repoDir of repoDirs) {
