@@ -30,6 +30,7 @@ export async function i717f85b924b35f32b24a8cfaf9c0241f(quid: string, hard: bool
 	}
 	const blockers: string[] = [];
 	for (const kbDir of kbDirs) {
+		if (!existsSync(kbDir)) continue;
 		for (const other of listKbDocs(kbDir)) {
 			if (other.fm.id === quid) continue;
 			for (const link of Array.isArray(other.fm.links) ? other.fm.links : []) {

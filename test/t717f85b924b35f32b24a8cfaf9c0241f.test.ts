@@ -1,16 +1,17 @@
 // crud --drop <quid> [--hard]
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { checkedOut, git, ok, run, tempBridge } from "./harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
-test("deletes a doc of a kind that is not durable, and commits", async () => {
+test("deletes a doc of a kind that is not durable, and commits, past workspace repos with no kb", async () => {
 	const bridge = await tempBridge("crud-drop");
 	const path = ok(await run(["crud", "goal", "passing", "work"], bridge));
 	const id = idOf(path);
+	mkdirSync(join(bridge, "workspace", "no-kb"), { recursive: true });
 	assert.equal(ok(await run(["crud", "--drop", id], bridge)), path);
 	assert.equal(existsSync(join(bridge, path)), false);
 	assert.equal(git(["log", "-1", "--format=%s"], bridge), `crud(${id}): dropped goal passing-work-${id.slice(-6)}`);
