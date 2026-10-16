@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseDocument } from "yaml";
-import type { Args, Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
-import { a01a13354894273b1be253424511ba82c as commitFiles } from "./a01a13354894273b1be253424511ba82c.ts";
-import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { a01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./a01a141f869bf7f76b5bc81aa991ff9b9.ts";
+import type { Args, Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 
 export async function i4b471b58fec25ca99c26c23597178bd5(args: Args, ctx: Ctx): Promise<void> {
 	const bridge = findBridge(ctx.cwd);

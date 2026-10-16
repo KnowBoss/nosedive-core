@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/a01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { git, ok, run, tempBridge, tempDir } from "./harness.ts";
 
 test("walks up to the nearest config and resolves its kb", () => {

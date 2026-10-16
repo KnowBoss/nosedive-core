@@ -1,7 +1,7 @@
 // cape-manifest
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { a01a1337c810a7456876b831d0c873396 as capeManifest } from "../src/a01a1337c810a7456876b831d0c873396.ts";
+import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "../src/i01a1337c810a7456876b831d0c873396.ts";
 import { tempDir } from "./harness.ts";
 
 const build = { id: "x", repo: "r", ref: "", commit: "c", core: "k", coreVersion: "kv", actions: {}, needs: {}, version: "v", builtAt: "2026-10-13T00:00:00.000Z" };

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "../src/a01a13dee4b1d78f7a699c3777bf63587.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "../src/i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { checkedOut, gitRepo, ok, run, tempBridge } from "./harness.ts";
 
 test("reads only the directory's own config, so a checkout in a workspace reads as itself", async () => {

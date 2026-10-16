@@ -1,7 +1,7 @@
 // read-kb-doc
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { a01a1335482f876d6808aec457f512e80 as readKbDoc } from "../src/a01a1335482f876d6808aec457f512e80.ts";
+import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "../src/i01a1335482f876d6808aec457f512e80.ts";
 
 test("splits frontmatter from body", () => {
 	const doc = readKbDoc('---\nkind: memo\ngist: "g"\n---\n\n# Title\n');

@@ -6,10 +6,10 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { build } from "esbuild";
-import { a01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "../src/a01a1335480147d0686528aee80f8ee34.ts";
-import { a01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "../src/a01a1335487e477549d84a6fc2c901bf6.ts";
-import { a01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "../src/a01a1335488937f1c8c3983dd2950028e.ts";
-import { a01a133588c7971b5b116d9c8c1706e04 as capeIndex } from "../src/a01a133588c7971b5b116d9c8c1706e04.ts";
+import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "../src/i01a1335480147d0686528aee80f8ee34.ts";
+import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "../src/i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "../src/i01a1335488937f1c8c3983dd2950028e.ts";
+import { i01a133588c7971b5b116d9c8c1706e04 as capeIndex } from "../src/i01a133588c7971b5b116d9c8c1706e04.ts";
 import { repoDir, repoId } from "./source-cape.mjs";
 
 const dev = process.argv.includes("--dev");
@@ -41,7 +41,7 @@ const { names, entries } = capeIndex(source, id);
 const buildDir = join(repoDir, "build");
 const toEntry = (file) => `./${relative(buildDir, file).replace(/\\/g, "/")}`;
 const entryText = [
-	'import { consoleCtx, a01a1336a958f71c7beec4db3195c7966 as launch, type Cape } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";',
+	'import { consoleCtx, i01a1336a958f71c7beec4db3195c7966 as launch, type Cape } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";',
 	...Object.values(entries).map((entry) => `import { ${entry.name} } from ${JSON.stringify(toEntry(entry.file))};`),
 	"",
 	`export const id = ${JSON.stringify(id)};`,
@@ -65,8 +65,8 @@ const entryText = [
 	"",
 ].join("\n");
 const typesText = [
-	'import type { Cape } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";',
-	'export type * from "../src/a01a1336a958f71c7beec4db3195c7966.ts";',
+	'import type { Cape } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";',
+	'export type * from "../src/i01a1336a958f71c7beec4db3195c7966.ts";',
 	"export declare const id: string, name: string, commit: string, version: string;",
 	'export declare const docs: Cape["docs"];',
 	'export declare const index: Cape["index"];',

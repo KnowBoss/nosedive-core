@@ -1,13 +1,13 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
-import { a01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./a01a13a6aba3a763595bd67a4ee4d47bf.ts";
-import { a01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./a01a1335487e477549d84a6fc2c901bf6.ts";
-import { a01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "./a01a1335488937f1c8c3983dd2950028e.ts";
-import { a01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./a01a13354845c7253a55b60bba87285d8.ts";
-import { a01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./a01a1335483aa776cb84df698b04adc06.ts";
-import { a01a1336cb234701bb0338faf5183960c as codeSection } from "./a01a1336cb234701bb0338faf5183960c.ts";
+import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
+import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "./i01a1335488937f1c8c3983dd2950028e.ts";
+import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
+import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
+import { i01a1336cb234701bb0338faf5183960c as codeSection } from "./i01a1336cb234701bb0338faf5183960c.ts";
 
 export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined, ctx: Ctx): Promise<void> {
 	const repoDir = gitRoot(ctx.cwd);
@@ -19,7 +19,7 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 	const chosen = quid === undefined ? entries : entries.filter((entry) => entry.id === quid);
 	if (chosen.length === 0) throw new Error(quid ? `no action doc ${quid} in ${join(repoDir, "kb")}` : "no action docs in kb/");
 	// Core imports the launcher's types from its own source; any other cape, from core.
-	const launcher = "a01a1336a958f71c7beec4db3195c7966";
+	const launcher = "i01a1336a958f71c7beec4db3195c7966";
 	const types = existsSync(join(repoDir, "src", `${launcher}.ts`)) ? `./${launcher}.ts` : "nosedive-core";
 
 	const created: string[] = [];
@@ -45,7 +45,7 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 			write(`src/${entry.name}.ts`, gateStub(entry.name, doc.name, types));
 			continue;
 		}
-		if (doc.usages.length === 0) {
+		if (doc.kind === "function") {
 			write(`src/${entry.name}.ts`, internalStub(entry.name, doc.name));
 			write(`test/t${hex}.test.ts`, testStub(doc.name));
 			continue;

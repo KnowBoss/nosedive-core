@@ -1,11 +1,11 @@
 import { relative } from "node:path";
-import type { Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
-import { a01a1335487317576a0afd03506ef5555 as readSource } from "./a01a1335487317576a0afd03506ef5555.ts";
-import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { a01a13354894273b1be253424511ba82c as commitFiles } from "./a01a13354894273b1be253424511ba82c.ts";
-import { a01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "./a01a138b2b8ed775297973c2aad478c8f.ts";
-import { a01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./a01a138b2b8ef7e8097e19d599ba39bcc.ts";
-import { a01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./a01a141f869c07c4da8288927a559c8ae.ts";
+import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a1335487317576a0afd03506ef5555 as readSource } from "./i01a1335487317576a0afd03506ef5555.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
+import { i01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "./i01a138b2b8ed775297973c2aad478c8f.ts";
+import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7e8097e19d599ba39bcc.ts";
+import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
 
 export async function i6c9390d5a8e5583881960839391345db(
 	doc: { repo: string | undefined; kind: string; gist: string; name: string | undefined; meta: string | undefined },

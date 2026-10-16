@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "../src/a01a13354850c7ba3ba5b8ac41a7b6b11.ts";
+import { i01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "../src/i01a13354850c7ba3ba5b8ac41a7b6b11.ts";
 import { tempDir } from "./harness.ts";
 
 test("lists markdown docs with frontmatter, in filename order, skipping the rest", () => {

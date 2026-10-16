@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { a01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "../src/a01a141f869c07c4da8288927a559c8ae.ts";
+import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "../src/i01a141f869c07c4da8288927a559c8ae.ts";
 import { tempDir } from "./harness.ts";
 
 test("writes a doc with a minted id, a name slugged from its gist, and its meta", () => {

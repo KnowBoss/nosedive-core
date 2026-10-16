@@ -1,7 +1,7 @@
 // match-usage
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { a01a1335482437c9eb145885f65f12aa1 as matchUsage } from "../src/a01a1335482437c9eb145885f65f12aa1.ts";
+import { i01a1335482437c9eb145885f65f12aa1 as matchUsage } from "../src/i01a1335482437c9eb145885f65f12aa1.ts";
 
 const CRUD = [
 	"crud <quid>",

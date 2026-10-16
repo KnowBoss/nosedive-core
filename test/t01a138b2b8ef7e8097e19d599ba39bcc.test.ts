@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { Cape } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";
-import { a01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "../src/a01a138b2b8ef7e8097e19d599ba39bcc.ts";
+import type { Cape } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "../src/i01a138b2b8ef7e8097e19d599ba39bcc.ts";
 import { tempDir } from "./harness.ts";
 
 const closed = { type: "object", additionalProperties: false, properties: { owner: { type: "string" } } };

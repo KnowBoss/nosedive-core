@@ -1,8 +1,8 @@
 // action-clashes
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Cape } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";
-import { a01a141fbba027b2684d5b1c1879d9337 as actionClashes } from "../src/a01a141fbba027b2684d5b1c1879d9337.ts";
+import type { Cape } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a141fbba027b2684d5b1c1879d9337 as actionClashes } from "../src/i01a141fbba027b2684d5b1c1879d9337.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 

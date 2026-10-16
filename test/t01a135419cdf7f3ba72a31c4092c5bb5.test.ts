@@ -1,8 +1,8 @@
 // load-source-cape
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { a01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "../src/a01a1335480147d0686528aee80f8ee34.ts";
-import { a01a135419cdf7f3ba72a31c4092c5bb5 as loadSourceCape } from "../src/a01a135419cdf7f3ba72a31c4092c5bb5.ts";
+import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "../src/i01a1335480147d0686528aee80f8ee34.ts";
+import { i01a135419cdf7f3ba72a31c4092c5bb5 as loadSourceCape } from "../src/i01a135419cdf7f3ba72a31c4092c5bb5.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { repoDir } from "../scripts/source-cape.mjs";
 

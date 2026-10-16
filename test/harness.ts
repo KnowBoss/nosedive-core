@@ -3,11 +3,11 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { a01a133548178739398941123114401ad as usageId } from "../src/a01a133548178739398941123114401ad.ts";
-import { a01a1336cb234701bb0338faf5183960c as codeSection } from "../src/a01a1336cb234701bb0338faf5183960c.ts";
-import { a01a1335480c776ba8945020d0af333eb as mintUuid } from "../src/a01a1335480c776ba8945020d0af333eb.ts";
+import { i01a133548178739398941123114401ad as usageId } from "../src/i01a133548178739398941123114401ad.ts";
+import { i01a1336cb234701bb0338faf5183960c as codeSection } from "../src/i01a1336cb234701bb0338faf5183960c.ts";
+import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "../src/i01a1335480c776ba8945020d0af333eb.ts";
 import { after } from "node:test";
-import { a01a1336a958f71c7beec4db3195c7966 as launch, type Cape, type Ctx } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a1336a958f71c7beec4db3195c7966 as launch, type Cape, type Ctx } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 
@@ -84,9 +84,9 @@ export function greetCapeRepo(options: Fixture & { link?: boolean; importing?: s
 	const links = options.link === false ? "" : `links:\n  - nosedive-core:${options.importing ?? NAMESPACED_UUID}:\n      rel: uses.action\n`;
 	const doc = { kind: "action" as const, name: "greet", gist: "Greets", usages: [{ id: usage, text: "greet <who>" }], top: true, text: "", body: "" };
 	const files: Record<string, string> = {
-		[`kb/${GREET}.md`]: `---\nkind: action\nid: ${GREET}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${links}---\n${codeSection("\n# Greet\n", doc, `a${hex}`)}`,
-		[`src/a${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function a${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(String(call.args.who), call.ctx);\n}\n`,
-		[`src/i${usage}.ts`]: `import { a${imported} as namespacedUuid } from "nosedive-core";\n\nexport async function i${usage}(who: string, ctx: { out(text: string): void }) {\n\tctx.out(\`hello \${who} \${namespacedUuid(who, "${GREET}")}\`);\n}\n`,
+		[`kb/${GREET}.md`]: `---\nkind: action\nid: ${GREET}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${links}---\n${codeSection("\n# Greet\n", doc, `i${hex}`)}`,
+		[`src/i${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function i${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(String(call.args.who), call.ctx);\n}\n`,
+		[`src/i${usage}.ts`]: `import { i${imported} as namespacedUuid } from "nosedive-core";\n\nexport async function i${usage}(who: string, ctx: { out(text: string): void }) {\n\tctx.out(\`hello \${who} \${namespacedUuid(who, "${GREET}")}\`);\n}\n`,
 		[`test/t${usage}.test.ts`]: [
 			'import assert from "node:assert/strict";',
 			'import { test } from "node:test";',
@@ -121,11 +121,11 @@ export function waveCapeRepo(options: Fixture = {}): string {
 	const usage = usageId("wave <who>", WAVE);
 	const greetUsage = usageId("greet <who>", GREET);
 	const hex = WAVE.replace(/-/g, "");
-	const greet = `a${GREET.replace(/-/g, "")}`;
+	const greet = `i${GREET.replace(/-/g, "")}`;
 	const doc = { kind: "action" as const, name: "wave", gist: "Waves", usages: [{ id: usage, text: "wave <who>" }], top: true, text: "", body: "" };
 	const files: Record<string, string> = {
-		[`kb/${WAVE}.md`]: `---\nkind: action\nid: ${WAVE}\nname: wave\ngist: "Waves"\nmeta:\n  usages:\n    - wave <who>\nlinks:\n  - greet-cape:${GREET}:\n      rel: uses.action\n---\n${codeSection("\n# Wave\n", doc, `a${hex}`)}`,
-		[`src/a${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function a${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(call);\n}\n`,
+		[`kb/${WAVE}.md`]: `---\nkind: action\nid: ${WAVE}\nname: wave\ngist: "Waves"\nmeta:\n  usages:\n    - wave <who>\nlinks:\n  - greet-cape:${GREET}:\n      rel: uses.action\n---\n${codeSection("\n# Wave\n", doc, `i${hex}`)}`,
+		[`src/i${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function i${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(call);\n}\n`,
 		[`src/i${usage}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { ${greet} as greet } from "greet-cape";\n\nexport async function i${usage}(call: ActionCall) {\n\tawait greet({ ...call, usage: "u${greetUsage}" });\n\tcall.ctx.out("and waves");\n}\n`,
 		[`test/t${usage}.test.ts`]: [
 			'import assert from "node:assert/strict";',

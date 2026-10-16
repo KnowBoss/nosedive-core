@@ -1,7 +1,7 @@
 // cape-id
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { a01a1337c806075ca96d637c9ece7316e as capeId } from "../src/a01a1337c806075ca96d637c9ece7316e.ts";
+import { i01a1337c806075ca96d637c9ece7316e as capeId } from "../src/i01a1337c806075ca96d637c9ece7316e.ts";
 
 const REPO = "01a1337c-830d-7ef7-b5b2-ab0bc3a666e9";
 const CORE = "01a1335b-f30a-7dd2-a1d4-b675fd419238";

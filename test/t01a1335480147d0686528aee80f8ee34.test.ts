@@ -1,7 +1,7 @@
 // namespaced-uuid
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { a01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "../src/a01a1335480147d0686528aee80f8ee34.ts";
+import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "../src/i01a1335480147d0686528aee80f8ee34.ts";
 
 test("matches RFC 4122's uuidv5 for a known pair", () => {
 	// python: uuid.uuid5(uuid.NAMESPACE_DNS, "python.org")

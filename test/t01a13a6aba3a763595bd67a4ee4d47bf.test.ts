@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "../src/a01a13a6aba3a763595bd67a4ee4d47bf.ts";
+import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "../src/i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { checkedOut, gitRepo, tempBridge } from "./harness.ts";
 
 const ROOT = "01a1335b-f253-7b80-ab64-d2f9a03c9634";

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a13354894273b1be253424511ba82c as commitFiles } from "../src/a01a13354894273b1be253424511ba82c.ts";
+import { i01a13354894273b1be253424511ba82c as commitFiles } from "../src/i01a13354894273b1be253424511ba82c.ts";
 import { git, gitRepo } from "./harness.ts";
 
 test("commits only the given files", () => {

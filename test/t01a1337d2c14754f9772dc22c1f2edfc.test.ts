@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/a01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { a01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "../src/a01a1337d2c14754f9772dc22c1f2edfc.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "../src/i01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { registerRepo, tempBridge } from "./harness.ts";
 
 test("finds a repo by name, resolving a relative remote against the bridge", async () => {

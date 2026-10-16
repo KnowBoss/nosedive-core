@@ -1,6 +1,6 @@
-import type { Args, Ctx } from "./a01a1336a958f71c7beec4db3195c7966.ts";
-import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./a01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { a01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./a01a141f869bf7f76b5bc81aa991ff9b9.ts";
+import type { Args, Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 
 export async function i03d222b25de05c9bb928a9ecd5f8f5e2(_args: Args, ctx: Ctx): Promise<void> {
 	const bridge = findBridge(ctx.cwd);

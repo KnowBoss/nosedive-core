@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "../src/a01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "../src/i01a1335487e477549d84a6fc2c901bf6.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { repoDir } from "../scripts/source-cape.mjs";
 import { tempDir } from "./harness.ts";
@@ -20,7 +20,7 @@ test("describes this repo's actions, skipping docs of other kinds", () => {
 	assert.equal(docs["01a13354-7d34-72f3-ad11-9c44b4d5de6e"], undefined);
 	assert.deepEqual(
 		entries.find((entry) => entry.id === SCAF),
-		{ id: SCAF, name: "a01a133547f5f7c45a3fb2ac0e3a7678e", file: join(repoDir, "src", "a01a133547f5f7c45a3fb2ac0e3a7678e.ts") },
+		{ id: SCAF, name: "i01a133547f5f7c45a3fb2ac0e3a7678e", file: join(repoDir, "src", "i01a133547f5f7c45a3fb2ac0e3a7678e.ts") },
 	);
 });
 

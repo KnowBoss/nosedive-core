@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/a01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { a01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "../src/a01a138b2b8ee703cab227b010f588b6a.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "../src/i01a138b2b8ee703cab227b010f588b6a.ts";
 import { checkedOut, tempBridge } from "./harness.ts";
 
 const HERE = "01a1335b-f253-7b80-ab64-d2f9a03c9634";

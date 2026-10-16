@@ -1,8 +1,8 @@
 // find-cape
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Cape, Ctx } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";
-import { a01a1337c825f7457b879d5c039ffeccd as findCape } from "../src/a01a1337c825f7457b879d5c039ffeccd.ts";
+import type { Cape, Ctx } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a1337c825f7457b879d5c039ffeccd as findCape } from "../src/i01a1337c825f7457b879d5c039ffeccd.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 import { git, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge } from "./harness.ts";

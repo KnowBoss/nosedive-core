@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a133588bcc7f8bae725ff70d8f6800 as updateKbDocField } from "../src/a01a133588bcc7f8bae725ff70d8f6800.ts";
+import { i01a133588bcc7f8bae725ff70d8f6800 as updateKbDocField } from "../src/i01a133588bcc7f8bae725ff70d8f6800.ts";
 import { git, tempBridge, tempDir } from "./harness.ts";
 
 const ID = "01a1335b-f253-7b80-ab64-d2f9a03c9634";

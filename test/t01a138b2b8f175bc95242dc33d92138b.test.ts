@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { Cape } from "../src/a01a1336a958f71c7beec4db3195c7966.ts";
-import { a01a138b2b8f175bc95242dc33d92138b as runRepoTests } from "../src/a01a138b2b8f175bc95242dc33d92138b.ts";
+import type { Cape } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a138b2b8f175bc95242dc33d92138b as runRepoTests } from "../src/i01a138b2b8f175bc95242dc33d92138b.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 import { git, greetCapeRepo, tempBridge, waveCapeRepo } from "./harness.ts";

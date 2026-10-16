@@ -1,7 +1,7 @@
 // usage-id
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { a01a133548178739398941123114401ad as usageId } from "../src/a01a133548178739398941123114401ad.ts";
+import { i01a133548178739398941123114401ad as usageId } from "../src/i01a133548178739398941123114401ad.ts";
 
 const CRUD = "01a13354-7dea-7604-b903-b94a5aca2b83";
 

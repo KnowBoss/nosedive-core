@@ -1,7 +1,7 @@
 // merge-keyed-entries
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { a01a133588b1f7d4ea13f1b5e79f02e4c as mergeKeyedEntries } from "../src/a01a133588b1f7d4ea13f1b5e79f02e4c.ts";
+import { i01a133588b1f7d4ea13f1b5e79f02e4c as mergeKeyedEntries } from "../src/i01a133588b1f7d4ea13f1b5e79f02e4c.ts";
 
 test("merges onto entries by key, appends new keys, and removes on null", () => {
 	const list = [{ a: { ref: "1" } }, "b", { c: null }];

@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/a01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { a01a138b2b8f0793495b66bc7935c93be as hydrateRepo } from "../src/a01a138b2b8f0793495b66bc7935c93be.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a138b2b8f0793495b66bc7935c93be as hydrateRepo } from "../src/i01a138b2b8f0793495b66bc7935c93be.ts";
 import { git, greetCapeRepo, registerRepo, tempBridge } from "./harness.ts";
 
 test("clones a registered repo at its trunk, then leaves the checkout as it is", async () => {

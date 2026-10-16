@@ -1,7 +1,7 @@
 // mint-uuid
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { a01a1335480c776ba8945020d0af333eb as mintUuid } from "../src/a01a1335480c776ba8945020d0af333eb.ts";
+import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "../src/i01a1335480c776ba8945020d0af333eb.ts";
 
 test("mints v7 uuids that sort by time", () => {
 	const early = mintUuid(1_000_000_000_000);

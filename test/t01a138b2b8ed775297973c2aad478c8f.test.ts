@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/a01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { a01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "../src/a01a138b2b8ed775297973c2aad478c8f.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "../src/i01a138b2b8ed775297973c2aad478c8f.ts";
 import { checkedOut, tempBridge } from "./harness.ts";
 
 test("finds a checkout, its kb its own bridge's when it is one, and refuses what is not checked out", async () => {

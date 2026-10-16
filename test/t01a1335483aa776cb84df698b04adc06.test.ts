@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { a01a1335482f876d6808aec457f512e80 as readKbDoc } from "../src/a01a1335482f876d6808aec457f512e80.ts";
-import { a01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "../src/a01a1335483aa776cb84df698b04adc06.ts";
+import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "../src/i01a1335482f876d6808aec457f512e80.ts";
+import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "../src/i01a1335483aa776cb84df698b04adc06.ts";
 import { tempDir } from "./harness.ts";
 
 test("changes only the field that was set, keeping quoting and comments elsewhere", () => {
