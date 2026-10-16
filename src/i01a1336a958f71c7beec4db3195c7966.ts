@@ -35,7 +35,7 @@ export type Cape = {
 	version: string;
 	docs: Record<string, CapeDoc>;
 	index: Record<string, unknown>;
-	/** Each kind the cape declares: its name, to its meta schema. */
+	/** Each kind the cape declares: its name, to its declaration's meta (schema, durable). */
 	kinds: Record<string, unknown>;
 	/** A module exporting the cape's functions by their ids, for code running outside this process. */
 	url?: string;

@@ -8,7 +8,7 @@ import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "../src/i01a138b2
 import { tempDir } from "./harness.ts";
 
 const closed = { type: "object", additionalProperties: false, properties: { owner: { type: "string" } } };
-const cape = { kinds: { task: closed } } as unknown as Cape;
+const cape = { kinds: { task: { schema: closed } } } as unknown as Cape;
 
 test("checks against the first kb declaring the kind, then the capes, and warns when none does", () => {
 	const kb = tempDir("check-meta");

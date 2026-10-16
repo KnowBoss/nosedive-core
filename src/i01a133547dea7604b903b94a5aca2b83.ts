@@ -4,6 +4,13 @@ import { i6c9390d5a8e5583881960839391345db } from "./i6c9390d5a8e558388196083939
 import { i3ac641d4a9d757a48df1f1de031be120 } from "./i3ac641d4a9d757a48df1f1de031be120.ts";
 import { i7820a39cffb9511493085038a7e19447 } from "./i7820a39cffb9511493085038a7e19447.ts";
 import { i21be7cc759fb5c758e11cffdb2630902 } from "./i21be7cc759fb5c758e11cffdb2630902.ts";
+import { i933f159845875010ad6ed3569414a651 } from "./i933f159845875010ad6ed3569414a651.ts";
+import { iecbd59b3160b5626840a2de9f49fb01f } from "./iecbd59b3160b5626840a2de9f49fb01f.ts";
+import { i794ab6e0060f5ede8b0148203fe6df81 } from "./i794ab6e0060f5ede8b0148203fe6df81.ts";
+import { i7713e1ddd9c454948ec7f940be7ffe6f } from "./i7713e1ddd9c454948ec7f940be7ffe6f.ts";
+import { i971c8e5c145b560390e48ad4702e2fa5 } from "./i971c8e5c145b560390e48ad4702e2fa5.ts";
+import { i5225ca8db7b85be197b4b22ee341b5f1 } from "./i5225ca8db7b85be197b4b22ee341b5f1.ts";
+import { i717f85b924b35f32b24a8cfaf9c0241f } from "./i717f85b924b35f32b24a8cfaf9c0241f.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG = /^[a-z0-9][a-z0-9.-]*$/;
@@ -24,6 +31,20 @@ export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 			return i7820a39cffb9511493085038a7e19447(quid(args.quid), String(args.scopes), ctx);
 		case "u21be7cc759fb5c758e11cffdb2630902": // crud <quid> --links <source>
 			return i21be7cc759fb5c758e11cffdb2630902(quid(args.quid), String(args.links), ctx);
+		case "u933f159845875010ad6ed3569414a651": // crud <quid> --title <title>
+			return i933f159845875010ad6ed3569414a651(quid(args.quid), String(args.title), ctx);
+		case "uecbd59b3160b5626840a2de9f49fb01f": // crud <quid> --body <source>
+			return iecbd59b3160b5626840a2de9f49fb01f(quid(args.quid), String(args.body), ctx);
+		case "u794ab6e0060f5ede8b0148203fe6df81": // crud <quid> --section <heading> <source>
+			return i794ab6e0060f5ede8b0148203fe6df81(quid(args.quid), String(args.section), String(args.source), ctx);
+		case "u7713e1ddd9c454948ec7f940be7ffe6f": // crud <quid> --gist <gist>
+			return i7713e1ddd9c454948ec7f940be7ffe6f(quid(args.quid), String(args.gist), ctx);
+		case "u971c8e5c145b560390e48ad4702e2fa5": // crud <quid> --name <name>
+			return i971c8e5c145b560390e48ad4702e2fa5(quid(args.quid), slug(args.name, "--name"), ctx);
+		case "u5225ca8db7b85be197b4b22ee341b5f1": // crud <quid> --kind <kind>
+			return i5225ca8db7b85be197b4b22ee341b5f1(quid(args.quid), slug(args.kind, "--kind"), ctx);
+		case "u717f85b924b35f32b24a8cfaf9c0241f": // crud --drop <quid> [--hard]
+			return i717f85b924b35f32b24a8cfaf9c0241f(quid(args.drop), args.hard === true, ctx);
 		default:
 			throw new Error(`crud has no impl for ${call.usage}`);
 	}
