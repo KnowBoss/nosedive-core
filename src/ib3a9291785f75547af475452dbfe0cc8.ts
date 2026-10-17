@@ -13,6 +13,8 @@ import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a141fbba027b2684d5b1c1879d9337 as actionClashes } from "./i01a141fbba027b2684d5b1c1879d9337.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
+import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
+import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 
 /** Relative to .nosedive/: built capes, and what this checkout remembers for itself. */
 const NOSEDIVE_IGNORES = ["capes/", "local/"];
@@ -92,6 +94,16 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 		ctx.out(`seeded ${repo}`);
 	} else {
 		ctx.out(`${repo} is already seeded`);
+	}
+
+	// The root's body is its tree, rendered from its links.
+	if (rootDoc) {
+		const tree = renderTree(kbDir, rootDoc);
+		if (tree !== rootDoc.body) {
+			writeKbDoc(rootDoc.path, rootDoc.yaml, tree);
+			commitFiles(dir, [rootDoc.path], `seed: ${repo} tree rendered`);
+			ctx.out(`rendered the tree of ${String(rootDoc.fm.name)}`);
+		}
 	}
 
 	if (noCapes) return;

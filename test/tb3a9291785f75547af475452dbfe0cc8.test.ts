@@ -146,3 +146,14 @@ test("a base gets a workspace that ignores itself, and moves it when its path ch
 	assert.equal(refused.code, 1);
 	assert.match(refused.err, /greet-cape cannot be checked out here: only a base has a workspace \(`nosedive seed --root-kind base`\)/);
 });
+
+test("renders the root's tree from its feat links, and leaves it once rendered", async () => {
+	const dir = await tempBridge("seed-tree");
+	const root = /^root: (\S+)$/m.exec(readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8"))![1]!;
+	const memo = ok(await run(["crud", "memo", "free", "level"], dir)).replace(/^kb\/|\.md$/g, "");
+	ok(await run(["crud", root, "--links", "-"], dir, `kb/${memo}.md:\n  rel: levels.feat\n`));
+	assert.match(ok(await run(["seed", "--no-capes"], dir)), /rendered the tree of /);
+	assert.ok(readFileSync(join(dir, "kb", `${root}.md`), "utf8").endsWith(`\n## Levels\n\n- [free level](${memo}.md): free level\n`));
+	assert.equal(git(["log", "-1", "--format=%s"], dir), `seed: ${basename(dir)} tree rendered`);
+	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], dir)), /rendered/);
+});
