@@ -15,6 +15,6 @@ test("adds and relabels links, keeping their order", async () => {
 
 	assert.match(
 		readFileSync(join(bridge, path), "utf8"),
-		/\nlinks:\n {2}- kb\/a\.md:\n {6}rel: planned\.dive\n {2}- kb\/b\.md: null\n---\n/,
+		/\nlinks:\n {2}- kb\/a\.md:\n {6}rel: planned\.dive\n {2}- kb\/b\.md: \{\}\n---\n/,
 	);
 });

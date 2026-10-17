@@ -8,7 +8,11 @@ test("merges onto entries by key, appends new keys, and removes on null", () => 
 	assert.deepEqual(mergeKeyedEntries(list, { a: { branch: "x" }, b: { rel: "r" }, c: null, d: {} }), [
 		{ a: { ref: "1", branch: "x" } },
 		{ b: { rel: "r" } },
-		{ d: null },
+		{ d: {} },
 	]);
 	assert.deepEqual(mergeKeyedEntries(undefined, { a: { x: 1 } }), [{ a: { x: 1 } }]);
+});
+
+test("keeps the written form of entries the patch does not name", () => {
+	assert.deepEqual(mergeKeyedEntries(["a", { b: null }, { c: { x: 1 } }], { d: { y: 2 } }), ["a", { b: null }, { c: { x: 1 } }, { d: { y: 2 } }]);
 });

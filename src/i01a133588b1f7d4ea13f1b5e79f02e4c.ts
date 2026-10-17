@@ -1,20 +1,20 @@
 import { i01a13354867d7a528cbad55b80708e50 as mergePatch } from "./i01a13354867d7a528cbad55b80708e50.ts";
 
+/** Entries the patch does not name keep their written form; one it adds or changes is a `{ key: value }` entry. */
 export function i01a133588b1f7d4ea13f1b5e79f02e4c(list: unknown, patch: Record<string, unknown>): unknown[] {
-	const entries = new Map<string, unknown>();
+	const entries = new Map<string, { value: unknown; item: unknown }>();
 	for (const item of Array.isArray(list) ? list : []) {
-		if (typeof item === "string") entries.set(item, null);
+		if (typeof item === "string") entries.set(item, { value: null, item });
 		else if (item && typeof item === "object") {
-			for (const [key, value] of Object.entries(item)) entries.set(key, value);
+			for (const [key, value] of Object.entries(item)) entries.set(key, { value, item: { [key]: value } });
 		}
 	}
 	for (const [key, value] of Object.entries(patch)) {
 		if (value === null) entries.delete(key);
-		else entries.set(key, mergePatch(entries.get(key) ?? {}, value));
+		else {
+			const merged = mergePatch(entries.get(key)?.value ?? {}, value);
+			entries.set(key, { value: merged, item: { [key]: merged ?? {} } });
+		}
 	}
-	return [...entries].map(([key, value]) => ({ [key]: isEmpty(value) ? null : value }));
-}
-
-function isEmpty(value: unknown): boolean {
-	return value === null || value === undefined || (typeof value === "object" && Object.keys(value).length === 0);
+	return [...entries.values()].map(({ item }) => item);
 }

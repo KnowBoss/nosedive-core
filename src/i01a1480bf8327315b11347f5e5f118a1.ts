@@ -1,5 +1,6 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, rmSync } from "node:fs";
-import { relative } from "node:path";
+import { basename, relative } from "node:path";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "./i01a13354850c7ba3ba5b8ac41a7b6b11.ts";
@@ -38,8 +39,12 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	const block = (id: string, why: string) => blockers.push(one ? why : `${labelOf.get(id)}: ${why}`);
 	for (const kbDir of kbDirs) {
 		if (!existsSync(kbDir)) continue;
+		// A doc git does not track (ignored, or never added) is no part of the kb's history, so it cannot block.
+		const listed = spawnSync("git", ["ls-files"], { cwd: kbDir, encoding: "utf8" });
+		const tracked = listed.status === 0 ? new Set(listed.stdout.split("\n").filter(Boolean)) : undefined;
 		for (const other of listKbDocs(kbDir)) {
 			if (dropping.has(String(other.fm.id))) continue;
+			if (tracked && !tracked.has(basename(other.path))) continue;
 			for (const link of Array.isArray(other.fm.links) ? other.fm.links : []) {
 				for (const [target, value] of Object.entries((link ?? {}) as Record<string, { rel?: unknown } | null>)) {
 					for (const id of dropping) if (target.includes(id)) block(id, `${at(other.path)} links it as ${String(value?.rel ?? "a link")}`);

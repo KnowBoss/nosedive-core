@@ -45,3 +45,10 @@ test("refuses a line that is not a quid", async () => {
 	const result = await run(["crud", "--drop-list", "-"], bridge, "not-a-quid\n");
 	assert.match(result.err, /--drop-list takes one quid per line, not: not-a-quid/);
 });
+
+test("ignores mentions in docs git does not track", async () => {
+	const bridge = await tempBridge("crud-drop-list-untracked");
+	const a = idOf(ok(await run(["crud", "goal", "a"], bridge)));
+	writeFileSync(join(bridge, "kb", "01a14a48-61cd-7c88-a0e1-b700d01901ed.md"), `---\nkind: memo\nid: 01a14a48-61cd-7c88-a0e1-b700d01901ed\nname: copy\n---\n\nSee ${a}.\n`);
+	ok(await run(["crud", "--drop-list", "-"], bridge, `${a}\n`));
+});
