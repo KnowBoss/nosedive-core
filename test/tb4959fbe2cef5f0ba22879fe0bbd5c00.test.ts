@@ -1,6 +1,6 @@
 // pass [<argv>...]
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { i01a1336cb234701bb0338faf5183960c as codeSection } from "../src/i01a1336cb234701bb0338faf5183960c.ts";
@@ -111,7 +111,7 @@ test("hydrate checks a repo out as a worktree of the bridge's cache of it, and l
 	const head = git(["rev-parse", "--short", "HEAD"], source);
 	assert.equal(ok(await run(["pass", "--hydrate", id], bridge)), `workspace/hello: worktree of main at ${head}\ngate hydrate: passed`);
 	const checkout = join(bridge, "workspace", "hello");
-	assert.equal(git(["rev-parse", "--path-format=absolute", "--git-common-dir"], checkout).toLowerCase(), join(bridge, ".nosedive", "cache", id).replace(/\\/g, "/").toLowerCase());
+	assert.equal(git(["rev-parse", "--path-format=absolute", "--git-common-dir"], checkout).toLowerCase(), join(bridge, ".nosedive", "cache", `${id}.git`).replace(/\\/g, "/").toLowerCase());
 	assert.equal(git(["log", "-1", "--format=%s"], checkout), "first");
 	assert.doesNotMatch(git(["status", "--porcelain", "--untracked-files=all"], bridge), /cache|workspace/, "neither the cache nor the checkout is committed");
 	assert.match(ok(await run(["pass", "--hydrate", id], bridge)), /^workspace\/hello: checked out already\n/);
@@ -124,7 +124,7 @@ test("hydrate fetches from the home copy, and warns and fetches from the first r
 	const missing = await run(["pass", "--hydrate", id], bridge);
 	assert.equal(missing.code, 0);
 	assert.match(missing.err, /cannot fetch hello from its home copy .+: it does not exist; trying its first remote/);
-	git(["worktree", "remove", join(bridge, "workspace", "hello")], join(bridge, ".nosedive", "cache", id));
+	git(["worktree", "remove", join(bridge, "workspace", "hello")], join(bridge, ".nosedive", "cache", `${id}.git`));
 
 	const home = /home copy (\S+):/.exec(missing.err)![1]!;
 	git(["clone", "-q", "--bare", source, home], bridge);
@@ -139,4 +139,13 @@ test("hydrate refuses a doc that is no repo", async () => {
 	const memo = idOf(ok(await run(["crud", "memo", "note"], bridge)));
 	ok(await run(["crud", memo, "--links", "-"], bridge, `nosedive-core:01a14b77-89b8-7b17-8e4c-26b61bf78856:\n  rel: hydrate.gate\n`));
 	assert.match((await run(["pass", "--hydrate", memo], bridge)).err, /gate hydrate failed, so nothing was written: note-\w{6} is a memo, not a repo/);
+});
+
+test("hydrate adopts a legacy cache named by the repo's id alone, and makes new ones <id>.git", async () => {
+	const { bridge, id, source } = await helloBridge("pass-hydrate-legacy");
+	const legacy = join(bridge, ".nosedive", "cache", id);
+	git(["clone", "-q", "--bare", source, legacy], bridge);
+	ok(await run(["pass", "--hydrate", id], bridge));
+	assert.equal(existsSync(join(legacy, "worktrees", "hello")), true);
+	assert.equal(existsSync(`${legacy}.git`), false);
 });
