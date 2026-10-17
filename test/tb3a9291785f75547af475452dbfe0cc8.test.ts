@@ -17,7 +17,7 @@ test("makes a git repo a base by default, in one commit", async () => {
 		`---\nkind: base\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\nmeta:\n  workspace: ./workspace\n---\n\n# ${repo}\n`,
 		"the root is named after the repo",
 	);
-	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "capes/\nlocal/\n");
+	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "cache/\ncapes/\nlocal/\n");
 	assert.equal(existsSync(join(dir, ".gitignore")), false, "the repo's own .gitignore is the user's");
 	assert.equal(git(["log", "--format=%s"], dir), `seed: ${repo} set up`);
 	assert.equal(git(["status", "--porcelain"], dir), "");

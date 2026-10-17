@@ -17,7 +17,7 @@ import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a550446
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 
 /** Relative to .nosedive/: built capes, and what this checkout remembers for itself. */
-const NOSEDIVE_IGNORES = ["capes/", "local/"];
+const NOSEDIVE_IGNORES = ["cache/", "capes/", "local/"];
 
 /**
  * Makes the base's workspace, which ignores everything in it, itself included, so nothing checked
