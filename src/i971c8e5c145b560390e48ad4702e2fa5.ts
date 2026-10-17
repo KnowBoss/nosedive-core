@@ -1,6 +1,7 @@
-import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import type { KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i01a133588bcc7f8bae725ff70d8f6800 as updateKbDocField } from "./i01a133588bcc7f8bae725ff70d8f6800.ts";
 
-export async function i971c8e5c145b560390e48ad4702e2fa5(quid: string, name: string, ctx: Ctx): Promise<void> {
-	ctx.out(updateKbDocField(ctx.cwd, quid, "name", () => name));
+export function i971c8e5c145b560390e48ad4702e2fa5(edit: KbEdit, quid: string, name: string): void {
+	if (!/^[a-z0-9][a-z0-9.-]*$/.test(name)) throw new Error(`--name must be lowercase letters, digits, dots and dashes: ${name}`);
+	updateKbDocField(edit, quid, "name", () => name);
 }
