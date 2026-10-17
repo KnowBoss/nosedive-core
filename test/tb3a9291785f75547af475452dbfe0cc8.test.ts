@@ -48,7 +48,7 @@ test("builds the capes config names, so their actions run", async () => {
 
 	const missing = await run(["greet", "ann"], bridge);
 	assert.equal(missing.code, 1);
-	assert.match(missing.err, /unknown action: greet\n[^]*greet-cape {2}cape not built: run `nosedive seed`/);
+	assert.match(missing.err, /unknown action: greet\n[^]*greet-cape\n {2}not built: run `nosedive seed`/);
 
 	const commit = git(["rev-parse", "HEAD"], repo);
 	assert.match(ok(await run(["seed"], bridge)), new RegExp(`built cape greet-cape \\S+ \\(${commit.slice(0, 7)}\\): greet`));

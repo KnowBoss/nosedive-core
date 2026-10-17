@@ -46,13 +46,12 @@ export type Cape = {
 /** What a gate is called with when a doc passes through it. It throws to fail, and nothing the pass edited is written. */
 export type GateCtx = {
 	core: Cape;
-	/** Core, then every configured cape that is built. */
+	/** Every configured cape that is built; core is `core`. */
 	capes: Cape[];
 	bridge: Bridge;
 	/** The doc passing through, as the pass's edit holds it; `doc.repoDir` is the repo it lives in. */
 	doc: EditedDoc;
-	kind: string;
-	/** What the gate's usage matched. */
+	/** What the gate's usage matched, besides the sect and its quid. */
 	args: Args;
 	edit: KbEdit;
 	/** Applies one crud edit, named as its flag, in the pass's edit: `crud(quid, "meta", { trunk: "main" })`. */
@@ -125,21 +124,25 @@ function findAction(capes: Cape[], name: string) {
 	return undefined;
 }
 
-/** Core's top-level actions, then those of each configured cape, as its build recorded them. */
+/** Core's top-level actions, then each configured cape's, as its build recorded them, grouped by cape. */
 async function renderActions(ctx: Ctx): Promise<string> {
 	const core = ctx.capes[0]!;
-	const rows = new Map<string, string>();
-	for (const doc of Object.values(core.docs)) if (doc.top && doc.kind === "action") rows.set(doc.name, doc.gist);
+	const groups: [string, [string, string][]][] = [];
+	const coreRows = Object.values(core.docs).flatMap((doc): [string, string][] => (doc.top && doc.kind === "action" ? [[doc.name, doc.gist]] : []));
+	groups.push([core.name, coreRows]);
 	const bridge = findBridge(ctx.cwd);
 	for (const cape of bridge ? configuredCapes(bridge, core) : []) {
-		if (!cape.build) rows.set(cape.name, "cape not built: run `nosedive seed`");
-		for (const [name, gist] of Object.entries(cape.build?.actions ?? {})) if (!rows.has(name)) rows.set(name, `${gist} (${cape.name})`);
+		// Core's actions are never shadowed, so a cape's action of the same name is not listed.
+		const rows = Object.entries(cape.build?.actions ?? {}).filter(([name]) => !coreRows.some(([taken]) => taken === name));
+		groups.push([cape.name, cape.build ? rows : [["", "not built: run `nosedive seed`"]]]);
 	}
-	const width = Math.max(0, ...[...rows.keys()].map((name) => name.length));
-	const lines = [...rows]
-		.sort(([a], [b]) => a.localeCompare(b))
-		.map(([name, gist]) => `  ${name.padEnd(width)}  ${gist}`);
-	return ["Usage: nosedive <action> [<args>]", "", ...lines, "", "nosedive <action> --help for its usages."].join("\n");
+	const width = Math.max(0, ...groups.flatMap(([, rows]) => rows.map(([name]) => name.length)));
+	const lines = groups.flatMap(([name, rows]) => [
+		"",
+		name,
+		...rows.sort(([a], [b]) => a.localeCompare(b)).map(([action, gist]) => (action ? `  ${action.padEnd(width)}  ${gist}` : `  ${gist}`)),
+	]);
+	return ["Usage: nosedive <action> [<args>]", ...lines, "", "nosedive <action> --help for its usages."].join("\n");
 }
 
 function renderHelp(doc: CapeDoc, more: boolean): string {

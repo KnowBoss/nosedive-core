@@ -26,7 +26,7 @@ function stampCapeRepo(): string {
 	const files: Record<string, string> = {
 		".nosedive/config.yaml": `kb: ./kb\nroot: ${ROOT}\n`,
 		[`kb/${ROOT}.md`]: `---\nkind: cape\nid: ${ROOT}\nname: stamp-cape\n---\n`,
-		...gate(STAMP, "stamp", "pass --stamp <quid> [--loud]", '\tctx.crud(ctx.doc.id, "gist", ctx.args.loud ? "STAMPED" : "stamped");\n\tctx.crud(ctx.doc.id, "section", { heading: "Stamp", text: `by ${ctx.kind}` });\n\tctx.out("stamping");'),
+		...gate(STAMP, "stamp", "pass --stamp <quid> [--loud]", '\tctx.crud(ctx.doc.id, "gist", ctx.args.loud ? "STAMPED" : "stamped");\n\tctx.crud(ctx.doc.id, "section", { heading: "Stamp", text: `by ${ctx.doc.fm.kind}, with ${Object.keys(ctx.args).join(" and ")}` });\n\tctx.out("stamping");'),
 		...gate(REFUSE, "refuse", "pass --stamp <quid> [--refuse]", '\tif (ctx.args.refuse) throw new Error("asked to refuse");'),
 	};
 	for (const [file, text] of Object.entries(files)) {
@@ -56,7 +56,7 @@ test("passes a doc through its gates in one sect, with the args their usages mat
 	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "pass(a-memo-" + memo.slice(-6) + "): stamp");
 	const text = readFileSync(join(bridge, path), "utf8");
 	assert.match(text, /\ngist: "?STAMPED"?\n/);
-	assert.match(text, /## Stamp\n\nby memo\n$/);
+	assert.match(text, /## Stamp\n\nby memo, with loud\n$/);
 });
 
 test("fails fast, and writes nothing when a gate fails", async () => {

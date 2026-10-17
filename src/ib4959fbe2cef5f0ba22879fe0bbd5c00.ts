@@ -14,14 +14,14 @@ const SECT = /^pass --([a-z0-9][a-z0-9-]*) <quid>(?= |$)/;
 export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx): Promise<void> {
 	const bridge = findBridge(ctx.cwd);
 	if (!bridge) throw new Error("pass runs from a bridge: run `nosedive seed` first");
-	const core = ctx.capes[0]!;
-	const capes = [...ctx.capes];
+	const [core, ...capes] = ctx.capes as [Cape, ...Cape[]];
 	for (const { build } of configuredCapes(bridge, core)) {
 		if (build && !capes.some((cape) => cape.id === build.id)) capes.push(await loadCape(bridge.dir, build, core));
 	}
+	const all = [core, ...capes];
 
 	// pass knows no sect itself: its gates' usages say what it takes.
-	const usages = [...new Set(capes.flatMap((cape) => Object.values(cape.docs).flatMap((doc) => (doc.kind === "gate" ? doc.usages.map((usage) => usage.text) : []))))].sort();
+	const usages = [...new Set(all.flatMap((cape) => Object.values(cape.docs).flatMap((doc) => (doc.kind === "gate" ? doc.usages.map((usage) => usage.text) : []))))].sort();
 	const listing = usages.map((usage) => `  ${usage}`).join("\n");
 	if (argv.length === 0 || argv[0] === "--help") {
 		ctx.out([Object.values(core.docs).find((candidate) => candidate.name === "pass")!.gist, "", listing || "  (no gate declares a usage)"].join("\n"));
@@ -40,13 +40,16 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 	for (const match of matched) {
 		for (const [key, value] of Object.entries(match.args)) if (args[key] === undefined || args[key] === false) args[key] = value;
 	}
-	const quid = String(args[sect.replace(/-([a-z0-9])/g, (_, char: string) => char.toUpperCase())]).toLowerCase();
+	// The sect's option binds the quid; the gates get the rest.
+	const key = sect.replace(/-([a-z0-9])/g, (_, char: string) => char.toUpperCase());
+	const quid = String(args[key]).toLowerCase();
+	delete args[key];
 	if (!QUID.test(quid)) throw new Error(`not a quid: ${quid}`);
 
 	const edit = editKbDocs(ctx.cwd);
 	const doc = edit.doc(quid);
 	const kind = String(doc.fm.kind);
-	const ids = [...new Set([...gateIds(findKind(kind, [doc.kbDir, bridge.kbDir], capes)?.links, sect), ...gateIds(doc.fm.links, sect)])];
+	const ids = [...new Set([...gateIds(findKind(kind, [doc.kbDir, bridge.kbDir], all)?.links, sect), ...gateIds(doc.fm.links, sect)])];
 	if (ids.length === 0) throw new Error(`${String(doc.fm.name)} links no ${sect}.gate, nor does its kind ${kind}`);
 
 	const gateCtx: GateCtx = {
@@ -54,14 +57,13 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 		capes,
 		bridge,
 		doc,
-		kind,
 		args,
 		edit,
 		crud: (target, key, value) => crudEdit(edit, target, key, value, ctx),
 		out: ctx.out,
 		err: ctx.err,
 	};
-	for (const { name, run } of ids.map((id) => gate(capes, id))) {
+	for (const { name, run } of ids.map((id) => gate(all, id))) {
 		try {
 			await run(gateCtx);
 		} catch (error) {
