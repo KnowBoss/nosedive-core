@@ -1,9 +1,12 @@
 // crud <kind> <gist>... [--name <name>] [--meta <source>]
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { checkedOut, git, ok, run, tempBridge } from "./harness.ts";
+import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "../src/i01a1335480147d0686528aee80f8ee34.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "../src/i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "../src/i01a1337d2c14754f9772dc22c1f2edfc.ts";
+import { checkedOut, git, gitRepo, ok, run, tempBridge, tempDir } from "./harness.ts";
 
 test("mints a doc named from its gist, and commits it", async () => {
 	const bridge = await tempBridge("crud-mint");
@@ -59,11 +62,46 @@ test("checks the kind: warns when nothing declares it, refuses a schema an empty
 	assert.match(refused.err, /meta does not fit kind task:\n {2}meta must have required property 'owner'/);
 });
 
-test("--meta mints the doc with its meta, checked against its kind, so a repo can be registered", async () => {
+test("--meta mints the doc with its meta, checked against its kind", async () => {
 	const bridge = await tempBridge("crud-mint-meta");
-	const path = ok(await run(["crud", "repo", "the", "hello", "cape", "--name", "nosedive-hello", "--meta", "-"], bridge, "remotes:\n  local: ../hello\n"));
-	assert.match(readFileSync(join(bridge, path), "utf8"), /\ngist: "the hello cape"\nmeta:\n {2}remotes:\n {4}local: \.\.\/hello\n---\n/);
-	const refused = await run(["crud", "repo", "no", "remotes"], bridge);
+	const path = ok(await run(["crud", "goal", "the", "hello", "cape", "--meta", "-"], bridge, "size: 2\n"));
+	assert.match(readFileSync(join(bridge, path), "utf8"), /\ngist: "the hello cape"\nmeta:\n {2}size: 2\n---\n/);
+	const refused = await run(["crud", "repo", "local", "--name", "local", "--meta", "-"], bridge, "remotes:\n  local: ../hello\n");
 	assert.equal(refused.code, 1);
-	assert.match(refused.err, /meta does not fit kind repo:\n {2}meta must have required property 'remotes'/);
+	assert.match(refused.err, /meta does not fit kind repo:\n {2}\/remotes must NOT be valid/);
+});
+
+test("a repo the bridge mints gets a home copy, mirroring its other remote, or empty", async () => {
+	const bridge = await tempBridge("crud-mint-repo-home");
+	const homes = tempDir("crud-mint-homes");
+	appendFileSync(join(bridge, ".nosedive", "config.yaml"), `home: ${JSON.stringify(homes)}\n`);
+	const cloud = gitRepo("crud-mint-cloud");
+	git(["commit", "-q", "--allow-empty", "-m", "first"], cloud);
+
+	const out = ok(await run(["crud", "repo", "hello", "--name", "hello", "--meta", "-"], bridge, `remotes:\n  cloud: ${JSON.stringify(cloud)}\n`));
+	const home = join(homes, `${namespacedUuid("hello", findBridge(bridge)!.root!)}.git`);
+	assert.equal(out.split("\n")[1], `home copy ${home.replace(/\\/g, "/")}`);
+	assert.equal(git(["log", "-1", "--format=%s"], home), "first");
+	assert.equal(git(["rev-parse", "--is-bare-repository"], home), "true");
+
+	ok(await run(["crud", "repo", "fresh", "--name", "fresh"], bridge));
+	const fresh = join(homes, `${namespacedUuid("fresh", findBridge(bridge)!.root!)}.git`);
+	assert.equal(git(["rev-parse", "--is-bare-repository"], fresh), "true");
+	assert.equal(findRepoDoc(findBridge(bridge)!, "fresh").remote, fresh, "a repo with no other remote clones from home");
+});
+
+test("a repo the bridge mints needs a name and a reachable home, and nothing is minted without them", async () => {
+	const bridge = await tempBridge("crud-mint-repo-refused");
+	const head = git(["rev-parse", "HEAD"], bridge);
+	assert.match((await run(["crud", "repo", "unnamed"], bridge)).err, /a repo needs --name/);
+	assert.match((await run(["crud", "repo", "x", "--name", "x"], bridge)).err, /a repo needs a home: set `home` in \.nosedive\/config\.yaml/);
+	appendFileSync(join(bridge, ".nosedive", "config.yaml"), `home: ${JSON.stringify(join(tempDir("crud-mint-gone"), "missing"))}\n`);
+	assert.match((await run(["crud", "repo", "x", "--name", "x"], bridge)).err, /cannot reach the home .+missing, so no repo was created/);
+	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+	assert.equal(git(["status", "--porcelain", "kb"], bridge), "");
+
+	const twice = await tempBridge("crud-mint-repo-twice");
+	appendFileSync(join(twice, ".nosedive", "config.yaml"), `home: ${JSON.stringify(tempDir("crud-mint-twice"))}\n`);
+	ok(await run(["crud", "repo", "once", "--name", "once"], twice));
+	assert.match((await run(["crud", "repo", "again", "--name", "once"], twice)).err, /\.git already exists/);
 });

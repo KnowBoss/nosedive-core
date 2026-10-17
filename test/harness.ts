@@ -153,7 +153,7 @@ export function waveCapeRepo(options: Fixture = {}): string {
 /** Registers a repo doc named `name` in a bridge, cloned from `path` when given; returns its id. */
 export async function registerRepo(bridge: string, name: string, path?: string): Promise<string> {
 	const id = mintUuid();
-	const meta = path === undefined ? "" : `meta:\n  remotes:\n    local: ${JSON.stringify(path)}\n`;
+	const meta = path === undefined ? "" : `meta:\n  remotes:\n    origin: ${JSON.stringify(path)}\n`;
 	writeFileSync(join(bridge, "kb", `${id}.md`), `---\nkind: repo\nid: ${id}\nname: ${name}\n${meta}---\n`);
 	return id;
 }
