@@ -11,6 +11,7 @@ import { i7713e1ddd9c454948ec7f940be7ffe6f } from "./i7713e1ddd9c454948ec7f940be
 import { i971c8e5c145b560390e48ad4702e2fa5 } from "./i971c8e5c145b560390e48ad4702e2fa5.ts";
 import { i5225ca8db7b85be197b4b22ee341b5f1 } from "./i5225ca8db7b85be197b4b22ee341b5f1.ts";
 import { i717f85b924b35f32b24a8cfaf9c0241f } from "./i717f85b924b35f32b24a8cfaf9c0241f.ts";
+import { i4d86421616655ccebfcb884e0f35ff56 } from "./i4d86421616655ccebfcb884e0f35ff56.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG = /^[a-z0-9][a-z0-9.-]*$/;
@@ -45,6 +46,8 @@ export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 			return i5225ca8db7b85be197b4b22ee341b5f1(quid(args.quid), slug(args.kind, "--kind"), ctx);
 		case "u717f85b924b35f32b24a8cfaf9c0241f": // crud --drop <quid> [--hard]
 			return i717f85b924b35f32b24a8cfaf9c0241f(quid(args.drop), args.hard === true, ctx);
+		case "u4d86421616655ccebfcb884e0f35ff56": // crud --drop-list <source> [--hard]
+			return i4d86421616655ccebfcb884e0f35ff56(String(args.dropList), args.hard === true, ctx);
 		default:
 			throw new Error(`crud has no impl for ${call.usage}`);
 	}
