@@ -16,7 +16,7 @@ export async function i01a14b7789b87b178e4c26b61bf78856(ctx: GateCtx): Promise<v
 	if (existsSync(dir)) return ctx.out(`${shown}: checked out already`);
 
 	// The cache is the bridge's own; only the workspace holds checkouts, each a worktree of it.
-	const cache = join(bridge.dir, ".nosedive", "cache", `${doc.id}.git`);
+	const cache = join(bridge.dir, ".nosedive", "cache", doc.id);
 	if (!existsSync(cache)) {
 		mkdirSync(cache, { recursive: true });
 		git(cache, "init", "-q", "--bare");

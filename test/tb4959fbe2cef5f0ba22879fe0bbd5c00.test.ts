@@ -111,7 +111,7 @@ test("hydrate checks a repo out as a worktree of the bridge's cache of it, and l
 	const head = git(["rev-parse", "--short", "HEAD"], source);
 	assert.equal(ok(await run(["pass", "--hydrate", id], bridge)), `workspace/hello: worktree of main at ${head}\ngate hydrate: passed`);
 	const checkout = join(bridge, "workspace", "hello");
-	assert.equal(git(["rev-parse", "--path-format=absolute", "--git-common-dir"], checkout).toLowerCase(), join(bridge, ".nosedive", "cache", `${id}.git`).replace(/\\/g, "/").toLowerCase());
+	assert.equal(git(["rev-parse", "--path-format=absolute", "--git-common-dir"], checkout).toLowerCase(), join(bridge, ".nosedive", "cache", id).replace(/\\/g, "/").toLowerCase());
 	assert.equal(git(["log", "-1", "--format=%s"], checkout), "first");
 	assert.doesNotMatch(git(["status", "--porcelain", "--untracked-files=all"], bridge), /cache|workspace/, "neither the cache nor the checkout is committed");
 	assert.match(ok(await run(["pass", "--hydrate", id], bridge)), /^workspace\/hello: checked out already\n/);
@@ -124,7 +124,7 @@ test("hydrate fetches from the home copy, and warns and fetches from the first r
 	const missing = await run(["pass", "--hydrate", id], bridge);
 	assert.equal(missing.code, 0);
 	assert.match(missing.err, /cannot fetch hello from its home copy .+: it does not exist; trying its first remote/);
-	git(["worktree", "remove", join(bridge, "workspace", "hello")], join(bridge, ".nosedive", "cache", `${id}.git`));
+	git(["worktree", "remove", join(bridge, "workspace", "hello")], join(bridge, ".nosedive", "cache", id));
 
 	const home = /home copy (\S+):/.exec(missing.err)![1]!;
 	git(["clone", "-q", "--bare", source, home], bridge);
