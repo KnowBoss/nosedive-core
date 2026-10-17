@@ -38,3 +38,14 @@ test("refuses an action without usages, and a function with any", () => {
 	writeFileSync(join(dir, "kb", `${ID}.md`), `---\nkind: function\nid: ${ID}\nname: greet\nmeta:\n  usages:\n    - greet <who>\n---\n`);
 	assert.match(checkCapeSource(dir).join("\n"), /greet \(kb\/[^)]+\): a function has no usages; make it an action if users can call it/);
 });
+
+test("a gate's usages start with pass --<sect> <quid>, and need no files of their own", () => {
+	const dir = tempDir("check-gate");
+	const gate = "01a14b30-922d-7aa7-9ea9-8b0268e7ce95";
+	const hex = gate.replace(/-/g, "");
+	for (const sub of ["kb", "src", "test"]) mkdirSync(join(dir, sub));
+	const usages = "    - pass --home <quid> [--sync]\n    - pass home <quid>\n";
+	writeFileSync(join(dir, "kb", `${gate}.md`), `---\nkind: gate\nid: ${gate}\nname: home\nmeta:\n  usages:\n${usages}---\n\n# Home\n\n## Code\n\n- Gate: [src/i${hex}.ts](../src/i${hex}.ts)\n`);
+	writeFileSync(join(dir, "src", `i${hex}.ts`), `export function i${hex}() {}\n`);
+	assert.deepEqual(checkCapeSource(dir), ["home (kb/01a14b30-922d-7aa7-9ea9-8b0268e7ce95.md) usage `pass home <quid>`: does not start with pass --<sect> <quid>"]);
+});

@@ -31,3 +31,10 @@ test("refuses no match and more than one, listing the usages", () => {
 	assert.throws(() => matchUsage(CRUD, ["crud", "q", "--meta"]), /no usage matches/);
 	assert.throws(() => matchUsage(["x <a>", "x <b>"], ["x", "1"]), /matches more than one usage/);
 });
+
+test("a usage ending in <argv>... takes the rest of the command line, options too", () => {
+	const usages = ["pass [<argv>...]"];
+	assert.deepEqual(matchUsage(usages, ["pass", "--home", "q", "--sync"]), { index: 0, args: { argv: ["--home", "q", "--sync"] } });
+	assert.deepEqual(matchUsage(usages, ["pass"]), { index: 0, args: { argv: undefined } });
+	assert.throws(() => matchUsage(["pass [--x] <argv>..."], ["pass", "--home"]), /no usage matches/, "a usage with options parses them");
+});

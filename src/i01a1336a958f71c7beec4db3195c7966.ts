@@ -3,6 +3,8 @@ import { i01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./i01a133548243
 import { i01a1337c825f7457b879d5c039ffeccd as findCape } from "./i01a1337c825f7457b879d5c039ffeccd.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
+import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import type { EditedDoc, KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 
 export type Ctx = {
 	cwd: string;
@@ -35,18 +37,26 @@ export type Cape = {
 	version: string;
 	docs: Record<string, CapeDoc>;
 	index: Record<string, unknown>;
-	/** Each kind the cape declares: its name, to its declaration's meta (schema, durable). */
+	/** Each kind the cape declares: its name, to its declaration's meta (schema, durable) and links. */
 	kinds: Record<string, unknown>;
 	/** A module exporting the cape's functions by their ids, for code running outside this process. */
 	url?: string;
 };
 
-/** What a gate is called with. It throws to fail. */
+/** What a gate is called with when a doc passes through it. It throws to fail, and nothing the pass edited is written. */
 export type GateCtx = {
 	core: Cape;
-	/** The repo the gate checks. */
-	repoDir: string;
-	bridgeDir: string;
+	/** Core, then every configured cape that is built. */
+	capes: Cape[];
+	bridge: Bridge;
+	/** The doc passing through, as the pass's edit holds it; `doc.repoDir` is the repo it lives in. */
+	doc: EditedDoc;
+	kind: string;
+	/** What the gate's usage matched. */
+	args: Args;
+	edit: KbEdit;
+	/** Applies one crud edit, named as its flag, in the pass's edit: `crud(quid, "meta", { trunk: "main" })`. */
+	crud(quid: string, key: string, value: unknown): void;
 	out(text: string): void;
 	err(text: string): void;
 };
@@ -70,7 +80,9 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		}
 		if (!found) throw new Error(`unknown action: ${name}\n\n${await renderActions(ctx)}`);
 		const { cape, docId, doc } = found;
-		if (rest[0] === "--help" || rest[0] === "--more") {
+		// An action that takes its command line as it is reads its own --help.
+		const raw = doc.usages.some((usage) => /<argv>\.\.\.\]?$/.test(usage.text));
+		if (!raw && (rest[0] === "--help" || rest[0] === "--more")) {
 			ctx.out(renderHelp(doc, rest[0] === "--more"));
 			return 0;
 		}

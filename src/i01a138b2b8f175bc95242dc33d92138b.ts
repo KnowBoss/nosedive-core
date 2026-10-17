@@ -3,11 +3,14 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { GateCtx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 
-export function i01a138b2b8f175bc95242dc33d92138b(ctx: GateCtx): void {
+/** What the tests run against: the core, the repo whose tests run, and the bridge it is checked out in. */
+export type RepoTests = { core: Cape; repoDir: string; bridgeDir: string; out(text: string): void };
+
+export function i01a138b2b8f175bc95242dc33d92138b(ctx: RepoTests): void {
 	if (!ctx.core.url) throw new Error(`core ${ctx.core.version} has no module the tests can import`);
 	const tests = join(ctx.repoDir, "test");
 	if (!existsSync(tests) || !readdirSync(tests).some((file) => file.endsWith(".test.ts"))) {
@@ -47,7 +50,7 @@ export function i01a138b2b8f175bc95242dc33d92138b(ctx: GateCtx): void {
 }
 
 /** The cape repos checked out in the bridge's workspace, other than the one being tested. */
-function workspaceCapes(ctx: GateCtx): [string, string][] {
+function workspaceCapes(ctx: RepoTests): [string, string][] {
 	const bridge = findBridge(ctx.bridgeDir);
 	if (bridge?.workspace === undefined) return [];
 	const workspace = bridge.workspace;

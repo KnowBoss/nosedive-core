@@ -57,11 +57,14 @@ function matchOne(elements: Element[], argv: string[]): Args | undefined {
 	const options = elements.filter((element) => element.kind === "option");
 	const args: Args = {};
 	for (const option of options) args[option.key] = option.takesValue ? undefined : false;
+	// A usage ending in `<argv>...`, with no options, takes the rest of the command line as it is.
+	const last = elements.at(-1);
+	const raw = last?.kind === "positional" && last.repeat && last.key === "argv" && options.length === 0;
 
 	const positionals: string[] = [];
 	for (let i = 0; i < argv.length; i += 1) {
 		const token = argv[i]!;
-		if (!token.startsWith("--") || token.length === 2) {
+		if (raw || !token.startsWith("--") || token.length === 2) {
 			positionals.push(token);
 			continue;
 		}

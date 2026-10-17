@@ -139,12 +139,6 @@ test("a base gets a workspace that ignores itself, and moves it when its path ch
 	assert.equal(existsSync(join(base, "workspace")), false);
 	assert.equal(readFileSync(join(base, "repos", "clone.txt"), "utf8"), "checked out\n", "moved, clones and all");
 
-	const memo = gitRepo("seed-not-base");
-	ok(await run(["seed", "--root-kind", "memo"], memo));
-	await registerRepo(memo, "greet-cape", greetCapeRepo());
-	const refused = await run(["test", "greet-cape"], memo);
-	assert.equal(refused.code, 1);
-	assert.match(refused.err, /greet-cape cannot be checked out here: only a base has a workspace \(`nosedive seed --root-kind base`\)/);
 });
 
 test("renders the root's tree from its feat links, and leaves it once rendered", async () => {

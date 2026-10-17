@@ -56,7 +56,9 @@ test("writes nothing when any edit is refused, naming the item", async () => {
 	assert.match(refused.err, /--batch item 2: --replace found its text nowhere/);
 
 	const malformed = await run(["crud", "--batch", "-"], bridge, `- quid: ${idOf(a)}\n  gist: one\n  name: two\n`);
-	assert.match(malformed.err, /--batch item 1 takes a quid and one of meta, scopes, links, parent, title, body, section, replace, gist, name, kind/);
+	assert.match(malformed.err, /--batch item 1 takes a quid and one edit/);
+	const unknown = await run(["crud", "--batch", "-"], bridge, `- quid: ${idOf(a)}\n  size: 2\n`);
+	assert.match(unknown.err, /--batch item 1: no crud edit size: the edits are meta, scopes, links, parent, title, body, section, replace, gist, name, kind/);
 	assert.match((await run(["crud", "--batch", "-"], bridge, "gist: one\n")).err, /--batch takes a list of edits/);
 
 	assert.equal(readFileSync(join(bridge, a), "utf8"), before);

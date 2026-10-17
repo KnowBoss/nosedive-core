@@ -14,8 +14,8 @@ export type KbEdit = {
 	doc(id: string): EditedDoc;
 	/** Marks a doc to be written. */
 	change(doc: EditedDoc): void;
-	/** Writes the changed docs, commits each repo's, and returns their paths relative to the bridge. */
-	commit(): string[];
+	/** Writes the changed docs, commits each repo's (as `message` when given), and returns their paths relative to the bridge. */
+	commit(message?: string): string[];
 };
 
 export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string): KbEdit {
@@ -39,7 +39,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string): KbEdit {
 		change(doc) {
 			changed.add(doc);
 		},
-		commit() {
+		commit(given) {
 			const byRepo = new Map<string, { doc: EditedDoc; text: string }[]>();
 			for (const doc of changed) {
 				const text = `---\n${doc.yaml.toString({ lineWidth: 0 })}---\n${doc.body}`;
@@ -50,7 +50,8 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string): KbEdit {
 				for (const { doc } of written) writeKbDoc(doc.path, doc.yaml, doc.body);
 				const [only] = written;
 				const message =
-					written.length === 1 ? `crud(${only!.doc.id}): updated ${String(only!.doc.fm.kind)} ${String(only!.doc.fm.name)}` : `crud: updated ${written.length} docs`;
+					given ??
+					(written.length === 1 ? `crud(${only!.doc.id}): updated ${String(only!.doc.fm.kind)} ${String(only!.doc.fm.name)}` : `crud: updated ${written.length} docs`);
 				commitFiles(repoDir, written.map(({ doc }) => doc.path), message);
 			}
 			return [...changed].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));

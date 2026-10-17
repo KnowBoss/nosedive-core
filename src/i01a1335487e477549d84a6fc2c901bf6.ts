@@ -7,7 +7,7 @@ export type CapeSource = {
 	docs: Record<string, CapeDoc>;
 	/** Each action's and gate's entrypoint: its doc id, export name and file. */
 	entries: { id: string; name: string; file: string }[];
-	/** Each kind the repo declares: its name, to its declaration's meta (schema, durable). */
+	/** Each kind the repo declares: its name, to its declaration's meta (schema, durable) and links. */
 	kinds: Record<string, unknown>;
 };
 
@@ -19,11 +19,11 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string): CapeSource {
 	const kinds: CapeSource["kinds"] = {};
 	const parents = new Map<string, string[]>();
 	for (const doc of listKbDocs(join(repoDir, "kb"))) {
-		if (doc.fm.kind === "kind") kinds[String(doc.fm.name)] = doc.fm.meta ?? {};
+		if (doc.fm.kind === "kind") kinds[String(doc.fm.name)] = { ...((doc.fm.meta ?? {}) as object), links: doc.fm.links ?? [] };
 		if (doc.fm.kind !== "action" && doc.fm.kind !== "function" && doc.fm.kind !== "gate") continue;
 		const id = String(doc.fm.id);
 		const meta = (doc.fm.meta ?? {}) as { usages?: unknown };
-		const usages = doc.fm.kind !== "gate" && Array.isArray(meta.usages) ? meta.usages.map(String) : [];
+		const usages = Array.isArray(meta.usages) ? meta.usages.map(String) : [];
 		docs[id] = {
 			kind: doc.fm.kind,
 			name: String(doc.fm.name ?? ""),

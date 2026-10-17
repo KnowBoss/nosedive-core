@@ -36,6 +36,11 @@ export function i01a1335488937f1c8c3983dd2950028e(repoDir: string): string[] {
 		}
 		for (const usage of doc.usages) {
 			const usageLabel = `${label} usage \`${usage.text}\``;
+			// A gate's usages say how pass reaches it; the gate's own code runs them all.
+			if (doc.kind === "gate") {
+				if (!/^pass --[a-z0-9][a-z0-9-]* <quid>(?= |$)/.test(usage.text)) problems.push(`${usageLabel}: does not start with pass --<sect> <quid>`);
+				continue;
+			}
 			if (usage.text !== doc.name && !usage.text.startsWith(`${doc.name} `)) {
 				problems.push(`${usageLabel}: does not start with ${doc.name}`);
 			}
