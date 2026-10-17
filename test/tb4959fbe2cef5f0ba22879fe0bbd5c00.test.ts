@@ -145,7 +145,9 @@ test("hydrate adopts a legacy cache named by the repo's id alone, and makes new 
 	const { bridge, id, source } = await helloBridge("pass-hydrate-legacy");
 	const legacy = join(bridge, ".nosedive", "cache", id);
 	git(["clone", "-q", "--bare", source, legacy], bridge);
+	git(["config", "extensions.worktreeConfig", "true"], legacy);
 	ok(await run(["pass", "--hydrate", id], bridge));
 	assert.equal(existsSync(join(legacy, "worktrees", "hello")), true);
+	assert.equal(git(["status", "--porcelain"], join(bridge, "workspace", "hello")), "", "a worktree of a cache with per-worktree config is no bare repo");
 	assert.equal(existsSync(`${legacy}.git`), false);
 });

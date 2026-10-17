@@ -31,6 +31,8 @@ export async function i01a14b7789b87b178e4c26b61bf78856(ctx: GateCtx): Promise<v
 	const local = git(cache, "rev-parse", "--verify", "-q", `refs/heads/${trunk}`).ok;
 	const added = local ? git(cache, "worktree", "add", "-q", dir, trunk) : git(cache, "worktree", "add", "-q", "--no-track", "-b", trunk, dir, `origin/${trunk}`);
 	if (!added.ok) throw new Error(`cannot check ${name} out at ${shown}: ${added.text}`);
+	// With per-worktree config on, as legacy caches have it, the cache's core.bare reaches the worktree unless it says otherwise.
+	if (git(cache, "config", "--bool", "extensions.worktreeConfig").text === "true") git(dir, "config", "--worktree", "core.bare", "false");
 	ctx.out(`${shown}: worktree of ${trunk} at ${git(dir, "rev-parse", "--short", "HEAD").text}`);
 }
 
