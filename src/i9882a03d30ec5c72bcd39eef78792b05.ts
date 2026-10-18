@@ -10,7 +10,6 @@ const BRANCHES = "+refs/heads/*:refs/remotes/origin/*";
 export async function i9882a03d30ec5c72bcd39eef78792b05(ctx: GateCtx): Promise<void> {
 	const { bridge, doc } = ctx;
 	const name = String(doc.fm.name);
-	if (doc.fm.kind !== "repo") throw new Error(`${name} is a ${String(doc.fm.kind)}, not a repo`);
 	const dir = checkoutPath(bridge, name);
 	const shown = relative(bridge.dir, dir).replace(/\\/g, "/");
 	if (existsSync(dir)) return ctx.out(`${shown}: checked out already`);
@@ -27,13 +26,25 @@ export async function i9882a03d30ec5c72bcd39eef78792b05(ctx: GateCtx): Promise<v
 
 	const meta = (doc.fm.meta ?? {}) as { trunk?: unknown };
 	const trunk = typeof meta.trunk === "string" ? meta.trunk : defaultBranch(source);
-	if (!git(cache, "rev-parse", "--verify", "-q", `refs/remotes/origin/${trunk}`).ok) throw new Error(`${name} has no branch ${trunk} to check out`);
-	const local = git(cache, "rev-parse", "--verify", "-q", `refs/heads/${trunk}`).ok;
-	const added = local ? git(cache, "worktree", "add", "-q", dir, trunk) : git(cache, "worktree", "add", "-q", "--no-track", "-b", trunk, dir, `origin/${trunk}`);
+	const tip = `refs/remotes/origin/${trunk}`;
+	if (!git(cache, "rev-parse", "--verify", "-q", tip).ok) throw new Error(`${name} has no branch ${trunk} to check out`);
+	// The cache alone owns the trunk, and only ever fast-forwards it.
+	const owned = `refs/heads/${trunk}`;
+	if (!git(cache, "rev-parse", "--verify", "-q", owned).ok || git(cache, "merge-base", "--is-ancestor", owned, tip).ok) git(cache, "update-ref", owned, tip);
+	else ctx.err(`nosedive: ${name}'s cache has a ${trunk} its remote does not, so it was left as it is`);
+	// So a checkout can push, by naming its target: git push origin HEAD:<branch>.
+	const remote = firstRemote(ctx);
+	if (remote && !git(cache, "config", "remote.origin.url").text) {
+		git(cache, "config", "remote.origin.url", remote);
+		git(cache, "config", "remote.origin.fetch", BRANCHES);
+	}
+
+	// Detached: no checkout has a branch of its own, so a bare git push has nowhere to go.
+	const added = git(cache, "worktree", "add", "-q", "--detach", dir, tip);
 	if (!added.ok) throw new Error(`cannot check ${name} out at ${shown}: ${added.text}`);
 	// With per-worktree config on, as legacy caches have it, the cache's core.bare reaches the worktree unless it says otherwise.
 	if (git(cache, "config", "--bool", "extensions.worktreeConfig").text === "true") git(dir, "config", "--worktree", "core.bare", "false");
-	ctx.out(`${shown}: worktree of ${trunk} at ${git(dir, "rev-parse", "--short", "HEAD").text}`);
+	ctx.out(`${shown}: detached at ${trunk} ${git(dir, "rev-parse", "--short", "HEAD").text}`);
 }
 
 /** Fetches the cache from the repo's home copy, else from its first remote; returns where it fetched from. */
@@ -44,13 +55,19 @@ function fetch(ctx: GateCtx, cache: string, name: string): string {
 		if (fetched.ok) return home;
 		ctx.err(`nosedive: cannot fetch ${name} from its home copy ${home.replace(/\\/g, "/")}: ${fetched.text}; trying its first remote`);
 	}
+	const remote = firstRemote(ctx);
+	if (!remote) throw new Error(`${name} has no remote to fetch from`);
+	const fetched = git(cache, "fetch", "-q", "--prune", remote, BRANCHES);
+	if (!fetched.ok) throw new Error(`cannot fetch ${name} from ${remote}: ${fetched.text}`);
+	return remote;
+}
+
+/** The repo's first remote, a path in it resolved against the bridge. */
+function firstRemote(ctx: GateCtx): string | undefined {
 	const remotes = ((ctx.doc.fm.meta as { remotes?: Record<string, unknown> } | undefined)?.remotes ?? {}) as Record<string, unknown>;
 	const first = Object.values(remotes).find((value) => typeof value === "string") as string | undefined;
-	if (!first) throw new Error(`${name} has no remote to fetch from`);
-	const remote = /^[a-z][a-z0-9+.-]*:\/\/|^git@/i.test(first) || isAbsolute(first) ? first : resolve(ctx.bridge.dir, first);
-	const fetched = git(cache, "fetch", "-q", "--prune", remote, BRANCHES);
-	if (!fetched.ok) throw new Error(`cannot fetch ${name} from ${first}: ${fetched.text}`);
-	return remote;
+	if (!first) return undefined;
+	return /^[a-z][a-z0-9+.-]*:\/\/|^git@/i.test(first) || isAbsolute(first) ? first : resolve(ctx.bridge.dir, first);
 }
 
 /** The branch a source's HEAD names, else main. */

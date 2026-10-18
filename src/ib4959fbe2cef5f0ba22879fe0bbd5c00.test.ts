@@ -1,5 +1,6 @@
 // pass [<argv>...]
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -109,11 +110,16 @@ async function helloBridge(label: string): Promise<{ bridge: string; id: string;
 	return { bridge, id, source };
 }
 
-test("hydrate checks a repo out as a worktree of the bridge's cache of it, and leaves it once there", async () => {
+test("hydrate checks a repo out as a detached worktree of the bridge's cache of it, which owns the trunk, and leaves it once there", async () => {
 	const { bridge, id, source } = await helloBridge("pass-hydrate");
 	const head = git(["rev-parse", "--short", "HEAD"], source);
-	assert.equal(ok(await run(["pass", "--hydrate", id], bridge)), `workspace/hello: worktree of main at ${head}\ngate hydrate: passed`);
+	assert.equal(ok(await run(["pass", "--hydrate", id], bridge)), `workspace/hello: detached at main ${head}\ngate hydrate: passed`);
 	const checkout = join(bridge, "workspace", "hello");
+	const cache = join(bridge, ".nosedive", "cache", `${id}.git`);
+	assert.equal(spawnSync("git", ["symbolic-ref", "-q", "HEAD"], { cwd: checkout }).status, 1, "no branch is checked out");
+	assert.equal(git(["rev-parse", "--short", "refs/heads/main"], cache), head);
+	assert.equal(git(["remote", "get-url", "origin"], checkout).toLowerCase(), source.toLowerCase());
+	assert.match(spawnSync("git", ["push"], { cwd: checkout, encoding: "utf8" }).stderr, /not currently on a branch/);
 	assert.equal(git(["rev-parse", "--path-format=absolute", "--git-common-dir"], checkout).toLowerCase(), join(bridge, ".nosedive", "cache", `${id}.git`).replace(/\\/g, "/").toLowerCase());
 	assert.equal(git(["log", "-1", "--format=%s"], checkout), "first");
 	assert.doesNotMatch(git(["status", "--porcelain", "--untracked-files=all"], bridge), /cache|workspace/, "neither the cache nor the checkout is committed");
@@ -135,6 +141,22 @@ test("hydrate fetches from the home copy, and warns and fetches from the first r
 	const fetched = await run(["pass", "--hydrate", id], bridge);
 	assert.equal(fetched.err, "");
 	assert.equal(git(["log", "-1", "--format=%s"], join(bridge, "workspace", "hello")), "first");
+});
+
+test("hydrate only fast-forwards the cache's trunk, and warns when it has moved apart from its remote", async () => {
+	const { bridge, id } = await helloBridge("pass-hydrate-apart");
+	ok(await run(["pass", "--hydrate", id], bridge));
+	const checkout = join(bridge, "workspace", "hello");
+	const cache = join(bridge, ".nosedive", "cache", `${id}.git`);
+	git(["commit", "-q", "--allow-empty", "-m", "only in the cache"], checkout);
+	const apart = git(["rev-parse", "HEAD"], checkout);
+	git(["update-ref", "refs/heads/main", apart], cache);
+	git(["worktree", "remove", checkout], cache);
+	const again = await run(["pass", "--hydrate", id], bridge);
+	assert.equal(again.code, 0);
+	assert.match(again.err, /hello's cache has a main its remote does not, so it was left as it is/);
+	assert.equal(git(["rev-parse", "refs/heads/main"], cache), apart);
+	assert.equal(git(["log", "-1", "--format=%s"], checkout), "first", "the checkout is at the remote's tip");
 });
 
 test("hydrate refuses a doc that is no repo, as its usage takes a repo, and is no command", async () => {
