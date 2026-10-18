@@ -8,6 +8,7 @@ import { i01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "./i01a1335
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import { i01a1336cb234701bb0338faf5183960c as codeSection } from "./i01a1336cb234701bb0338faf5183960c.ts";
+import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 
 export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined, ctx: Ctx): Promise<void> {
 	const repoDir = gitRoot(ctx.cwd);
@@ -41,10 +42,6 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 			writeKbDoc(raw.path, raw.yaml, body);
 			updated.push(`kb/${entry.id}.md`);
 		}
-		if (doc.kind === "gate") {
-			write(`src/${entry.name}.ts`, gateStub(entry.name, doc.name, types));
-			continue;
-		}
 		if (doc.kind === "function") {
 			write(`src/${entry.name}.ts`, internalStub(entry.name, doc.name));
 			write(`test/t${hex}.test.ts`, testStub(doc.name));
@@ -52,6 +49,11 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 		}
 		write(`src/${entry.name}.ts`, entryStub(entry.name, doc.name, doc.usages, types));
 		for (const usage of doc.usages) {
+			// A gate's usage impl takes the pass's GateCtx, and is a test itself.
+			if (gateUsage(usage.text)) {
+				write(`src/i${usage.id}.ts`, gateStub(`i${usage.id}`, usage.text, types));
+				continue;
+			}
 			write(`src/i${usage.id}.ts`, implStub(`i${usage.id}`, usage.text, types));
 			write(`test/t${usage.id}.test.ts`, testStub(usage.text));
 		}
@@ -73,7 +75,7 @@ function gitRoot(cwd: string): string {
 function entryStub(name: string, action: string, usages: { id: string; text: string }[], types: string): string {
 	const imports = usages.map((usage) => `import { i${usage.id} } from "./i${usage.id}.ts";`);
 	const cases = usages.map(
-		(usage) => `\t\tcase "u${usage.id}": // ${usage.text}\n\t\t\treturn i${usage.id}(call.args, call.ctx);`,
+		(usage) => `\t\tcase "u${usage.id}": // ${usage.text}\n\t\t\treturn i${usage.id}(${gateUsage(usage.text) ? "call.gate!" : "call.args, call.ctx"});`,
 	);
 	return [
 		`import type { ActionCall } from "${types}";`,

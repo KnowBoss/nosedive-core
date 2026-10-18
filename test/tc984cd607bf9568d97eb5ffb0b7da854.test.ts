@@ -39,6 +39,22 @@ test("writes every missing file, then nothing on a second run", async () => {
 	assert.equal(ok(await run(["scaf"], dir)), "nothing to scaffold");
 });
 
+test("a gate's usage gets an impl taking the pass's GateCtx, routed from call.gate, and no test", async () => {
+	const dir = await capeRepo();
+	writeFileSync(
+		join(dir, "kb", `${ACTION}.md`),
+		`---\nkind: action\nid: ${ACTION}\nname: ready\ngist: "Readies"\nmeta:\n  usages:\n    - pass --ready <device>\n---\n`,
+	);
+	const out = ok(await run(["scaf", ACTION], dir));
+	const impl = /created src\/(i[0-9a-f]{32})\.ts/g;
+	const files = [...out.matchAll(impl)].map((match) => match[1]!).filter((name) => name !== `i${ACTION.replace(/-/g, "")}`);
+	assert.equal(files.length, 1);
+	assert.doesNotMatch(out, /created test\//);
+	assert.match(readFileSync(join(dir, "src", `${files[0]}.ts`), "utf8"), /export async function i[0-9a-f]{32}\(ctx: GateCtx\)/);
+	assert.match(readFileSync(join(dir, "src", `i${ACTION.replace(/-/g, "")}.ts`), "utf8"), new RegExp(`return ${files[0]}\\(call\\.gate!\\);`));
+	assert.doesNotMatch(out, /\n {2}ready /, "nothing left to do for the gate");
+});
+
 test("one action only, and lists what it cannot fix", async () => {
 	const dir = await capeRepo();
 	mkdirSync(join(dir, "src"));

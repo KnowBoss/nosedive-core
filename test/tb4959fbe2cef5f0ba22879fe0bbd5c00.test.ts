@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { i01a133548178739398941123114401ad as usageId } from "../src/i01a133548178739398941123114401ad.ts";
 import { i01a1336cb234701bb0338faf5183960c as codeSection } from "../src/i01a1336cb234701bb0338faf5183960c.ts";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "./harness.ts";
 
@@ -15,12 +16,14 @@ const rootOf = (repo: string) => /\nroot: (\S+)/.exec(readFileSync(join(repo, ".
 /** A cape of two gates in the stamp sect: one stamps the doc through crud, one refuses when asked to. */
 function stampCapeRepo(): string {
 	const dir = gitRepo("stamp-cape");
-	const gate = (id: string, name: string, usage: string, code: string) => {
+	const gate = (id: string, name: string, text: string, code: string) => {
 		const hex = id.replace(/-/g, "");
-		const doc = { kind: "gate" as const, name, gist: name, usages: [], top: true, text: "", body: "" };
+		const usage = { id: usageId(text, id), text };
+		const doc = { kind: "action" as const, name, gist: name, usages: [usage], top: true, text: "", body: "" };
 		return {
-			[`kb/${id}.md`]: `---\nkind: gate\nid: ${id}\nname: ${name}\ngist: "${name}"\nmeta:\n  usages:\n    - ${usage}\n---\n${codeSection(`\n# ${name}\n`, doc, `i${hex}`)}`,
-			[`src/i${hex}.ts`]: `export function i${hex}(ctx: any) {\n${code}\n}\n`,
+			[`kb/${id}.md`]: `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${name}"\nmeta:\n  usages:\n    - ${text}\n---\n${codeSection(`\n# ${name}\n`, doc, `i${hex}`)}`,
+			[`src/i${hex}.ts`]: `import { i${usage.id} } from "./i${usage.id}.ts";\n\nexport function i${hex}(call: any) {\n\tif (call.usage === "u${usage.id}") return i${usage.id}(call.gate);\n}\n`,
+			[`src/i${usage.id}.ts`]: `export function i${usage.id}(ctx: any) {\n${code}\n}\n`,
 		};
 	};
 	const files: Record<string, string> = {
@@ -49,10 +52,10 @@ async function stampBridge(label: string): Promise<{ bridge: string; memo: strin
 	return { bridge, memo, path };
 }
 
-test("passes a doc through its gates in one sect, with the args their usages match, and commits their edits once", async () => {
+test("passes a doc through those of its gates in one sect with a usage the command line matches, and commits their edits once", async () => {
 	const { bridge, memo, path } = await stampBridge("pass-stamp");
 	const head = git(["rev-parse", "HEAD"], bridge);
-	assert.equal(ok(await run(["pass", "--stamp", memo, "--loud"], bridge)), `stamping\ngate stamp: passed\ngate refuse: passed\n${path}`);
+	assert.equal(ok(await run(["pass", "--stamp", memo, "--loud"], bridge)), `stamping\ngate stamp: passed\n${path}`);
 	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "pass(a-memo-" + memo.slice(-6) + "): stamp");
 	const text = readFileSync(join(bridge, path), "utf8");
 	assert.match(text, /\ngist: "?STAMPED"?\n/);
@@ -73,9 +76,9 @@ test("fails fast, and writes nothing when a gate fails", async () => {
 test("lists its gates' usages, and refuses argv none matches or a doc that links no gate in the sect", async () => {
 	const { bridge, memo } = await stampBridge("pass-usages");
 	const help = ok(await run(["pass", "--help"], bridge));
-	assert.match(help, /\n {2}pass --stamp <quid> \[--loud\]\n {2}pass --stamp <quid> \[--refuse\]\n {2}pass --test <quid>$/);
+	assert.match(help, /\n {2}pass --stamp <quid> \[--loud\]\n {2}pass --stamp <quid> \[--refuse\]\n {2}pass --test <cape>$/);
 	assert.equal(ok(await run(["pass"], bridge)), help);
-	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n {2}pass --hydrate <quid>\n {2}pass --stamp/);
+	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n {2}pass --hydrate <repo>\n {2}pass --stamp/);
 	const other = idOf(ok(await run(["crud", "memo", "other"], bridge)));
 	assert.match((await run(["pass", "--stamp", other], bridge)).err, /other-\w{6} links no stamp\.gate, nor does its kind memo/);
 });
@@ -134,11 +137,13 @@ test("hydrate fetches from the home copy, and warns and fetches from the first r
 	assert.equal(git(["log", "-1", "--format=%s"], join(bridge, "workspace", "hello")), "first");
 });
 
-test("hydrate refuses a doc that is no repo", async () => {
+test("hydrate refuses a doc that is no repo, as its usage takes a repo, and is no command", async () => {
 	const { bridge } = await helloBridge("pass-hydrate-memo");
 	const memo = idOf(ok(await run(["crud", "memo", "note"], bridge)));
 	ok(await run(["crud", memo, "--links", "-"], bridge, `nosedive-core:01a14b77-89b8-7b17-8e4c-26b61bf78856:\n  rel: hydrate.gate\n`));
-	assert.match((await run(["pass", "--hydrate", memo], bridge)).err, /gate hydrate failed, so nothing was written: note-\w{6} is a memo, not a repo/);
+	assert.match((await run(["pass", "--hydrate", memo], bridge)).err, /no hydrate gate note-\w{6} passes through takes `pass --hydrate \S+` for a memo; their usages:\n {2}pass --hydrate <repo>$/);
+	assert.match((await run(["hydrate"], bridge)).err, /hydrate is a gate: `nosedive pass --hydrate <repo>`/);
+	assert.doesNotMatch(ok(await run(["help"], bridge)), /hydrate|cape-tests-pass/);
 });
 
 test("hydrate adopts a legacy cache named by the repo's id alone, and makes new ones <id>.git", async () => {

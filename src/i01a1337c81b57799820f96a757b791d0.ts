@@ -11,6 +11,7 @@ import { i01a1337c806075ca96d637c9ece7316e as capeId } from "./i01a1337c806075ca
 import { i01a1337c810a7456876b831d0c873396 as capeManifest, type CapeBuild } from "./i01a1337c810a7456876b831d0c873396.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
+import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 
 const COMMIT = /^[0-9a-f]{40}$/;
 const CORE = "nosedive-core";
@@ -136,7 +137,7 @@ export async function i01a1337c81b57799820f96a757b791d0(
 
 	const actions = Object.fromEntries(
 		Object.values(source.docs)
-			.filter((doc) => doc.top && doc.kind === "action")
+			.filter((doc) => doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? ""))
 			.map((doc) => [doc.name, doc.gist]),
 	);
 	const build = { id, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, needs, version, builtAt: new Date().toISOString() };

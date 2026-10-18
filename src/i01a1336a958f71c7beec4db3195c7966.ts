@@ -3,6 +3,7 @@ import { i01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./i01a133548243
 import { i01a1337c825f7457b879d5c039ffeccd as findCape } from "./i01a1337c825f7457b879d5c039ffeccd.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
+import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import type { EditedDoc, KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 
@@ -16,10 +17,11 @@ export type Ctx = {
 
 export type Args = Record<string, string | string[] | boolean | undefined>;
 
-export type ActionCall = { usage: string; args: Args; ctx: Ctx };
+/** `gate` is set when pass calls a gate: what its usage impl takes. */
+export type ActionCall = { usage: string; args: Args; ctx: Ctx; gate?: GateCtx };
 
 export type CapeDoc = {
-	kind: "action" | "function" | "gate";
+	kind: "action" | "function";
 	name: string;
 	gist: string;
 	usages: { id: string; text: string }[];
@@ -79,6 +81,7 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		}
 		if (!found) throw new Error(`unknown action: ${name}\n\n${await renderActions(ctx)}`);
 		const { cape, docId, doc } = found;
+		if (gateUsage(doc.usages[0]?.text ?? "")) throw new Error(`${name} is a gate: \`nosedive ${doc.usages[0]!.text}\``);
 		// An action that takes its command line as it is reads its own --help.
 		const raw = doc.usages.some((usage) => /<argv>\.\.\.\]?$/.test(usage.text));
 		if (!raw && (rest[0] === "--help" || rest[0] === "--more")) {
@@ -128,7 +131,7 @@ function findAction(capes: Cape[], name: string) {
 async function renderActions(ctx: Ctx): Promise<string> {
 	const core = ctx.capes[0]!;
 	const groups: [string, [string, string][]][] = [];
-	const coreRows = Object.values(core.docs).flatMap((doc): [string, string][] => (doc.top && doc.kind === "action" ? [[doc.name, doc.gist]] : []));
+	const coreRows = Object.values(core.docs).flatMap((doc): [string, string][] => (doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") ? [[doc.name, doc.gist]] : []));
 	groups.push([core.name, coreRows]);
 	const bridge = findBridge(ctx.cwd);
 	for (const cape of bridge ? configuredCapes(bridge, core) : []) {

@@ -5,7 +5,7 @@ import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739
 
 export type CapeSource = {
 	docs: Record<string, CapeDoc>;
-	/** Each action's and gate's entrypoint: its doc id, export name and file. */
+	/** Each action's and function's entrypoint: its doc id, export name and file. */
 	entries: { id: string; name: string; file: string }[];
 	/** Each kind the repo declares: its name, to its declaration's meta (schema, durable) and links. */
 	kinds: Record<string, unknown>;
@@ -20,7 +20,7 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string): CapeSource {
 	const parents = new Map<string, string[]>();
 	for (const doc of listKbDocs(join(repoDir, "kb"))) {
 		if (doc.fm.kind === "kind") kinds[String(doc.fm.name)] = { ...((doc.fm.meta ?? {}) as object), links: doc.fm.links ?? [] };
-		if (doc.fm.kind !== "action" && doc.fm.kind !== "function" && doc.fm.kind !== "gate") continue;
+		if (doc.fm.kind !== "action" && doc.fm.kind !== "function") continue;
 		const id = String(doc.fm.id);
 		const meta = (doc.fm.meta ?? {}) as { usages?: unknown };
 		const usages = Array.isArray(meta.usages) ? meta.usages.map(String) : [];

@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1336cb234701bb0338faf5183960c as codeSection } from "./i01a1336cb234701bb0338faf5183960c.ts";
+import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 
 const FRAMEWORK = new Set(["test/harness.ts"]);
 
@@ -29,27 +30,29 @@ export function i01a1335488937f1c8c3983dd2950028e(repoDir: string): string[] {
 
 		if (doc.kind === "action" && doc.usages.length === 0) problems.push(`${label}: an action lists usages; make it a function if users cannot call it`);
 		if (doc.kind === "function" && doc.usages.length > 0) problems.push(`${label}: a function has no usages; make it an action if users can call it`);
-		// A gate is a test, and an action's usages have theirs, so only a function has its own.
+		// An action's usages have their tests, so only a function has its own.
 		if (doc.kind === "function") {
 			expected.add(`test/t${hex}.test.ts`);
 			if (!existsSync(join(repoDir, `test/t${hex}.test.ts`))) problems.push(`${label}: missing test/t${hex}.test.ts`);
 		}
+		// An action is a command, its usages starting with its name, or a gate, theirs starting pass --<sect> <kind>.
+		const gates = doc.usages.filter((usage) => gateUsage(usage.text)).length;
+		if (gates > 0 && gates < doc.usages.length) problems.push(`${label}: its usages start both with its name and with pass --<sect> <kind>; an action is a command or a gate`);
 		for (const usage of doc.usages) {
 			const usageLabel = `${label} usage \`${usage.text}\``;
-			// A gate's usages say how pass reaches it; the gate's own code runs them all.
-			if (doc.kind === "gate") {
-				if (!/^pass --[a-z0-9][a-z0-9-]* <quid>(?= |$)/.test(usage.text)) problems.push(`${usageLabel}: does not start with pass --<sect> <quid>`);
-				continue;
-			}
-			if (usage.text !== doc.name && !usage.text.startsWith(`${doc.name} `)) {
-				problems.push(`${usageLabel}: does not start with ${doc.name}`);
+			const gate = gateUsage(usage.text) !== undefined;
+			if (!gate && usage.text !== doc.name && !usage.text.startsWith(`${doc.name} `)) {
+				problems.push(`${usageLabel}: starts neither with ${doc.name} nor with pass --<sect> <kind>`);
 			}
 			const impl = `src/i${usage.id}.ts`;
 			const test = `test/t${usage.id}.test.ts`;
 			expected.add(impl);
-			expected.add(test);
 			exportingSource(repoDir, impl, `i${usage.id}`, usageLabel, problems);
-			if (!existsSync(join(repoDir, test))) problems.push(`${usageLabel}: missing ${test}`);
+			// A gate's usage is a test, so it has none of its own.
+			if (!gate) {
+				expected.add(test);
+				if (!existsSync(join(repoDir, test))) problems.push(`${usageLabel}: missing ${test}`);
+			}
 			if (entrySource !== undefined && !entrySource.includes(`i${usage.id}`)) {
 				problems.push(`${usageLabel}: ${entryFile} never calls i${usage.id}`);
 			}
