@@ -37,3 +37,15 @@ test("an action under another action is not top-level", () => {
 	const { docs } = describeCapeSource(dir);
 	assert.deepEqual([docs[parent]!.top, docs[child]!.top], [true, false]);
 });
+
+test("reads the kb its config names, and only code and kind docs whole", () => {
+	const dir = tempDir("describe-configured-kb");
+	mkdirSync(join(dir, ".nosedive"));
+	mkdirSync(join(dir, "notes"));
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), "kb: ./notes\n");
+	writeFileSync(join(dir, "notes", `${SCAF}.md`), `---\nkind: action\nid: ${SCAF}\nname: scaf\nmeta:\n  usages:\n    - scaf\n---\n`);
+	writeFileSync(join(dir, "notes", "memo.md"), "---\nkind: memo\nid: m\n---\n\nkind: action\n");
+	const { docs, entries } = describeCapeSource(dir);
+	assert.deepEqual(Object.keys(docs), [SCAF]);
+	assert.equal(entries[0]!.file, join(dir, "src", "i01a133547f5f7c45a3fb2ac0e3a7678e.ts"));
+});

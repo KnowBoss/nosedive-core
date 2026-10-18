@@ -1,6 +1,9 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CapeDoc } from "./i01a1336a958f71c7beec4db3195c7966.ts";
-import { i01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "./i01a13354850c7ba3ba5b8ac41a7b6b11.ts";
+import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
+import { i01a14fdf275b70b48f86f7f5c651719d as kbDocKind } from "./i01a14fdf275b70b48f86f7f5c651719d.ts";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
 
 export type CapeSource = {
@@ -11,6 +14,7 @@ export type CapeSource = {
 	kinds: Record<string, unknown>;
 };
 
+const READ = new Set(["action", "function", "kind"]);
 const QUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 
 export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string): CapeSource {
@@ -18,7 +22,8 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string): CapeSource {
 	const entries: CapeSource["entries"] = [];
 	const kinds: CapeSource["kinds"] = {};
 	const parents = new Map<string, string[]>();
-	for (const doc of listKbDocs(join(repoDir, "kb"))) {
+	const kbDir = readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb");
+	for (const doc of codeDocs(kbDir)) {
 		if (doc.fm.kind === "kind") kinds[String(doc.fm.name)] = { ...((doc.fm.meta ?? {}) as object), links: doc.fm.links ?? [] };
 		if (doc.fm.kind !== "action" && doc.fm.kind !== "function") continue;
 		const id = String(doc.fm.id);
@@ -40,6 +45,23 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string): CapeSource {
 	// An action under another action is nested: reachable by name, not listed.
 	for (const [id, ids] of parents) docs[id]!.top = !ids.some((parent) => parent in docs);
 	return { docs, entries, kinds };
+}
+
+/** The kb's actions, functions and kinds, read whole; every other doc is read only as far as its kind. */
+function codeDocs(kbDir: string) {
+	return readdirSync(kbDir)
+		.filter((file) => file.endsWith(".md"))
+		.sort()
+		.flatMap((file) => {
+			const path = join(kbDir, file);
+			if (!READ.has(kbDocKind(path) ?? "")) return [];
+			const text = readFileSync(path, "utf8");
+			try {
+				return [{ ...readKbDoc(text, path), text }];
+			} catch {
+				return [];
+			}
+		});
 }
 
 function parentIds(links: unknown): string[] {

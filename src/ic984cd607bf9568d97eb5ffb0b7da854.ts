@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
@@ -17,8 +17,9 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 		throw new Error(`scaf runs in a cape or a base, and ${root ? `this repo's root is a ${root.kind}` : "this repo has no root"}: \`nosedive seed --root-kind cape\` makes a cape`);
 	}
 	const { docs, entries } = describeCapeSource(repoDir);
+	const kbDir = root.bridge.kbDir;
 	const chosen = quid === undefined ? entries : entries.filter((entry) => entry.id === quid);
-	if (chosen.length === 0) throw new Error(quid ? `no action doc ${quid} in ${join(repoDir, "kb")}` : "no action docs in kb/");
+	if (chosen.length === 0) throw new Error(quid ? `no action doc ${quid} in ${kbDir}` : `no action docs in ${kbDir}`);
 	// Core imports the launcher's types from its own source; any other cape, from core.
 	const launcher = "i01a1336a958f71c7beec4db3195c7966";
 	const types = existsSync(join(repoDir, "src", `${launcher}.ts`)) ? `./${launcher}.ts` : "nosedive-core";
@@ -36,11 +37,11 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 	for (const entry of chosen) {
 		const doc = docs[entry.id]!;
 		const hex = entry.name.slice(1);
-		const raw = findKbDoc(join(repoDir, "kb"), entry.id)!;
+		const raw = findKbDoc(kbDir, entry.id)!;
 		const body = codeSection(raw.body, doc, entry.name);
 		if (body !== raw.body) {
 			writeKbDoc(raw.path, raw.yaml, body);
-			updated.push(`kb/${entry.id}.md`);
+			updated.push(relative(repoDir, raw.path).replace(/\\/g, "/"));
 		}
 		if (doc.kind === "function") {
 			write(`src/${entry.name}.ts`, internalStub(entry.name, doc.name));

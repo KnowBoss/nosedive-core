@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
@@ -58,5 +59,5 @@ function workspaceCapes(ctx: RepoTests): [string, string][] {
 	return readdirSync(workspace, { withFileTypes: true })
 		.filter((entry) => entry.isDirectory() && resolve(workspace, entry.name) !== resolve(ctx.repoDir))
 		.map((entry): [string, string] => [entry.name, join(workspace, entry.name)])
-		.filter(([, repoDir]) => existsSync(join(repoDir, "kb")) && describeCapeSource(repoDir).entries.length > 0);
+		.filter(([, repoDir]) => existsSync(readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb")) && describeCapeSource(repoDir).entries.length > 0);
 }
