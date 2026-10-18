@@ -146,7 +146,7 @@ async function renderActions(ctx: Ctx): Promise<string> {
 	// The base's own commands, read from its docs: listing them needs no build.
 	const root = bridge && findRoot(bridge.dir);
 	if (bridge && root?.kind === "base") {
-		const rows = Object.values(describeCapeSource(bridge.dir).docs).flatMap((doc): [string, string][] =>
+		const rows = Object.values(describeCapeSource(bridge.dir, true).docs).flatMap((doc): [string, string][] =>
 			doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") && !coreRows.some(([taken]) => taken === doc.name) ? [[doc.name, doc.gist]] : [],
 		);
 		if (rows.length > 0) groups.push([String(root.fm.name), rows]);

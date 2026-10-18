@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CapeDoc } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
@@ -17,13 +17,14 @@ export type CapeSource = {
 const READ = new Set(["action", "function", "kind"]);
 const QUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 
-export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string): CapeSource {
+/** `fromSrc` reads only the docs whose ids name files in `src/`, never the rest of the kb: a doc with no code yet is left out. */
+export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = false): CapeSource {
 	const docs: Record<string, CapeDoc> = {};
 	const entries: CapeSource["entries"] = [];
 	const kinds: CapeSource["kinds"] = {};
 	const parents = new Map<string, string[]>();
 	const kbDir = readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb");
-	for (const doc of codeDocs(kbDir)) {
+	for (const doc of codeDocs(kbDir, fromSrc ? srcDocFiles(repoDir) : undefined)) {
 		if (doc.fm.kind === "kind") kinds[String(doc.fm.name)] = { ...((doc.fm.meta ?? {}) as object), links: doc.fm.links ?? [] };
 		if (doc.fm.kind !== "action" && doc.fm.kind !== "function") continue;
 		const id = String(doc.fm.id);
@@ -47,10 +48,20 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string): CapeSource {
 	return { docs, entries, kinds };
 }
 
+/** The doc files `src/` names: one per code file named by an id, which a usage's file, named by a hash, never matches. */
+function srcDocFiles(repoDir: string): string[] {
+	const src = join(repoDir, "src");
+	if (!existsSync(src)) return [];
+	return readdirSync(src).flatMap((file) => {
+		const hex = /^i([0-9a-f]{32})\.ts$/.exec(file)?.[1];
+		return hex ? [`${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}.md`] : [];
+	});
+}
+
 /** The kb's actions, functions and kinds, read whole; every other doc is read only as far as its kind. */
-function codeDocs(kbDir: string) {
-	return readdirSync(kbDir)
-		.filter((file) => file.endsWith(".md"))
+function codeDocs(kbDir: string, files?: string[]) {
+	return (files ?? readdirSync(kbDir))
+		.filter((file) => file.endsWith(".md") && (!files || existsSync(join(kbDir, file))))
 		.sort()
 		.flatMap((file) => {
 			const path = join(kbDir, file);

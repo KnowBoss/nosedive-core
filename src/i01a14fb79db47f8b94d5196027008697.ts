@@ -15,7 +15,7 @@ type Loaded = { __nosediveCore?: Cape; __nosediveBase?: Record<string, Cape> };
 export async function i01a14fb79db47f8b94d5196027008697(bridge: Bridge, core: Cape): Promise<Cape | undefined> {
 	const root = findRoot(bridge.dir);
 	if (root?.kind !== "base") return undefined;
-	const source = describeCapeSource(bridge.dir);
+	const source = describeCapeSource(bridge.dir, true);
 	if (source.entries.length === 0) return undefined;
 
 	// The id covers the core and every code doc and file, so any edit makes a new build.
@@ -25,10 +25,11 @@ export async function i01a14fb79db47f8b94d5196027008697(bridge: Bridge, core: Ca
 	for (const file of existsSync(src) ? readdirSync(src).sort() : []) hash.update(`\0${file}\0`).update(readFileSync(join(src, file)));
 	const id = namespacedUuid(hash.digest("hex"), core.id);
 
-	const loaded = ((globalThis as Loaded).__nosediveBase ??= {});
-	if (loaded[id]) return loaded[id];
 	const capes = join(bridge.dir, ".nosedive", "capes");
 	const outfile = join(capes, `base-${id}.js`);
+	// Keyed by file, not id: two bases with the same code are still two builds.
+	const loaded = ((globalThis as Loaded).__nosediveBase ??= {});
+	if (loaded[outfile]) return loaded[outfile];
 	const name = String(root.fm.name);
 	if (!existsSync(outfile)) {
 		const problems = checkCapeSource(bridge.dir);
@@ -38,6 +39,6 @@ export async function i01a14fb79db47f8b94d5196027008697(bridge: Bridge, core: Ca
 		for (const file of readdirSync(capes)) if (file.startsWith("base-") && file !== `base-${id}.js`) rmSync(join(capes, file), { recursive: true, force: true });
 	}
 	(globalThis as Loaded).__nosediveCore = core;
-	loaded[id] = (await import(pathToFileURL(outfile).href)) as Cape;
-	return loaded[id];
+	loaded[outfile] = (await import(pathToFileURL(outfile).href)) as Cape;
+	return loaded[outfile];
 }

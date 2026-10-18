@@ -8,6 +8,7 @@ import { ok, run, tempBridge } from "../test/harness.ts";
 
 const HELLO = "01a14fba-1f85-72f5-8685-94c90e206721";
 const READY = "01a14fba-1f86-7d2a-9f27-269a3819ca27";
+const LATER = "01a14fec-1d7e-77ca-8f8a-d55300d0f7b2";
 const implOf = (id: string, usage: string) => join("src", `i${usageId(usage, id)}.ts`);
 
 /** A base with a command, `hello <who>`, and a gate, `pass --ready <memo>`, scaffolded and written, none of it committed. */
@@ -57,4 +58,16 @@ test("refuses a base whose code does not check out, and builds nothing for one w
 	const plain = await tempBridge("base-plain");
 	assert.match((await run(["nope"], plain)).err, /unknown action: nope/);
 	assert.deepEqual(readdirSync(join(plain, ".nosedive")).filter((file) => file === "capes"), []);
+});
+
+test("reads only the docs its src/ names, so a doc with no code yet is no part of the build and blocks nothing", async () => {
+	const bridge = await helloBase("base-from-src");
+	ok(await run(["hello", "ann"], bridge));
+	const builds = () => readdirSync(join(bridge, ".nosedive", "capes")).filter((file) => file.startsWith("base-"));
+	const before = builds();
+	writeFileSync(join(bridge, "kb", `${LATER}.md`), `---\nkind: action\nid: ${LATER}\nname: later\ngist: "Not written yet"\nmeta:\n  usages:\n    - later\n---\n`);
+	assert.equal(ok(await run(["hello", "ann"], bridge)), "hello ann");
+	assert.deepEqual(builds(), before, "the base was not rebuilt");
+	assert.doesNotMatch(ok(await run(["help"], bridge)), /later/);
+	assert.match((await run(["later"], bridge)).err, /unknown action: later/);
 });
