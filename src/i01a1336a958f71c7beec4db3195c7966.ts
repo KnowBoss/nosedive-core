@@ -4,6 +4,9 @@ import { i01a1337c825f7457b879d5c039ffeccd as findCape } from "./i01a1337c825f74
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
+import { i01a14fb79db47f8b94d5196027008697 as buildBase } from "./i01a14fb79db47f8b94d5196027008697.ts";
+import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import type { EditedDoc, KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 
@@ -71,6 +74,12 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 			return 0;
 		}
 		let found = findAction(ctx.capes, name);
+		const bridge = found ? undefined : findBridge(ctx.cwd);
+		const base = bridge && (await buildBase(bridge, ctx.capes[0]!));
+		if (base) {
+			found = findAction([base], name);
+			if (found) ctx.capes = [ctx.capes[0]!, base, ...ctx.capes.slice(1)];
+		}
 		if (!found) {
 			const cape = await findCape(ctx, name, ctx.capes[0]!);
 			if (cape) {
@@ -134,6 +143,14 @@ async function renderActions(ctx: Ctx): Promise<string> {
 	const coreRows = Object.values(core.docs).flatMap((doc): [string, string][] => (doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") ? [[doc.name, doc.gist]] : []));
 	groups.push([core.name, coreRows]);
 	const bridge = findBridge(ctx.cwd);
+	// The base's own commands, read from its docs: listing them needs no build.
+	const root = bridge && findRoot(bridge.dir);
+	if (bridge && root?.kind === "base") {
+		const rows = Object.values(describeCapeSource(bridge.dir).docs).flatMap((doc): [string, string][] =>
+			doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") && !coreRows.some(([taken]) => taken === doc.name) ? [[doc.name, doc.gist]] : [],
+		);
+		if (rows.length > 0) groups.push([String(root.fm.name), rows]);
+	}
 	for (const cape of bridge ? configuredCapes(bridge, core) : []) {
 		// Core's actions are never shadowed, so a cape's action of the same name is not listed.
 		const rows = Object.entries(cape.build?.actions ?? {}).filter(([name]) => !coreRows.some(([taken]) => taken === name));

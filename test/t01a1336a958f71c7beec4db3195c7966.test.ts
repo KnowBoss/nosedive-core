@@ -25,8 +25,8 @@ test("lists the actions of the capes config names under each cape, once built, f
 test("--help lists an action's usages, --more adds its body", async () => {
 	const dir = tempDir("launch-action-help");
 	const help = ok(await run(["scaf", "--help"], dir));
-	assert.equal(help, "Writes the files a cape repo's action docs call for and do not have yet\n\n  scaf [<quid>]");
-	assert.match(ok(await run(["scaf", "--more"], dir)), /\n\n# Scaf\n\nRun in a cape repo: /);
+	assert.equal(help, "Writes the files a cape's or a base's action docs call for and do not have yet\n\n  scaf [<quid>]");
+	assert.match(ok(await run(["scaf", "--more"], dir)), /\n\n# Scaf\n\nRun in a cape or a base: /);
 });
 
 test("refuses an unknown action, and an internal function by name", async () => {

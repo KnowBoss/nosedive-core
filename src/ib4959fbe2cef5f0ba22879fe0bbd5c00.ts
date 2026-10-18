@@ -8,6 +8,7 @@ import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d367
 import { i01a14b30eb0e72e28934c918000a26ac as loadCape } from "./i01a14b30eb0e72e28934c918000a26ac.ts";
 import { i01a14b30ecc07ea18999d6255d636e39 as crudEdit } from "./i01a14b30ecc07ea18999d6255d636e39.ts";
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
+import { i01a14fb79db47f8b94d5196027008697 as buildBase } from "./i01a14fb79db47f8b94d5196027008697.ts";
 
 const QUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 
@@ -18,6 +19,8 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 	const bridge = findBridge(ctx.cwd);
 	if (!bridge) throw new Error("pass runs from a bridge: run `nosedive seed` first");
 	const [core, ...capes] = ctx.capes as [Cape, ...Cape[]];
+	const base = await buildBase(bridge, core);
+	if (base && !capes.includes(base)) capes.unshift(base);
 	for (const { build } of configuredCapes(bridge, core)) {
 		if (build && !capes.some((cape) => cape.id === build.id)) capes.push(await loadCape(bridge.dir, build, core));
 	}
