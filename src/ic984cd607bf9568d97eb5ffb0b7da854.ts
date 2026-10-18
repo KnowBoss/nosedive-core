@@ -45,7 +45,7 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 		}
 		if (doc.kind === "function") {
 			write(`src/${entry.name}.ts`, internalStub(entry.name, doc.name));
-			write(`test/t${hex}.test.ts`, testStub(doc.name));
+			write(`src/${entry.name}.test.ts`, testStub(doc.name));
 			continue;
 		}
 		write(`src/${entry.name}.ts`, entryStub(entry.name, doc.name, doc.usages, types));
@@ -56,7 +56,7 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 				continue;
 			}
 			write(`src/i${usage.id}.ts`, implStub(`i${usage.id}`, usage.text, types));
-			write(`test/t${usage.id}.test.ts`, testStub(usage.text));
+			write(`src/i${usage.id}.test.ts`, testStub(usage.text));
 		}
 	}
 

@@ -87,10 +87,10 @@ export function greetCapeRepo(options: Fixture & { link?: boolean; importing?: s
 		[`kb/${GREET}.md`]: `---\nkind: action\nid: ${GREET}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${links}---\n${codeSection("\n# Greet\n", doc, `i${hex}`)}`,
 		[`src/i${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function i${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(String(call.args.who), call.ctx);\n}\n`,
 		[`src/i${usage}.ts`]: `import { i${imported} as namespacedUuid } from "nosedive-core";\n\nexport async function i${usage}(who: string, ctx: { out(text: string): void }) {\n\tctx.out(\`hello \${who} \${namespacedUuid(who, "${GREET}")}\`);\n}\n`,
-		[`test/t${usage}.test.ts`]: [
+		[`src/i${usage}.test.ts`]: [
 			'import assert from "node:assert/strict";',
 			'import { test } from "node:test";',
-			`import { i${usage} } from "../src/i${usage}.ts";`,
+			`import { i${usage} } from "./i${usage}.ts";`,
 			"",
 			'test("greet <who>", async () => {',
 			"\tconst out: string[] = [];",
@@ -127,10 +127,10 @@ export function waveCapeRepo(options: Fixture = {}): string {
 		[`kb/${WAVE}.md`]: `---\nkind: action\nid: ${WAVE}\nname: wave\ngist: "Waves"\nmeta:\n  usages:\n    - wave <who>\nlinks:\n  - greet-cape:${GREET}:\n      rel: uses.action\n---\n${codeSection("\n# Wave\n", doc, `i${hex}`)}`,
 		[`src/i${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function i${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(call);\n}\n`,
 		[`src/i${usage}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { ${greet} as greet } from "greet-cape";\n\nexport async function i${usage}(call: ActionCall) {\n\tawait greet({ ...call, usage: "u${greetUsage}" });\n\tcall.ctx.out("and waves");\n}\n`,
-		[`test/t${usage}.test.ts`]: [
+		[`src/i${usage}.test.ts`]: [
 			'import assert from "node:assert/strict";',
 			'import { test } from "node:test";',
-			`import { i${usage} } from "../src/i${usage}.ts";`,
+			`import { i${usage} } from "./i${usage}.ts";`,
 			"",
 			'test("wave <who>", async () => {',
 			"\tconst out: string[] = [];",

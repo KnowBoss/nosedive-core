@@ -92,7 +92,8 @@ export async function i01a1337c81b57799820f96a757b791d0(
 /** Every bare specifier a cape's source imports values from, with the action ids it names. */
 function bareImports(dir: string): Map<string, Set<string>> {
 	const found = new Map<string, Set<string>>();
-	for (const file of readdirSync(join(dir, "src"))) {
+	// Tests sit beside the code but are never bundled, so what they import is no import of the cape's.
+	for (const file of readdirSync(join(dir, "src")).filter((name) => !name.endsWith(".test.ts"))) {
 		const text = readFileSync(join(dir, "src", file), "utf8");
 		for (const match of text.matchAll(BARE_IMPORT)) {
 			const specifier = match[2]!;

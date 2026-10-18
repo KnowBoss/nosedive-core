@@ -32,8 +32,8 @@ export function i01a1335488937f1c8c3983dd2950028e(repoDir: string): string[] {
 		if (doc.kind === "function" && doc.usages.length > 0) problems.push(`${label}: a function has no usages; make it an action if users can call it`);
 		// An action's usages have their tests, so only a function has its own.
 		if (doc.kind === "function") {
-			expected.add(`test/t${hex}.test.ts`);
-			if (!existsSync(join(repoDir, `test/t${hex}.test.ts`))) problems.push(`${label}: missing test/t${hex}.test.ts`);
+			expected.add(`src/i${hex}.test.ts`);
+			if (!existsSync(join(repoDir, `src/i${hex}.test.ts`))) problems.push(`${label}: missing src/i${hex}.test.ts`);
 		}
 		// An action is a command, its usages starting with its name, or a gate, theirs starting pass --<sect> <kind>.
 		const gates = doc.usages.filter((usage) => gateUsage(usage.text)).length;
@@ -45,7 +45,7 @@ export function i01a1335488937f1c8c3983dd2950028e(repoDir: string): string[] {
 				problems.push(`${usageLabel}: starts neither with ${doc.name} nor with pass --<sect> <kind>`);
 			}
 			const impl = `src/i${usage.id}.ts`;
-			const test = `test/t${usage.id}.test.ts`;
+			const test = `src/i${usage.id}.test.ts`;
 			expected.add(impl);
 			exportingSource(repoDir, impl, `i${usage.id}`, usageLabel, problems);
 			// A gate's usage is a test, so it has none of its own.

@@ -13,9 +13,9 @@ export type RepoTests = { core: Cape; repoDir: string; bridgeDir: string; out(te
 
 export function i01a138b2b8f175bc95242dc33d92138b(ctx: RepoTests): void {
 	if (!ctx.core.url) throw new Error(`core ${ctx.core.version} has no module the tests can import`);
-	const tests = join(ctx.repoDir, "test");
+	const tests = join(ctx.repoDir, "src");
 	if (!existsSync(tests) || !readdirSync(tests).some((file) => file.endsWith(".test.ts"))) {
-		throw new Error(`${basename(ctx.repoDir)} has no tests in test/`);
+		throw new Error(`${basename(ctx.repoDir)} has no tests in src/`);
 	}
 	const dir = mkdtempSync(join(tmpdir(), "nosedive-tests-"));
 	try {
@@ -38,7 +38,7 @@ export function i01a138b2b8f175bc95242dc33d92138b(ctx: RepoTests): void {
 		);
 		const run = spawnSync(
 			process.execPath,
-			["--disable-warning=ExperimentalWarning", "--import", pathToFileURL(resolver).href, "--test", "--test-reporter=spec", "test/*.test.ts"],
+			["--disable-warning=ExperimentalWarning", "--import", pathToFileURL(resolver).href, "--test", "--test-reporter=spec", "src/*.test.ts"],
 			// A test runner's own context would make the child skip its files as a nested run.
 			{ cwd: ctx.repoDir, encoding: "utf8", env: { ...process.env, NODE_TEST_CONTEXT: undefined } },
 		);

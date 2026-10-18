@@ -22,7 +22,7 @@
 		"dev": "node --disable-warning=ExperimentalWarning scripts/dev.mjs",
 		"check": "node --disable-warning=ExperimentalWarning scripts/check.mjs",
 		"typecheck": "tsc",
-		"test": "npm run check && node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\"",
+		"test": "npm run check && node --disable-warning=ExperimentalWarning --test \"src/*.test.ts\"",
 		"build": "node --disable-warning=ExperimentalWarning scripts/build.mjs"
 	},
 	"dependencies": {

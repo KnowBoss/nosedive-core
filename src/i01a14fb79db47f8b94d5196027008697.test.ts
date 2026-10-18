@@ -1,0 +1,60 @@
+// build-base
+import assert from "node:assert/strict";
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { test } from "node:test";
+import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
+import { ok, run, tempBridge } from "../test/harness.ts";
+
+const HELLO = "01a14fba-1f85-72f5-8685-94c90e206721";
+const READY = "01a14fba-1f86-7d2a-9f27-269a3819ca27";
+const implOf = (id: string, usage: string) => join("src", `i${usageId(usage, id)}.ts`);
+
+/** A base with a command, `hello <who>`, and a gate, `pass --ready <memo>`, scaffolded and written, none of it committed. */
+async function helloBase(label: string): Promise<string> {
+	const bridge = await tempBridge(label);
+	const doc = (id: string, name: string, gist: string, usage: string) =>
+		writeFileSync(join(bridge, "kb", `${id}.md`), `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${gist}"\nmeta:\n  usages:\n    - ${usage}\n---\n`);
+	doc(HELLO, "hello", "Says hello", "hello <who>");
+	doc(READY, "ready-memo", "A memo is ready", "pass --ready <memo>");
+	ok(await run(["scaf"], bridge));
+	hello(bridge, "hello");
+	writeFileSync(join(bridge, implOf(READY, "pass --ready <memo>")), `export async function i${usageId("pass --ready <memo>", READY)}(ctx: any) {\n\tctx.out(\`\${ctx.doc.fm.name} is ready\`);\n}\n`);
+	return bridge;
+}
+
+function hello(bridge: string, word: string): void {
+	const name = `i${usageId("hello <who>", HELLO)}`;
+	writeFileSync(join(bridge, implOf(HELLO, "hello <who>")), `export async function ${name}(args: any, ctx: any) {\n\tctx.out(\`${word} \${args.who}\`);\n}\n`);
+}
+
+test("runs a base's own commands, built from its working tree, lists them under its name, and rebuilds after an edit", async () => {
+	const bridge = await helloBase("base-hello");
+	assert.equal(ok(await run(["hello", "ann"], bridge)), "hello ann");
+	const help = ok(await run(["help"], bridge));
+	assert.match(help, /\n\n\S+\n {2}hello +Says hello\n/);
+	assert.doesNotMatch(help, /ready-memo/);
+	hello(bridge, "hi");
+	assert.equal(ok(await run(["hello", "ann"], bridge)), "hi ann");
+	assert.equal(readdirSync(join(bridge, ".nosedive", "capes")).filter((file) => file.startsWith("base-")).length, 1, "only the newest build is kept");
+});
+
+test("passes a doc through the base's own gates, which are no commands", async () => {
+	const bridge = await helloBase("base-ready");
+	const memo = ok(await run(["crud", "memo", "a", "memo"], bridge)).replace(/^kb\/|\.md$/g, "");
+	ok(await run(["crud", memo, "--links", "-"], bridge, `kb/${READY}.md:\n  rel: ready.gate\n`));
+	assert.match(ok(await run(["pass", "--ready", memo], bridge)), /^a-memo-\w{6} is ready\ngate ready-memo: passed$/);
+	assert.match((await run(["ready-memo"], bridge)).err, /ready-memo is a gate: `nosedive pass --ready <memo>`/);
+});
+
+test("refuses a base whose code does not check out, and builds nothing for one without code", async () => {
+	const bridge = await helloBase("base-broken");
+	rmSync(join(bridge, implOf(HELLO, "hello <who>")));
+	const refused = await run(["hello", "ann"], bridge);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, /'s own actions do not check out:\n {2}hello .*missing src\//);
+
+	const plain = await tempBridge("base-plain");
+	assert.match((await run(["nope"], plain)).err, /unknown action: nope/);
+	assert.deepEqual(readdirSync(join(plain, ".nosedive")).filter((file) => file === "capes"), []);
+});
