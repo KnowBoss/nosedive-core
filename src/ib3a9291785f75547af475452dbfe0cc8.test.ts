@@ -18,7 +18,7 @@ test("makes a git repo a base by default, in one commit", async () => {
 		"the root is named after the repo",
 	);
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "cache/\ncapes/\nlocal/\n");
-	assert.equal(existsSync(join(dir, ".gitignore")), false, "the repo's own .gitignore is the user's");
+	assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), "!package-lock.json\n", "the repo's own .gitignore is the user's, but for its lockfile");
 	assert.equal(git(["log", "--format=%s"], dir), `seed: ${repo} set up`);
 	assert.equal(git(["status", "--porcelain"], dir), "");
 });
@@ -27,6 +27,7 @@ test("any other root kind gets no workspace", async () => {
 	const dir = gitRepo("seed-memo");
 	ok(await run(["seed", "--root-kind", "memo"], dir));
 	assert.equal(existsSync(join(dir, "workspace")), false, "only a base has a workspace");
+	assert.equal(existsSync(join(dir, ".gitignore")), false, "nor does it build packages");
 });
 
 test("leaves an existing bridge's config alone, and says it is seeded", async () => {
@@ -105,6 +106,10 @@ test("--root-kind makes the root a declared kind, such as cape", async () => {
 	ok(await run(["seed", "--root-kind", "cape"], dir));
 	const root = /\nroot: (\S+)\n/.exec(readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8"))?.[1];
 	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), /^---\nkind: cape\n/);
+	// A cape's lockfile is committable even when an ignore outside the repo hides lockfiles.
+	writeFileSync(join(dir, ".git", "info", "exclude"), "package-lock.json\n");
+	writeFileSync(join(dir, "package-lock.json"), "{}\n");
+	assert.equal(git(["status", "--porcelain", "package-lock.json"], dir), "?? package-lock.json");
 	const undeclared = await run(["seed", "--root-kind", "ship"], gitRepo("seed-root-ship"));
 	assert.equal(undeclared.code, 1);
 	assert.match(undeclared.err, /no kind ship is declared, so it cannot be the root's kind/);
@@ -129,7 +134,7 @@ test("a base gets a workspace that ignores itself, and moves it when its path ch
 	const root = join(base, "kb", `${/\nroot: (\S+)\n/.exec(config)![1]}.md`);
 	assert.match(readFileSync(root, "utf8"), /\nmeta:\n {2}workspace: \.\/workspace\n/);
 	assert.equal(readFileSync(join(base, "workspace", ".gitignore"), "utf8"), "*\n");
-	assert.equal(existsSync(join(base, ".gitignore")), false, "the repo's own .gitignore is the user's");
+	assert.doesNotMatch(readFileSync(join(base, ".gitignore"), "utf8"), /workspace/, "the workspace ignores itself, not through the repo's .gitignore");
 	writeFileSync(join(base, "workspace", "clone.txt"), "checked out\n");
 	assert.equal(git(["status", "--porcelain", "--untracked-files=all"], base), "");
 

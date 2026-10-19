@@ -18,6 +18,7 @@ import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa
 
 /** Relative to .nosedive/: built capes, and what this checkout remembers for itself. */
 const NOSEDIVE_IGNORES = ["cache/", "capes/", "local/"];
+const LOCKFILE = "!package-lock.json";
 
 /**
  * Makes the base's workspace, which ignores everything in it, itself included, so nothing checked
@@ -83,6 +84,15 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 	}
 
 	const rootDoc = findKbDoc(kbDir, String(config.get("root") ?? config.get("backlog")));
+	// A cape's or base's packages build from its lockfile, which a global ignore could hide from every commit.
+	if (rootDoc?.fm.kind === "cape" || rootDoc?.fm.kind === "base") {
+		const repoIgnore = join(dir, ".gitignore");
+		const text = existsSync(repoIgnore) ? readFileSync(repoIgnore, "utf8") : "";
+		if (!text.split(/\r?\n/).includes(LOCKFILE)) {
+			writeFileSync(repoIgnore, `${text}${text && !text.endsWith("\n") ? "\n" : ""}${LOCKFILE}\n`);
+			changed.push(repoIgnore);
+		}
+	}
 	if (rootDoc?.fm.kind === "base") {
 		const path = (rootDoc.fm.meta as { workspace?: unknown } | undefined)?.workspace;
 		placeWorkspace(dir, resolve(dir, typeof path === "string" ? path : "workspace"));
