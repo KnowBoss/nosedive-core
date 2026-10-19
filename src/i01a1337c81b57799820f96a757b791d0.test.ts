@@ -1,6 +1,6 @@
 // build-cape
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
@@ -10,7 +10,8 @@ import { i01a1337c81b57799820f96a757b791d0 as buildCape } from "./i01a1337c81b57
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
-import { git, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, waveCapeRepo } from "../test/harness.ts";
+import { GREET, git, greetCapeRepo, lock, ok, registerRepo, run, setCapes, shoutPackage, tempBridge, waveCapeRepo } from "../test/harness.ts";
+import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
 
 const core: Cape = await sourceCape();
 
@@ -66,4 +67,26 @@ test("builds the capes a cape imports first, and runs across them", async () => 
 
 test("refuses a repo whose root is not a cape", async () => {
 	await assert.rejects((await build(greetCapeRepo({ plain: true }))).built(), /greet-cape is not a cape: it has no root/);
+});
+
+test("builds a cape whole: the packages its lockfile pins, installed in its clone, and its assets, bundled in", async () => {
+	const repo = greetCapeRepo();
+	shoutPackage(repo);
+	lock(repo);
+	mkdirSync(join(repo, "assets"));
+	writeFileSync(join(repo, "assets", "page.html"), "<h1>greetings</h1>");
+	const impl = join(repo, "src", `i${usageId("greet <who>", GREET)}.ts`);
+	writeFileSync(impl, `import shout from "shout";\nimport page from "../assets/page.html";\n${readFileSync(impl, "utf8").replace("ctx.out(`hello ${who}", "ctx.out(`${shout(page)} ${who}")}`);
+	// A global ignore may hide lockfiles.
+	git(["add", "-A"], repo);
+	git(["add", "-f", "package-lock.json"], repo);
+	git(["commit", "-qm", "shout, and a page"], repo);
+	const { dir, built } = await build(repo);
+	const cape = await built();
+	const text = readFileSync(join(dir, ".nosedive", "capes", `${cape.id}.js`), "utf8");
+	assert.match(text, /<h1>greetings<\/h1>/);
+	assert.match(text, /toUpperCase\(\) \+ \(EOL/, "the package is bundled in");
+	const clone = join(dir, ".nosedive", "capes", "src", findRepoDoc(findBridge(dir)!, "greet-cape").id);
+	assert.equal(existsSync(join(clone, "node_modules", ".nosedive-lockfile")), true);
+	assert.equal(git(["status", "--porcelain"], clone), "", "node_modules stays out of the clone's git");
 });

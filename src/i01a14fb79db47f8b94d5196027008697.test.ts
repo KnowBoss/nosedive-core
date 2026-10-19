@@ -1,10 +1,10 @@
 // build-base
 import assert from "node:assert/strict";
-import { readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
-import { ok, run, tempBridge } from "../test/harness.ts";
+import { lock, ok, run, shoutPackage, tempBridge } from "../test/harness.ts";
 
 const HELLO = "01a14fba-1f85-72f5-8685-94c90e206721";
 const READY = "01a14fba-1f86-7d2a-9f27-269a3819ca27";
@@ -70,4 +70,33 @@ test("reads only the docs its src/ names, so a doc with no code yet is no part o
 	assert.deepEqual(builds(), before, "the base was not rebuilt");
 	assert.doesNotMatch(ok(await run(["help"], bridge)), /later/);
 	assert.match((await run(["later"], bridge)).err, /unknown action: later/);
+});
+
+test("builds a base whole: its packages, CommonJS included, and its assets as text, bytes and browser bundles", async () => {
+	const bridge = await helloBase("base-whole");
+	shoutPackage(bridge);
+	lock(bridge);
+	mkdirSync(join(bridge, "assets"));
+	writeFileSync(join(bridge, "assets", "page.html"), "<h1>hi</h1>");
+	writeFileSync(join(bridge, "assets", "dot.png"), Buffer.from([137, 80, 78, 71]));
+	writeFileSync(join(bridge, "assets", "greet.ts"), "export const greet = (who: string): string => `hey ${who}`;\n");
+	writeFileSync(join(bridge, "assets", "app.client.ts"), 'import { greet } from "./greet.ts";\ndocument.title = greet("browser");\n');
+	const name = `i${usageId("hello <who>", HELLO)}`;
+	writeFileSync(
+		join(bridge, implOf(HELLO, "hello <who>")),
+		[
+			'import shout from "shout";',
+			'import page from "../assets/page.html";',
+			'import dot from "../assets/dot.png";',
+			'import app from "../assets/app.client.ts";',
+			"",
+			`export async function ${name}(args: any, ctx: any) {`,
+			'\tctx.out([shout(String(args.who)), page, dot.length, app.includes("hey ") && !/^import /m.test(app)].join("|"));',
+			"}",
+			"",
+		].join("\n"),
+	);
+	assert.equal(ok(await run(["hello", "ann"], bridge)), "ANN!|<h1>hi</h1>|4|true");
+	writeFileSync(join(bridge, "assets", "page.html"), "<h1>ho</h1>");
+	assert.match(ok(await run(["hello", "ann"], bridge)), /\|<h1>ho<\/h1>\|/, "an asset edit rebuilds the base");
 });

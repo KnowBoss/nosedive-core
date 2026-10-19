@@ -182,3 +182,16 @@ export async function tempBridge(label: string): Promise<string> {
 	ok(await run(["seed", "--root-kind", "base"], dir));
 	return dir;
 }
+
+/** A package of one CommonJS module, which requires a node builtin, for a repo to depend on by path. */
+export function shoutPackage(dir: string): void {
+	mkdirSync(join(dir, "vendor", "shout"), { recursive: true });
+	writeFileSync(join(dir, "vendor", "shout", "package.json"), JSON.stringify({ name: "shout", version: "1.0.0", main: "index.js" }));
+	writeFileSync(join(dir, "vendor", "shout", "index.js"), 'const { EOL } = require("node:os");\nmodule.exports = (text) => text.toUpperCase() + (EOL ? "!" : "?");\n');
+	writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "with-shout", private: true, dependencies: { shout: "file:vendor/shout" } }));
+}
+
+export function lock(dir: string): void {
+	const npm = spawnSync("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: dir, encoding: "utf8", shell: process.platform === "win32" });
+	assert.equal(npm.status, 0, npm.stderr);
+}

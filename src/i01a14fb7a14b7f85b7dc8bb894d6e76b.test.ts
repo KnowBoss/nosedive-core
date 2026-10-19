@@ -21,7 +21,7 @@ test("bundles a source into one module of its exports, docs and index, its core 
 	writeFileSync(join(dir, "src", `i${HEX}.ts`), `import { i0 as core } from "nosedive-core";\n\nexport function i${HEX}(text: string): string {\n\treturn core(text) + core(text);\n}\n`);
 	const outfile = join(dir, "out", "bundle.js");
 	const exports = { id: BUNDLE, name: "twice-cape", commit: "", version: "v", core: CORE, needs: {} };
-	await bundleCape(describeCapeSource(dir), exports, [{ specifier: "nosedive-core", capeId: CORE, ids: ["0"] }], outfile);
+	await bundleCape(dir, describeCapeSource(dir), exports, [{ specifier: "nosedive-core", capeId: CORE, ids: ["0"] }], outfile);
 	assert.equal(existsSync(`${outfile}.build`), false);
 
 	(globalThis as { __nosediveCore?: unknown }).__nosediveCore = { id: CORE, index: { [namespacedUuid("0", CORE)]: (text: string) => text.toUpperCase() } };

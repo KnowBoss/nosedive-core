@@ -36,7 +36,6 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 	const updated: string[] = [];
 	for (const entry of chosen) {
 		const doc = docs[entry.id]!;
-		const hex = entry.name.slice(1);
 		const raw = findKbDoc(kbDir, entry.id)!;
 		const body = codeSection(raw.body, doc, entry.name);
 		if (body !== raw.body) {

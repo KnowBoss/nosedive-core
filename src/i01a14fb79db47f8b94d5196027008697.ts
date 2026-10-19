@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
@@ -8,6 +8,7 @@ import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a13354
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "./i01a1335488937f1c8c3983dd2950028e.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
+import { i01a151913e5772088ae93b14a4a3f120 as installCapePackages } from "./i01a151913e5772088ae93b14a4a3f120.ts";
 import { i01a14fb7a14b7f85b7dc8bb894d6e76b as bundleCape } from "./i01a14fb7a14b7f85b7dc8bb894d6e76b.ts";
 
 type Loaded = { __nosediveCore?: Cape; __nosediveBase?: Record<string, Cape> };
@@ -23,6 +24,12 @@ export async function i01a14fb79db47f8b94d5196027008697(bridge: Bridge, core: Ca
 	for (const entry of [...source.entries].sort((a, b) => a.id.localeCompare(b.id))) hash.update(`\0${source.docs[entry.id]!.text}`);
 	const src = join(bridge.dir, "src");
 	for (const file of existsSync(src) ? readdirSync(src).sort() : []) hash.update(`\0${file}\0`).update(readFileSync(join(src, file)));
+	const lockfile = join(bridge.dir, "package-lock.json");
+	if (existsSync(lockfile)) hash.update("\0package-lock.json\0").update(readFileSync(lockfile));
+	const assets = join(bridge.dir, "assets");
+	for (const file of existsSync(assets) ? (readdirSync(assets, { recursive: true }) as string[]).sort() : []) {
+		if (statSync(join(assets, file)).isFile()) hash.update(`\0assets/${file}\0`).update(readFileSync(join(assets, file)));
+	}
 	const id = namespacedUuid(hash.digest("hex"), core.id);
 
 	const capes = join(bridge.dir, ".nosedive", "capes");
@@ -34,7 +41,8 @@ export async function i01a14fb79db47f8b94d5196027008697(bridge: Bridge, core: Ca
 	if (!existsSync(outfile)) {
 		const problems = checkCapeSource(bridge.dir);
 		if (problems.length > 0) throw new Error(`${name}'s own actions do not check out:\n  ${problems.join("\n  ")}`);
-		await bundleCape(source, { id, name, commit: "", version: "working tree", core: core.id, needs: {} }, [{ specifier: "nosedive-core", capeId: core.id, ids: Object.keys(core.docs) }], outfile);
+		installCapePackages(bridge.dir);
+		await bundleCape(bridge.dir, source, { id, name, commit: "", version: "working tree", core: core.id, needs: {} }, [{ specifier: "nosedive-core", capeId: core.id, ids: Object.keys(core.docs) }], outfile);
 		// Only the newest build of a base is kept.
 		for (const file of readdirSync(capes)) if (file.startsWith("base-") && file !== `base-${id}.js`) rmSync(join(capes, file), { recursive: true, force: true });
 	}

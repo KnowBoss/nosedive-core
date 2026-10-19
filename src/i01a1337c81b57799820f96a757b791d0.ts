@@ -5,6 +5,7 @@ import type { Cape, CapeDoc } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "./i01a1335488937f1c8c3983dd2950028e.ts";
+import { i01a151913e5772088ae93b14a4a3f120 as installCapePackages } from "./i01a151913e5772088ae93b14a4a3f120.ts";
 import { i01a14fb7a14b7f85b7dc8bb894d6e76b as bundleCape } from "./i01a14fb7a14b7f85b7dc8bb894d6e76b.ts";
 import { i01a1337c806075ca96d637c9ece7316e as capeId } from "./i01a1337c806075ca96d637c9ece7316e.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest, type CapeBuild } from "./i01a1337c810a7456876b831d0c873396.ts";
@@ -77,7 +78,8 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	const millis = seconds * 1000 + (Number.parseInt(commit.slice(0, 3), 16) % 1000);
 	const version = `${date.getUTCFullYear()}.${date.getUTCMonth() + 1}.${date.getUTCDate()}-${millis}`;
 
-	await bundleCape(source, { id, name: repo.name, commit, version, core: core.id, needs }, [...sources.values()], outfile);
+	installCapePackages(dir);
+	await bundleCape(dir, source, { id, name: repo.name, commit, version, core: core.id, needs }, [...sources.values()], outfile);
 
 	const actions = Object.fromEntries(
 		Object.values(source.docs)
