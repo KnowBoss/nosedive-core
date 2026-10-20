@@ -5,16 +5,16 @@ import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
-test("makes a git repo a base by default, in one commit", async () => {
+test("makes a git repo a ship by default, in one commit", async () => {
 	const dir = gitRepo("seed");
 	const repo = basename(dir);
 	assert.equal(ok(await run(["seed"], dir)), `seeded ${repo}`);
 	const config = readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8");
-	const root = /^root: (\S+)\n/m.exec(config)?.[1];
-	assert.equal(config, `kb: ./kb\nroot: ${root}\n`);
+	const root = /^ship: (\S+)\n/m.exec(config)?.[1];
+	assert.equal(config, `kb: ./kb\nship: ${root}\n`);
 	assert.equal(
 		readFileSync(join(dir, "kb", `${root}.md`), "utf8"),
-		`---\nkind: base\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\nmeta:\n  workspace: ./workspace\n---\n\n# ${repo}\n`,
+		`---\nkind: ship\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\nmeta:\n  workspace: ./workspace\n---\n\n# ${repo}\n`,
 		"the root is named after the repo",
 	);
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "cache/\ncapes/\nlocal/\n");
@@ -23,11 +23,17 @@ test("makes a git repo a base by default, in one commit", async () => {
 	assert.equal(git(["status", "--porcelain"], dir), "");
 });
 
-test("any other root kind gets no workspace", async () => {
+test("any other root kind gets no workspace, and is named as root unless a cape or a base", async () => {
 	const dir = gitRepo("seed-memo");
 	ok(await run(["seed", "--root-kind", "memo"], dir));
-	assert.equal(existsSync(join(dir, "workspace")), false, "only a base has a workspace");
+	assert.equal(existsSync(join(dir, "workspace")), false, "only a ship has a workspace");
 	assert.equal(existsSync(join(dir, ".gitignore")), false, "nor does it build packages");
+	assert.match(readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8"), /^root: /m);
+	const base = gitRepo("seed-data");
+	ok(await run(["seed", "--root-kind", "base"], base));
+	assert.match(readFileSync(join(base, ".nosedive", "config.yaml"), "utf8"), /^base: /m, "a base is named by its kind");
+	assert.equal(existsSync(join(base, "workspace")), false, "a base is data only");
+	assert.equal(existsSync(join(base, ".gitignore")), false);
 });
 
 test("leaves an existing bridge's config alone, and says it is seeded", async () => {
@@ -104,15 +110,15 @@ test("refuses outside a git repo", async () => {
 test("--root-kind makes the root a declared kind, such as cape", async () => {
 	const dir = gitRepo("seed-root-kind");
 	ok(await run(["seed", "--root-kind", "cape"], dir));
-	const root = /\nroot: (\S+)\n/.exec(readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8"))?.[1];
+	const root = /\ncape: (\S+)\n/.exec(readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8"))?.[1];
 	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), /^---\nkind: cape\n/);
 	// A cape's lockfile is committable even when an ignore outside the repo hides lockfiles.
 	writeFileSync(join(dir, ".git", "info", "exclude"), "package-lock.json\n");
 	writeFileSync(join(dir, "package-lock.json"), "{}\n");
 	assert.equal(git(["status", "--porcelain", "package-lock.json"], dir), "?? package-lock.json");
-	const undeclared = await run(["seed", "--root-kind", "ship"], gitRepo("seed-root-ship"));
+	const undeclared = await run(["seed", "--root-kind", "galleon"], gitRepo("seed-root-galleon"));
 	assert.equal(undeclared.code, 1);
-	assert.match(undeclared.err, /no kind ship is declared, so it cannot be the root's kind/);
+	assert.match(undeclared.err, /no kind galleon is declared, so it cannot be the root's kind/);
 });
 
 test("takes a config's backlog as its root, and adds no other", async () => {
@@ -120,18 +126,18 @@ test("takes a config's backlog as its root, and adds no other", async () => {
 	writeFileSync(join(dir, ".gitignore"), "");
 	ok(await run(["seed"], dir));
 	const config = join(dir, ".nosedive", "config.yaml");
-	writeFileSync(config, readFileSync(config, "utf8").replace(/^root: /m, "backlog: "));
+	writeFileSync(config, readFileSync(config, "utf8").replace(/^ship: /m, "backlog: "));
 	const before = readFileSync(config, "utf8");
 	ok(await run(["seed"], dir));
 	assert.equal(readFileSync(config, "utf8"), before);
 });
 
-test("a base gets a workspace that ignores itself, and moves it when its path changes", async () => {
-	const base = gitRepo("seed-base");
-	ok(await run(["seed", "--root-kind", "base"], base));
+test("a ship gets a workspace that ignores itself, and moves it when its path changes", async () => {
+	const base = gitRepo("seed-ship");
+	ok(await run(["seed"], base));
 	const config = readFileSync(join(base, ".nosedive", "config.yaml"), "utf8");
 	assert.doesNotMatch(config, /workspace/, "the workspace is the root's, not the config's");
-	const root = join(base, "kb", `${/\nroot: (\S+)\n/.exec(config)![1]}.md`);
+	const root = join(base, "kb", `${/\nship: (\S+)\n/.exec(config)![1]}.md`);
 	assert.match(readFileSync(root, "utf8"), /\nmeta:\n {2}workspace: \.\/workspace\n/);
 	assert.equal(readFileSync(join(base, "workspace", ".gitignore"), "utf8"), "*\n");
 	assert.doesNotMatch(readFileSync(join(base, ".gitignore"), "utf8"), /workspace/, "the workspace ignores itself, not through the repo's .gitignore");
@@ -148,7 +154,7 @@ test("a base gets a workspace that ignores itself, and moves it when its path ch
 
 test("renders the root's tree from its feat links, and leaves it once rendered", async () => {
 	const dir = await tempBridge("seed-tree");
-	const root = /^root: (\S+)$/m.exec(readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8"))![1]!;
+	const root = /^ship: (\S+)$/m.exec(readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8"))![1]!;
 	const memo = ok(await run(["crud", "memo", "free", "level"], dir)).replace(/^kb\/|\.md$/g, "");
 	ok(await run(["crud", root, "--links", "-"], dir, `kb/${memo}.md:\n  rel: levels.feat\n`));
 	assert.match(ok(await run(["seed", "--no-capes"], dir)), /rendered the tree of /);

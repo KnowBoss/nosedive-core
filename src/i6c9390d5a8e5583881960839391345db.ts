@@ -22,16 +22,18 @@ export async function i6c9390d5a8e5583881960839391345db(
 	const warning = checkMeta(doc.kind, meta, [target.kbDir, bridge.kbDir], ctx.capes);
 	if (warning) ctx.err(`nosedive: ${warning}`);
 
-	// A repo the bridge mints is one it owns, so it gets a home copy.
+	// A repo the bridge mints is one it owns, so it gets a home copy; with no home, one with a remote is only registered.
 	let home: string | undefined;
+	const remotes = ((meta as { remotes?: Record<string, unknown> }).remotes ?? {}) as Record<string, unknown>;
+	const other = Object.values(remotes).find((value) => typeof value === "string") as string | undefined;
 	if (doc.kind === "repo" && !doc.repo) {
 		if (!doc.name) throw new Error("a repo needs --name, which names its checkout and its home copy");
 		home = homeCopy(bridge, doc.name);
-		if (!home) throw new Error(`a repo needs a home: set \`home\` in ${relative(bridge.dir, bridge.configPath).replace(/\\/g, "/")} to where this bridge's repos live`);
+		if (!home && !other) throw new Error(`a repo needs a home or a remote: set \`home\` in ${relative(bridge.dir, bridge.configPath).replace(/\\/g, "/")} to where this bridge's repos live, or give meta.remotes`);
+	}
+	if (home) {
 		if (!existsSync(dirname(home))) throw new Error(`cannot reach the home ${dirname(home)}, so no repo was created`);
 		if (existsSync(home)) throw new Error(`${home} already exists`);
-		const remotes = ((meta as { remotes?: Record<string, unknown> }).remotes ?? {}) as Record<string, unknown>;
-		const other = Object.values(remotes).find((value) => typeof value === "string") as string | undefined;
 		const source = other && !/^[a-z][a-z0-9+.-]*:\/\/|^git@/i.test(other) && !isAbsolute(other) ? resolve(bridge.dir, other) : other;
 		const created = spawnSync("git", source ? ["clone", "-q", "--mirror", source, home] : ["init", "-q", "--bare", home], { encoding: "utf8" });
 		if (created.status !== 0) throw new Error(`cannot create ${home}: ${(created.stderr || created.stdout).trim()}`);

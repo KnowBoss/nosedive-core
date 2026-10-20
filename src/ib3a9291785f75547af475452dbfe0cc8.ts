@@ -13,6 +13,7 @@ import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a141fbba027b2684d5b1c1879d9337 as actionClashes } from "./i01a141fbba027b2684d5b1c1879d9337.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig, ROOT_KEYS } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 
@@ -21,7 +22,7 @@ const NOSEDIVE_IGNORES = ["cache/", "capes/", "local/"];
 const LOCKFILE = "!package-lock.json";
 
 /**
- * Makes the base's workspace, which ignores everything in it, itself included, so nothing checked
+ * Makes the ship's workspace, which ignores everything in it, itself included, so nothing checked
  * out there is ever committed. A workspace whose path changed since the last seed is moved, clones
  * and all, rather than left behind.
  */
@@ -51,20 +52,20 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 	if (!config.has("kb")) config.set("kb", "./kb");
 	const kbDir = join(dir, String(config.get("kb")));
 	mkdirSync(kbDir, { recursive: true });
-	// `backlog` is the root's older name; a bridge with either has its root.
-	if (!config.has("root") && !config.has("backlog")) {
+	// A config names its root under its kind's key, or one of the legacy names; any of them is its root.
+	if (!ROOT_KEYS.some((key) => config.has(key))) {
 		// The root every action, kind and gate of this bridge hangs from; its kind says what the repo is.
 		if (checkMeta(rootKind, {}, [kbDir], ctx.capes)) throw new Error(`no kind ${rootKind} is declared, so it cannot be the root's kind`);
-		// The root takes the repo's name, which is what bases call it: a cape's name is its root's.
-		// A base is a repo other repos are checked out in; its workspace is where.
+		// The root takes the repo's name, which is what ships call it: a cape's name is its root's.
+		// A ship is where other repos are checked out; its workspace is where.
 		const root = mintKbDoc(kbDir, {
 			kind: rootKind,
 			name: basename(dir),
 			gist: `What ${basename(dir)} holds`,
 			title: basename(dir),
-			meta: rootKind === "base" ? { workspace: "./workspace" } : undefined,
+			meta: rootKind === "ship" ? { workspace: "./workspace" } : undefined,
 		});
-		config.set("root", root.id);
+		config.set(["ship", "cape", "base"].includes(rootKind) ? rootKind : "root", root.id);
 		changed.push(root.path);
 	}
 	const configText = config.toString({ lineWidth: 0 });
@@ -83,9 +84,10 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 		changed.push(ignorePath);
 	}
 
-	const rootDoc = findKbDoc(kbDir, String(config.get("root") ?? config.get("backlog")));
-	// A cape's or base's packages build from its lockfile, which a global ignore could hide from every commit.
-	if (rootDoc?.fm.kind === "cape" || rootDoc?.fm.kind === "base") {
+	const own = readRepoConfig(dir)!;
+	const rootDoc = own.root ? findKbDoc(kbDir, own.root) : undefined;
+	// A cape's or ship's packages build from its lockfile, which a global ignore could hide from every commit.
+	if (rootDoc?.fm.kind === "cape" || own.workspace !== undefined) {
 		const repoIgnore = join(dir, ".gitignore");
 		const text = existsSync(repoIgnore) ? readFileSync(repoIgnore, "utf8") : "";
 		if (!text.split(/\r?\n/).includes(LOCKFILE)) {
@@ -93,10 +95,7 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 			changed.push(repoIgnore);
 		}
 	}
-	if (rootDoc?.fm.kind === "base") {
-		const path = (rootDoc.fm.meta as { workspace?: unknown } | undefined)?.workspace;
-		placeWorkspace(dir, resolve(dir, typeof path === "string" ? path : "workspace"));
-	}
+	if (own.workspace !== undefined) placeWorkspace(dir, own.workspace);
 
 	const repo = basename(dir);
 	if (changed.length > 0) {

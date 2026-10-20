@@ -15,7 +15,7 @@ type Loaded = { __nosediveCore?: Cape; __nosediveBase?: Record<string, Cape> };
 
 export async function i01a14fb79db47f8b94d5196027008697(bridge: Bridge, core: Cape): Promise<Cape | undefined> {
 	const root = findRoot(bridge.dir);
-	if (root?.kind !== "base") return undefined;
+	if (root?.bridge.workspace === undefined) return undefined;
 	const source = describeCapeSource(bridge.dir, true);
 	if (source.entries.length === 0) return undefined;
 

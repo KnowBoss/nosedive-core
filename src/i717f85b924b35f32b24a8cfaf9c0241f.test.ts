@@ -40,7 +40,7 @@ test("refuses while anything links to it, naming each link, and edits nothing", 
 
 test("refuses the root a config names", async () => {
 	const bridge = await tempBridge("crud-drop-root");
-	const root = /root: (\S+)/.exec(git(["show", "HEAD:.nosedive/config.yaml"], bridge))![1]!;
+	const root = /ship: (\S+)/.exec(git(["show", "HEAD:.nosedive/config.yaml"], bridge))![1]!;
 	const refused = await run(["crud", "--drop", root, "--hard"], bridge);
 	assert.match(refused.err, /\.nosedive\/config\.yaml names it as its root/);
 });

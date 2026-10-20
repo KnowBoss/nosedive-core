@@ -143,9 +143,9 @@ async function renderActions(ctx: Ctx): Promise<string> {
 	const coreRows = Object.values(core.docs).flatMap((doc): [string, string][] => (doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") ? [[doc.name, doc.gist]] : []));
 	groups.push([core.name, coreRows]);
 	const bridge = findBridge(ctx.cwd);
-	// The base's own commands, read from its docs: listing them needs no build.
+	// The ship's own commands, read from its docs: listing them needs no build.
 	const root = bridge && findRoot(bridge.dir);
-	if (bridge && root?.kind === "base") {
+	if (bridge && root?.bridge.workspace !== undefined) {
 		const rows = Object.values(describeCapeSource(bridge.dir, true).docs).flatMap((doc): [string, string][] =>
 			doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") && !coreRows.some(([taken]) => taken === doc.name) ? [[doc.name, doc.gist]] : [],
 		);

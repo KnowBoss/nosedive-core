@@ -6,9 +6,9 @@ export type Bridge = {
 	configPath: string;
 	config: Record<string, unknown>;
 	kbDir: string;
-	/** The id of the bridge's root doc: config `root`, or `backlog`, its older name. */
+	/** The id of the bridge's root doc: config `ship`, `cape` or `base`, or legacy `root` or `backlog`. */
 	root: string | undefined;
-	/** Where other repos are checked out, which only a base has: its root's `meta.workspace`. */
+	/** Where other repos are checked out, which only a ship has: its root's `meta.workspace`. */
 	workspace: string | undefined;
 };
 
@@ -19,7 +19,7 @@ export function i01a1335485c67c95b7efdf2f0e03cfd6(start: string): Bridge | undef
 		if (config) found.push(config);
 		if (dirname(dir) === dir) break;
 	}
-	// The nearest base, unless it is checked out in another base's workspace: then that base.
+	// The nearest ship, unless it is checked out in another ship's workspace: then that ship.
 	let bridge = found.find((candidate) => candidate.workspace !== undefined);
 	if (!bridge) return found[0];
 	for (const outer of found.slice(found.indexOf(bridge) + 1)) {

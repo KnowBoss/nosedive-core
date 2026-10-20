@@ -13,8 +13,8 @@ import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177
 export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined, ctx: Ctx): Promise<void> {
 	const repoDir = gitRoot(ctx.cwd);
 	const root = findRoot(repoDir);
-	if (root?.kind !== "cape" && root?.kind !== "base") {
-		throw new Error(`scaf runs in a cape or a base, and ${root ? `this repo's root is a ${root.kind}` : "this repo has no root"}: \`nosedive seed --root-kind cape\` makes a cape`);
+	if (root?.kind !== "cape" && root?.bridge.workspace === undefined) {
+		throw new Error(`scaf runs in a cape or a ship, and ${root ? `this repo's root is a ${root.kind}` : "this repo has no root"}: \`nosedive seed --root-kind cape\` makes a cape`);
 	}
 	const { docs, entries } = describeCapeSource(repoDir);
 	const kbDir = root.bridge.kbDir;
@@ -68,7 +68,7 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 
 function gitRoot(cwd: string): string {
 	const result = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
-	if (result.status !== 0) throw new Error("scaf runs in a cape or a base, and this is not a git repo");
+	if (result.status !== 0) throw new Error("scaf runs in a cape or a ship, and this is not a git repo");
 	return result.stdout.trim();
 }
 

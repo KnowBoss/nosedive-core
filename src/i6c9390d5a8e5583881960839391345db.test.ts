@@ -90,11 +90,21 @@ test("a repo the bridge mints gets a home copy, mirroring its other remote, or e
 	assert.equal(findRepoDoc(findBridge(bridge)!, "fresh").remote, fresh, "a repo with no other remote clones from home");
 });
 
+test("with no home, a repo with a remote is registered, not copied", async () => {
+	const bridge = await tempBridge("crud-mint-repo-registered");
+	const source = gitRepo("crud-mint-registered-source");
+	const meta = join(tempDir("crud-mint-registered-meta"), "meta.yaml");
+	writeFileSync(meta, `remotes:\n  cloud: ${JSON.stringify(source)}\n`);
+	const out = ok(await run(["crud", "repo", "theirs", "--name", "theirs", "--meta", meta], bridge));
+	assert.doesNotMatch(out, /home copy/);
+	assert.equal(findRepoDoc(findBridge(bridge)!, "theirs").remote, source);
+});
+
 test("a repo the bridge mints needs a name and a reachable home, and nothing is minted without them", async () => {
 	const bridge = await tempBridge("crud-mint-repo-refused");
 	const head = git(["rev-parse", "HEAD"], bridge);
 	assert.match((await run(["crud", "repo", "unnamed"], bridge)).err, /a repo needs --name/);
-	assert.match((await run(["crud", "repo", "x", "--name", "x"], bridge)).err, /a repo needs a home: set `home` in \.nosedive\/config\.yaml/);
+	assert.match((await run(["crud", "repo", "x", "--name", "x"], bridge)).err, /a repo needs a home or a remote: set `home` in \.nosedive\/config\.yaml/);
 	appendFileSync(join(bridge, ".nosedive", "config.yaml"), `home: ${JSON.stringify(join(tempDir("crud-mint-gone"), "missing"))}\n`);
 	assert.match((await run(["crud", "repo", "x", "--name", "x"], bridge)).err, /cannot reach the home .+missing, so no repo was created/);
 	assert.equal(git(["rev-parse", "HEAD"], bridge), head);

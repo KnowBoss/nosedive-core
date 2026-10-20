@@ -75,12 +75,12 @@ test("runs in a base, whose code imports core's types by name", async () => {
 	assert.match(readFileSync(join(dir, "src", "i01a1335bf2537b80ab64d2f9a03c9634.ts"), "utf8"), /from "nosedive-core"/);
 });
 
-test("refuses a repo that is neither a cape nor a base", async () => {
+test("refuses a repo that is neither a cape nor a ship", async () => {
 	const memo = gitRepo("scaf-memo");
 	ok(await run(["seed", "--root-kind", "memo"], memo));
 	const refused = await run(["scaf"], memo);
 	assert.equal(refused.code, 1);
-	assert.match(refused.err, /scaf runs in a cape or a base, and this repo's root is a memo: `nosedive seed --root-kind cape` makes a cape/);
+	assert.match(refused.err, /scaf runs in a cape or a ship, and this repo's root is a memo: `nosedive seed --root-kind cape` makes a cape/);
 	const bare = await run(["scaf"], gitRepo("scaf-bare"));
 	assert.match(bare.err, /this repo has no root/);
 });

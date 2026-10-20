@@ -176,10 +176,10 @@ export function checkedOut(bridge: string, name: string): string {
 	return dir;
 }
 
-/** A base, seeded in a fresh temp repo: the repo a team works from, with a workspace. */
+/** A ship, seeded in a fresh temp repo: the repo a team works from, with a workspace. */
 export async function tempBridge(label: string): Promise<string> {
 	const dir = gitRepo(label);
-	ok(await run(["seed", "--root-kind", "base"], dir));
+	ok(await run(["seed"], dir));
 	return dir;
 }
 
