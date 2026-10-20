@@ -8,7 +8,7 @@ export function i3ac641d4a9d757a48df1f1de031be120(edit: KbEdit, quid: string, pa
 	if (patch === null || typeof patch !== "object" || Array.isArray(patch)) throw new Error("--meta takes a mapping");
 	updateKbDocField(edit, quid, "meta", (meta, doc) => {
 		const next = mergePatch(meta ?? {}, patch);
-		const warning = checkMeta(String(doc.fm.kind), next, [doc.kbDir, edit.bridge.kbDir], ctx.capes);
+		const warning = checkMeta(String(doc.fm.kind), next, [doc.kbDir, edit.bridge.kbDir], ctx.capes, edit.bridge);
 		if (warning) ctx.err(`nosedive: ${warning}`);
 		return next;
 	});

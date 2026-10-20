@@ -19,7 +19,7 @@ export async function i6c9390d5a8e5583881960839391345db(
 	const target = doc.repo ? workspaceRepo(bridge, doc.repo) : { dir: bridge.dir, kbDir: bridge.kbDir };
 	const meta = doc.meta === undefined ? {} : await readSource(doc.meta, ctx);
 	if (meta === null || typeof meta !== "object" || Array.isArray(meta)) throw new Error("--meta takes a mapping");
-	const warning = checkMeta(doc.kind, meta, [target.kbDir, bridge.kbDir], ctx.capes);
+	const warning = checkMeta(doc.kind, meta, [target.kbDir, bridge.kbDir], ctx.capes, bridge);
 	if (warning) ctx.err(`nosedive: ${warning}`);
 
 	// A repo the bridge mints is one it owns, so it gets a home copy; with no home, one with a remote is only registered.

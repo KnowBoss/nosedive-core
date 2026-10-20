@@ -86,7 +86,7 @@ export async function i01a1337c81b57799820f96a757b791d0(
 			.filter((doc) => doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? ""))
 			.map((doc) => [doc.name, doc.gist]),
 	);
-	const build = { id, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, needs, version, builtAt: new Date().toISOString() };
+	const build = { id, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString() };
 	capeManifest(bridge.dir, build);
 	return { ...build, fresh: true };
 }

@@ -63,7 +63,7 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	}
 
 	if (!hard) {
-		const durable = docs.filter(({ doc }) => findKind(String(doc.fm.kind), [doc.kbDir, bridge.kbDir], capes)?.durable === true);
+		const durable = docs.filter(({ doc }) => findKind(String(doc.fm.kind), [doc.kbDir, bridge.kbDir], capes, bridge)?.durable === true);
 		if (one && durable.length) throw new Error(`${durable[0]!.label} is durable: its file keeps it findable by id, so it was not dropped; --hard drops it anyway`);
 		if (durable.length) {
 			throw new Error(`${durable.length} of these are durable, so none was dropped; --hard drops them anyway:\n  ${durable.map(({ label }) => label).join("\n  ")}`);
