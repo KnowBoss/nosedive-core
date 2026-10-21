@@ -5,7 +5,9 @@ import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7
 
 export function i5225ca8db7b85be197b4b22ee341b5f1(edit: KbEdit, quid: string, kind: string, ctx: Ctx): void {
 	if (!/^[a-z0-9][a-z0-9.-]*$/.test(kind)) throw new Error(`--kind must be lowercase letters, digits, dots and dashes: ${kind}`);
+	edit.unchecked?.add(edit.doc(quid));
 	updateKbDocField(edit, quid, "kind", (_kind, doc) => {
+		if (edit.unchecked) return kind;
 		const warning = checkMeta(kind, doc.fm.meta, [doc.kbDir, edit.bridge.kbDir], ctx.capes, edit.bridge);
 		if (warning) ctx.err(`nosedive: ${warning}`);
 		return kind;

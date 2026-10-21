@@ -64,3 +64,17 @@ test("writes nothing when any edit is refused, naming the item", async () => {
 	assert.equal(readFileSync(join(bridge, a), "utf8"), before);
 	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
 });
+
+test("checks a doc's meta once, against its final kind, so kind and meta change together", async () => {
+	const bridge = await tempBridge("crud-batch-kinds");
+	for (const [name, answer] of [["question", ""], ["decision", "\n    answer: { type: string }"]]) {
+		const schema = `schema:\n  type: object\n  additionalProperties: false\n  required: [options${answer ? ", answer" : ""}]\n  properties:\n    options: { type: array }${answer}\n`;
+		ok(await run(["crud", "kind", name!, "--name", name!, "--meta", "-"], bridge, schema));
+	}
+	const q = idOf(ok(await run(["crud", "question", "which", "--meta", "-"], bridge, "options: [a, b]\n")));
+	const out = await run(["crud", "--batch", "-"], bridge, `- quid: ${q}\n  kind: decision\n- quid: ${q}\n  meta: { answer: a }\n`);
+	assert.equal(out.code, 0, out.err);
+	assert.match(readFileSync(join(bridge, "kb", `${q}.md`), "utf8"), /^---\nkind: decision\n[^]*\n {2}answer: a\n/);
+	const refused = await run(["crud", "--batch", "-"], bridge, `- quid: ${q}\n  kind: question\n`);
+	assert.match(refused.err, new RegExp(`--batch ${q}: meta does not fit kind question`));
+});

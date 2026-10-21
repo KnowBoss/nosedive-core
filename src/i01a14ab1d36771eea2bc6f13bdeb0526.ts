@@ -16,6 +16,8 @@ export type KbEdit = {
 	change(doc: EditedDoc): void;
 	/** Writes the changed docs, commits each repo's (as `message` when given), and returns their paths relative to the bridge. */
 	commit(message?: string): string[];
+	/** When set, kind and meta edits leave their schema check to the caller, collecting the docs here. */
+	unchecked?: Set<EditedDoc>;
 };
 
 export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string): KbEdit {

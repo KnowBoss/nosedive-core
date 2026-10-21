@@ -6,8 +6,10 @@ import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7
 
 export function i3ac641d4a9d757a48df1f1de031be120(edit: KbEdit, quid: string, patch: unknown, ctx: Ctx): void {
 	if (patch === null || typeof patch !== "object" || Array.isArray(patch)) throw new Error("--meta takes a mapping");
+	edit.unchecked?.add(edit.doc(quid));
 	updateKbDocField(edit, quid, "meta", (meta, doc) => {
 		const next = mergePatch(meta ?? {}, patch);
+		if (edit.unchecked) return next;
 		const warning = checkMeta(String(doc.fm.kind), next, [doc.kbDir, edit.bridge.kbDir], ctx.capes, edit.bridge);
 		if (warning) ctx.err(`nosedive: ${warning}`);
 		return next;
