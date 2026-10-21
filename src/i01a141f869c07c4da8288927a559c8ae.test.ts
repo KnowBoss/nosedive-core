@@ -36,3 +36,11 @@ test("takes a given id, name and title, and never overwrites", () => {
 	assert.match(readFileSync(doc.path, "utf8"), /# my-base/);
 	assert.throws(() => mintKbDoc(kb, given), /already exists/);
 });
+
+test("titles a doc by the name it was given, else by its gist", () => {
+	const kb = tempDir("mint-kb-doc-title");
+	const named = mintKbDoc(kb, { kind: "memo", gist: "Builds the ship's own code", name: "build-ship" });
+	assert.match(readFileSync(named.path, "utf8"), /\n# Build ship\n$/);
+	const titled = mintKbDoc(kb, { kind: "memo", gist: "g", name: "n", title: "The title" });
+	assert.match(readFileSync(titled.path, "utf8"), /\n# The title\n$/);
+});

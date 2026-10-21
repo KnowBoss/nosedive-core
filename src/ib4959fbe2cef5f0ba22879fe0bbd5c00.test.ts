@@ -77,9 +77,9 @@ test("fails fast, and writes nothing when a gate fails", async () => {
 test("lists its gates' usages, and refuses argv none matches or a doc that links no gate in the sect", async () => {
 	const { bridge, memo } = await stampBridge("pass-usages");
 	const help = ok(await run(["pass", "--help"], bridge));
-	assert.match(help, /\n {2}pass --stamp <quid> \[--loud\]\n {2}pass --stamp <quid> \[--refuse\]\n {2}pass --test <cape>$/);
+	assert.match(help, /\n {2}pass --stamp <quid> \[--loud\]\n {2}pass --stamp <quid> \[--refuse\]\n {2}pass --status <repo>\n {2}pass --test <cape>$/);
 	assert.equal(ok(await run(["pass"], bridge)), help);
-	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n {2}pass --hydrate <repo>\n {2}pass --stamp/);
+	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n {2}pass --hydrate <repo>\n {2}pass --stamp[^]*\n {2}pass --status <repo>/);
 	const other = idOf(ok(await run(["crud", "memo", "other"], bridge)));
 	assert.match((await run(["pass", "--stamp", other], bridge)).err, /other-\w{6} links no stamp\.gate, nor does its kind memo/);
 });
@@ -177,4 +177,29 @@ test("hydrate adopts a legacy cache named by the repo's id alone, and makes new 
 	assert.equal(existsSync(join(legacy, "worktrees", "hello")), true);
 	assert.equal(git(["status", "--porcelain"], join(bridge, "workspace", "hello")), "", "a worktree of a cache with per-worktree config is no bare repo");
 	assert.equal(existsSync(`${legacy}.git`), false);
+});
+
+test("status compares a repo's role with what it says it is, hydrating it first", async () => {
+	const bridge = await tempBridge("pass-status");
+	const cape = gitRepo("pass-status-cape");
+	ok(await run(["seed", "--root-kind", "cape"], cape));
+	const id = await registerRepo(bridge, "a-cape", cape);
+	const source = gitRepo("pass-status-plain");
+	git(["commit", "-q", "--allow-empty", "-m", "first"], source);
+	const plain = await registerRepo(bridge, "plain", source);
+	git(["add", "kb"], bridge);
+	git(["commit", "-qm", "repos"], bridge);
+
+	const unset = await run(["pass", "--status", id], bridge);
+	assert.equal(unset.code, 1);
+	assert.match(unset.out, /^workspace\/a-cape: detached at main \w+\na-cape: its doc says nothing, it says cape \(root [0-9a-f-]{36}\)$/m);
+	assert.match(unset.err, new RegExp(`a-cape's doc has no role: \`nosedive crud ${id} --meta -\` with \`role: cape\` sets it`));
+
+	ok(await run(["crud", id, "--meta", "-"], bridge, "role: cape\n"));
+	assert.match(ok(await run(["pass", "--status", id], bridge)), /^a-cape: its doc says cape, it says cape \(root [0-9a-f-]{36}\)\ngate status: passed$/);
+	ok(await run(["crud", id, "--meta", "-"], bridge, "role: base\n"));
+	assert.match((await run(["pass", "--status", id], bridge)).err, /a-cape's doc says base, but it is a cape/);
+
+	ok(await run(["crud", plain, "--meta", "-"], bridge, "role: misc\n"));
+	assert.match(ok(await run(["pass", "--status", plain], bridge)), /plain: its doc says misc, it says misc \(no nosedive config\)\ngate status: passed$/);
 });
