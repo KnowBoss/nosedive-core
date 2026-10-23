@@ -91,7 +91,7 @@ test("builds every cape it can, then names each that failed and the core that la
 	assert.match(ok(await run(["greet", "ann"], bridge)), /^hello ann /, "the capes that built still run");
 });
 
-test("builds capes whose actions clash, and the launcher asks which with --cape", async () => {
+test("builds capes whose actions clash, and the launcher asks which, as <cape>:<action>", async () => {
 	const bridge = await tempBridge("seed-clash");
 	await registerRepo(bridge, "greet-cape", greetCapeRepo());
 	await registerRepo(bridge, "other-greet", greetCapeRepo({ name: "other-greet" }));
@@ -99,12 +99,11 @@ test("builds capes whose actions clash, and the launcher asks which with --cape"
 	ok(await run(["seed"], bridge));
 	const ambiguous = await run(["greet", "ann"], bridge);
 	assert.equal(ambiguous.code, 1);
-	assert.match(ambiguous.err, /greet is an action of greet-cape and other-greet: name one with --cape, as `nosedive --cape greet-cape greet`/);
-	assert.match(ok(await run(["--cape", "other-greet", "greet", "ann"], bridge)), /^hello ann /);
-	assert.match((await run(["--cape", "nosedive-core", "greet", "ann"], bridge)).err, /nosedive-core has no action greet/);
-	assert.match((await run(["--cape", "nope", "greet", "ann"], bridge)).err, /no cape nope in this ship's config `capes`/);
-	assert.match((await run(["--cape"], bridge)).err, /--cape takes the name of a cape/);
-	assert.match(ok(await run(["--cape", "nosedive-core", "mint"], bridge)), /^[0-9a-f-]{36}$/, "core's own actions run under --cape too");
+	assert.match(ambiguous.err, /greet is an action of greet-cape and other-greet: name one, as `greet-cape:greet` or `other-greet:greet`/);
+	assert.match(ok(await run(["other-greet:greet", "ann"], bridge)), /^hello ann /);
+	assert.match((await run(["nosedive-core:greet", "ann"], bridge)).err, /nosedive-core has no action greet/);
+	assert.match((await run(["nope:greet", "ann"], bridge)).err, /no cape nope in this ship's config `capes`/);
+	assert.match(ok(await run(["nosedive-core:mint"], bridge)), /^[0-9a-f-]{36}$/, "core's own actions run under its name too");
 });
 
 test("refuses outside a git repo", async () => {

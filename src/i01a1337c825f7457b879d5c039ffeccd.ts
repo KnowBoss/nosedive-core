@@ -7,7 +7,7 @@ import { i01a14b30eb0e72e28934c918000a26ac as loadCape } from "./i01a14b30eb0e72
 export async function i01a1337c825f7457b879d5c039ffeccd(ctx: Ctx, action: string, core: Cape, only?: string): Promise<Cape | undefined> {
 	const bridge = findBridge(ctx.cwd);
 	if (!bridge) {
-		if (only) throw new Error(`--cape ${only} names a cape of a ship, and this is no ship`);
+		if (only) throw new Error(`${only}:${action} names a cape of a ship, and this is no ship`);
 		return undefined;
 	}
 	const capes = configuredCapes(bridge, core);
@@ -21,7 +21,7 @@ export async function i01a1337c825f7457b879d5c039ffeccd(ctx: Ctx, action: string
 	const providing = capes.filter((cape) => cape.build?.actions?.[action] !== undefined);
 	if (providing.length > 1) {
 		const names = providing.map((cape) => cape.name);
-		throw new Error(`${action} is an action of ${names.join(" and ")}: name one with --cape, as \`nosedive --cape ${names[0]} ${action}\``);
+		throw new Error(`${action} is an action of ${names.join(" and ")}: name one, as ${names.map((cape) => `\`${cape}:${action}\``).join(" or ")}`);
 	}
 	return providing[0] ? loadCape(bridge.dir, providing[0].build!, core) : undefined;
 }
