@@ -14,15 +14,34 @@ export function i01a15baf13e27bd88dc880d4871f2210(bridge: Bridge, doc: RepoDoc, 
 	const name = String(doc.fm.name);
 	const dir = checkoutPath(bridge, name);
 	const shown = relative(bridge.dir, dir).replace(/\\/g, "/");
-	// A bare repo is named <name>.git, but legacy named its caches by id alone, so one of those serves too.
-	const legacy = join(bridge.dir, ".nosedive", "cache", String(doc.fm.id));
-	const cache = existsSync(legacy) ? legacy : `${legacy}.git`;
-	const meta = (doc.fm.meta ?? {}) as { trunk?: unknown };
 	if (existsSync(dir)) {
 		ctx.out(`${shown}: checked out already`);
-		return { dir, trunk: typeof meta.trunk === "string" ? meta.trunk : defaultBranch(firstRemote(bridge, doc) ?? cache) };
+		const meta = (doc.fm.meta ?? {}) as { trunk?: unknown };
+		return { dir, trunk: typeof meta.trunk === "string" ? meta.trunk : defaultBranch(firstRemote(bridge, doc) ?? cachePath(bridge, doc)) };
 	}
+	const { cache, trunk } = fetchCache(bridge, doc, ctx);
+	const tip = `refs/remotes/origin/${trunk}`;
 
+	// Detached: no checkout has a branch of its own, so a bare git push has nowhere to go.
+	const added = git(cache, "worktree", "add", "-q", "--detach", dir, tip);
+	if (!added.ok) throw new Error(`cannot check ${name} out at ${shown}: ${added.text}`);
+	// With per-worktree config on, as legacy caches have it, the cache's core.bare reaches the worktree unless it says otherwise.
+	if (git(cache, "config", "--bool", "extensions.worktreeConfig").text === "true") git(dir, "config", "--worktree", "core.bare", "false");
+	ctx.out(`${shown}: detached at ${trunk} ${git(dir, "rev-parse", "--short", "HEAD").text}`);
+	return { dir, trunk };
+}
+
+/** The ship's cache of a repo: a bare repo named <id>.git, or by id alone where legacy left one. */
+function cachePath(bridge: Bridge, doc: RepoDoc): string {
+	const legacy = join(bridge.dir, ".nosedive", "cache", String(doc.fm.id));
+	return existsSync(legacy) ? legacy : `${legacy}.git`;
+}
+
+/** Fetches the ship's cache of a repo, making it when there is none, without checking anything out; returns it and the repo's trunk. */
+export function fetchCache(bridge: Bridge, doc: RepoDoc, ctx: Say): { cache: string; trunk: string } {
+	const name = String(doc.fm.name);
+	const cache = cachePath(bridge, doc);
+	const meta = (doc.fm.meta ?? {}) as { trunk?: unknown };
 	// The cache is the bridge's own; only the workspace holds checkouts, each a worktree of it.
 	if (!existsSync(cache)) {
 		mkdirSync(cache, { recursive: true });
@@ -43,14 +62,7 @@ export function i01a15baf13e27bd88dc880d4871f2210(bridge: Bridge, doc: RepoDoc, 
 		git(cache, "config", "remote.origin.url", remote);
 		git(cache, "config", "remote.origin.fetch", BRANCHES);
 	}
-
-	// Detached: no checkout has a branch of its own, so a bare git push has nowhere to go.
-	const added = git(cache, "worktree", "add", "-q", "--detach", dir, tip);
-	if (!added.ok) throw new Error(`cannot check ${name} out at ${shown}: ${added.text}`);
-	// With per-worktree config on, as legacy caches have it, the cache's core.bare reaches the worktree unless it says otherwise.
-	if (git(cache, "config", "--bool", "extensions.worktreeConfig").text === "true") git(dir, "config", "--worktree", "core.bare", "false");
-	ctx.out(`${shown}: detached at ${trunk} ${git(dir, "rev-parse", "--short", "HEAD").text}`);
-	return { dir, trunk };
+	return { cache, trunk };
 }
 
 /** Fetches the cache from the repo's home copy, else from its first remote; returns where it fetched from. */

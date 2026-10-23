@@ -179,7 +179,7 @@ test("hydrate adopts a legacy cache named by the repo's id alone, and makes new 
 	assert.equal(existsSync(`${legacy}.git`), false);
 });
 
-test("status compares a repo's role with what it says it is, hydrating it first", async () => {
+test("status compares a repo's role with what our checkout of it says, else the cache's trunk, never checking it out", async () => {
 	const bridge = await tempBridge("pass-status");
 	const cape = gitRepo("pass-status-cape");
 	ok(await run(["seed", "--root-kind", "cape"], cape));
@@ -192,23 +192,24 @@ test("status compares a repo's role with what it says it is, hydrating it first"
 
 	const unset = await run(["pass", "--status", id], bridge);
 	assert.equal(unset.code, 1);
-	assert.match(unset.out, /^workspace\/a-cape: detached at main \w+\na-cape: its doc says nothing, it says cape \(root [0-9a-f-]{36}, main at \w+\)$/m);
+	assert.match(unset.out, /^a-cape: its doc says nothing, it says cape \(root [0-9a-f-]{36}, read from main at \w+ in the cache\)$/m);
 	assert.match(unset.err, new RegExp(`a-cape's doc has no role: \`nosedive crud ${id} --meta -\` with \`role: cape\` sets it`));
+	assert.equal(existsSync(join(bridge, "workspace", "a-cape")), false, "status checks nothing out");
 
 	ok(await run(["crud", id, "--meta", "-"], bridge, "role: cape\n"));
-	assert.match(ok(await run(["pass", "--status", id], bridge)), /^a-cape: its doc says cape, it says cape \(root [0-9a-f-]{36}, main at \w+\)\ngate status: passed$/);
+	assert.match(ok(await run(["pass", "--status", id], bridge)), /^a-cape: its doc says cape, it says cape \(root [0-9a-f-]{36}, read from main at \w+ in the cache\)\ngate status: passed$/);
 	ok(await run(["crud", id, "--meta", "-"], bridge, "role: base\n"));
 	assert.match((await run(["pass", "--status", id], bridge)).err, /a-cape's doc says base, but it is a cape/);
 
+	// Once checked out, the checkout is what it reads, whatever its remote has since.
 	ok(await run(["crud", plain, "--meta", "-"], bridge, "role: misc\n"));
-	assert.match(ok(await run(["pass", "--status", plain], bridge)), /plain: its doc says misc, it says misc \(no nosedive config, main at \w+\)\ngate status: passed$/);
-
-	// What the repo says is its trunk now, not the checkout hydrated before it was seeded.
+	ok(await run(["pass", "--hydrate", plain], bridge));
 	ok(await run(["seed", "--root-kind", "base"], source));
-	assert.match((await run(["pass", "--status", plain], bridge)).err, /plain's doc says misc, but it is a base/);
+	assert.match(ok(await run(["pass", "--status", plain], bridge)), /plain: its doc says misc, it says misc \(no nosedive config, read from the checkout workspace\/plain\)\ngate status: passed$/);
 	// An older config names its root as root: its root's kind says.
-	const config = join(source, ".nosedive", "config.yaml");
+	git(["fetch", "-q", "origin"], join(bridge, "workspace", "plain"));
+	git(["checkout", "-q", "--detach", "origin/main"], join(bridge, "workspace", "plain"));
+	const config = join(bridge, "workspace", "plain", ".nosedive", "config.yaml");
 	writeFileSync(config, readFileSync(config, "utf8").replace("base: ", "root: "));
-	git(["commit", "-qam", "legacy key"], source);
-	assert.match((await run(["pass", "--status", plain], bridge)).out, /it says base \(root [0-9a-f-]{36}, main at \w+\)/);
+	assert.match((await run(["pass", "--status", plain], bridge)).err, /plain's doc says misc, but it is a base/);
 });
