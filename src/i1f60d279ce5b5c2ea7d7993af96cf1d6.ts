@@ -11,7 +11,6 @@ import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c1
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
-import { i01a141fbba027b2684d5b1c1879d9337 as actionClashes } from "./i01a141fbba027b2684d5b1c1879d9337.ts";
 
 export async function i1f60d279ce5b5c2ea7d7993af96cf1d6(args: Args, ctx: Ctx): Promise<void> {
 	const bridge = findBridge(ctx.cwd);
@@ -41,9 +40,6 @@ export async function i1f60d279ce5b5c2ea7d7993af96cf1d6(args: Args, ctx: Ctx): P
 	if (configured.some((cape) => cape.name === name)) throw new Error(`${name} is already in config \`capes\``);
 
 	const built = await buildCape(bridge, { id: existing?.id ?? id, name, remote }, ref, core);
-	const others = configured.flatMap((cape) => (cape.build ? [{ name: cape.name, actions: cape.build.actions }] : []));
-	const clashes = actionClashes(core, [...others, { name, actions: built.actions }]);
-	if (clashes.length > 0) throw new Error(`${name} clashes, so it was not added:\n  ${clashes.join("\n  ")}`);
 
 	const changed = [bridge.configPath];
 	if (!existing) {

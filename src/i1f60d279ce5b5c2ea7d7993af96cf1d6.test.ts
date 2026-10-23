@@ -29,7 +29,7 @@ test("--ref pins the cape where config lists it", async () => {
 	assert.match(config(bridge), new RegExp(`\ncapes:\n {2}- greet-cape@${commit}\n`));
 });
 
-test("refuses a repo that is not a cape, one already listed or registered elsewhere, and one that clashes, changing nothing", async () => {
+test("refuses a repo that is not a cape, or one already listed or registered elsewhere, changing nothing, and adds one whose actions clash", async () => {
 	const bridge = await tempBridge("cape-add-refused");
 	const head = git(["rev-parse", "HEAD"], bridge);
 	const plain = await run(["cape", greetCapeRepo({ plain: true })], bridge);
@@ -42,12 +42,8 @@ test("refuses a repo that is not a cape, one already listed or registered elsewh
 	assert.match((await run(["cape", greet], bridge)).err, /greet-cape is already in config `capes`/);
 	assert.match((await run(["cape", greetCapeRepo()], bridge)).err, /a repo named greet-cape is already registered, cloned from /);
 
-	const before = git(["rev-parse", "HEAD"], bridge);
-	const clash = await run(["cape", greetCapeRepo({ name: "other-greet" })], bridge);
-	assert.equal(clash.code, 1);
-	assert.match(clash.err, /other-greet clashes, so it was not added:\n {2}greet is provided by greet-cape and other-greet/);
-	assert.equal(git(["rev-parse", "HEAD"], bridge), before);
-	assert.doesNotMatch(config(bridge), /other-greet/);
+	ok(await run(["cape", greetCapeRepo({ name: "other-greet" })], bridge));
+	assert.match(config(bridge), /- other-greet\n/, "the launcher resolves the clash, not cape");
 });
 
 test("builds the capes a cape imports, by the repo docs the bridge has", async () => {

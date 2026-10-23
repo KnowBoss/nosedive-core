@@ -91,14 +91,20 @@ test("builds every cape it can, then names each that failed and the core that la
 	assert.match(ok(await run(["greet", "ann"], bridge)), /^hello ann /, "the capes that built still run");
 });
 
-test("refuses capes whose actions clash", async () => {
+test("builds capes whose actions clash, and the launcher asks which with --cape", async () => {
 	const bridge = await tempBridge("seed-clash");
 	await registerRepo(bridge, "greet-cape", greetCapeRepo());
-	await registerRepo(bridge, "other-greet", greetCapeRepo());
+	await registerRepo(bridge, "other-greet", greetCapeRepo({ name: "other-greet" }));
 	setCapes(bridge, ["greet-cape", "other-greet"]);
-	const seeded = await run(["seed"], bridge);
-	assert.equal(seeded.code, 1);
-	assert.match(seeded.err, /capes clash, so drop or pin one of them:\n {2}greet is provided by greet-cape and other-greet/);
+	ok(await run(["seed"], bridge));
+	const ambiguous = await run(["greet", "ann"], bridge);
+	assert.equal(ambiguous.code, 1);
+	assert.match(ambiguous.err, /greet is an action of greet-cape and other-greet: name one with --cape, as `nosedive --cape greet-cape greet`/);
+	assert.match(ok(await run(["--cape", "other-greet", "greet", "ann"], bridge)), /^hello ann /);
+	assert.match((await run(["--cape", "nosedive-core", "greet", "ann"], bridge)).err, /nosedive-core has no action greet/);
+	assert.match((await run(["--cape", "nope", "greet", "ann"], bridge)).err, /no cape nope in this ship's config `capes`/);
+	assert.match((await run(["--cape"], bridge)).err, /--cape takes the name of a cape/);
+	assert.match(ok(await run(["--cape", "nosedive-core", "mint"], bridge)), /^[0-9a-f-]{36}$/, "core's own actions run under --cape too");
 });
 
 test("refuses outside a git repo", async () => {

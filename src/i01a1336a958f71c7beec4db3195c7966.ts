@@ -68,20 +68,27 @@ export type GateCtx = {
 /** Runs one command line, core's actions first and never shadowed; returns the exit code. */
 export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx): Promise<number> {
 	try {
+		// --cape <name> picks whose action runs: core's, the ship's own, or a configured cape's.
+		const only = argv[0] === "--cape" ? argv[1] : undefined;
+		if (argv[0] === "--cape" && !only) throw new Error("--cape takes the name of a cape: nosedive --cape <cape> <action>");
+		if (only) argv = argv.slice(2);
 		const [name, ...rest] = argv;
 		if (name === undefined || name === "help" || name === "--help") {
 			ctx.out(await renderActions(ctx));
 			return 0;
 		}
-		let found = findAction(ctx.capes, name);
+		const core = ctx.capes[0]!;
+		let found = !only || only === core.name ? findAction([core], name) : undefined;
+		if (only === core.name && !found) throw new Error(`${core.name} has no action ${name}`);
 		const bridge = found ? undefined : findBridge(ctx.cwd);
-		const base = bridge && (await buildBase(bridge, ctx.capes[0]!));
+		const base = bridge && (!only || only === findRoot(bridge.dir)?.fm.name) ? await buildBase(bridge, core) : undefined;
 		if (base) {
 			found = findAction([base], name);
-			if (found) ctx.capes = [ctx.capes[0]!, base, ...ctx.capes.slice(1)];
+			if (found) ctx.capes = [core, base, ...ctx.capes.slice(1)];
+			else if (only) throw new Error(`${only} has no action ${name}`);
 		}
 		if (!found) {
-			const cape = await findCape(ctx, name, ctx.capes[0]!);
+			const cape = await findCape(ctx, name, core, only);
 			if (cape) {
 				ctx.capes = [...ctx.capes, cape];
 				found = findAction([cape], name);

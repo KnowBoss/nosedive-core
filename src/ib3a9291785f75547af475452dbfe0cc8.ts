@@ -11,7 +11,6 @@ import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
-import { i01a141fbba027b2684d5b1c1879d9337 as actionClashes } from "./i01a141fbba027b2684d5b1c1879d9337.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig, ROOT_KEYS } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
@@ -130,9 +129,6 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 			failed.push(`${cape.spec}: ${err instanceof Error ? err.message : String(err)}${lastBuilt(bridgeAt.dir, cape.name, cape.repo?.id, core.id)}`);
 		}
 	}
-	const built = configuredCapes(bridgeAt, core).flatMap((cape) => (cape.build ? [{ name: cape.name, actions: cape.build.actions }] : []));
-	const clashes = actionClashes(core, built);
-	if (clashes.length > 0) failed.push(`capes clash, so drop or pin one of them:\n  ${clashes.join("\n  ")}`);
 	if (failed.length > 0) throw new Error(`some capes are not usable:\n${failed.map((failure) => `- ${failure}`).join("\n")}`);
 }
 
