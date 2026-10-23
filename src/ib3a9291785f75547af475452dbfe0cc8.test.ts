@@ -11,9 +11,9 @@ test("makes a git repo a ship by default, in one commit", async () => {
 	assert.equal(ok(await run(["seed"], dir)), `seeded ${repo}`);
 	const config = readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8");
 	const root = /^ship: (\S+)\n/m.exec(config)?.[1];
-	assert.equal(config, `kb: ./kb\nship: ${root}\n`);
+	assert.equal(config, `kb: ./bridge\nship: ${root}\n`);
 	assert.equal(
-		readFileSync(join(dir, "kb", `${root}.md`), "utf8"),
+		readFileSync(join(dir, "bridge", `${root}.md`), "utf8"),
 		`---\nkind: ship\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\nmeta:\n  workspace: ./workspace\n---\n\n# ${repo}\n`,
 		"the root is named after the repo",
 	);
@@ -137,7 +137,7 @@ test("a ship gets a workspace that ignores itself, and moves it when its path ch
 	ok(await run(["seed"], base));
 	const config = readFileSync(join(base, ".nosedive", "config.yaml"), "utf8");
 	assert.doesNotMatch(config, /workspace/, "the workspace is the root's, not the config's");
-	const root = join(base, "kb", `${/\nship: (\S+)\n/.exec(config)![1]}.md`);
+	const root = join(base, "bridge", `${/\nship: (\S+)\n/.exec(config)![1]}.md`);
 	assert.match(readFileSync(root, "utf8"), /\nmeta:\n {2}workspace: \.\/workspace\n/);
 	assert.equal(readFileSync(join(base, "workspace", ".gitignore"), "utf8"), "*\n");
 	assert.doesNotMatch(readFileSync(join(base, ".gitignore"), "utf8"), /workspace/, "the workspace ignores itself, not through the repo's .gitignore");
@@ -155,10 +155,10 @@ test("a ship gets a workspace that ignores itself, and moves it when its path ch
 test("renders the root's tree from its feat links, and leaves it once rendered", async () => {
 	const dir = await tempBridge("seed-tree");
 	const root = /^ship: (\S+)$/m.exec(readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8"))![1]!;
-	const memo = ok(await run(["crud", "memo", "free", "level"], dir)).replace(/^kb\/|\.md$/g, "");
-	ok(await run(["crud", root, "--links", "-"], dir, `kb/${memo}.md:\n  rel: levels.feat\n`));
+	const memo = ok(await run(["crud", "memo", "free", "level"], dir)).replace(/^.*\/|\.md$/g, "");
+	ok(await run(["crud", root, "--links", "-"], dir, `bridge/${memo}.md:\n  rel: levels.feat\n`));
 	assert.match(ok(await run(["seed", "--no-capes"], dir)), /rendered the tree of /);
-	assert.ok(readFileSync(join(dir, "kb", `${root}.md`), "utf8").endsWith(`\n## Levels\n\n- [free level](${memo}.md): free level\n`));
+	assert.ok(readFileSync(join(dir, "bridge", `${root}.md`), "utf8").endsWith(`\n## Levels\n\n- [free level](${memo}.md): free level\n`));
 	assert.equal(git(["log", "-1", "--format=%s"], dir), `seed: ${basename(dir)} tree rendered`);
 	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], dir)), /rendered/);
 });

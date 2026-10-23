@@ -8,7 +8,7 @@ import { git, ok, run, tempBridge } from "../test/harness.ts";
 test("replaces the title, keeping everything under it, and commits", async () => {
 	const bridge = await tempBridge("crud-title");
 	const path = ok(await run(["crud", "memo", "a", "note"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 	ok(await run(["crud", id, "--body", "-"], bridge, "Kept.\n"));
 	assert.equal(ok(await run(["crud", id, "--title", "A better title"], bridge)), path);
 	assert.match(readFileSync(join(bridge, path), "utf8"), /---\n\n# A better title\n\nKept\.\n$/);
@@ -18,7 +18,7 @@ test("replaces the title, keeping everything under it, and commits", async () =>
 test("adds a title to a doc that has none, above what it holds", async () => {
 	const bridge = await tempBridge("crud-title-none");
 	const path = ok(await run(["crud", "memo", "untitled"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 	const text = readFileSync(join(bridge, path), "utf8");
 	writeFileSync(join(bridge, path), text.replace("# untitled\n", "Loose text.\n"));
 	ok(await run(["crud", id, "--title", "Titled"], bridge));

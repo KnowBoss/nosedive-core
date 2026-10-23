@@ -1,8 +1,9 @@
+import { relative } from "node:path";
 import type { KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i01a133588b1f7d4ea13f1b5e79f02e4c as mergeKeyedEntries } from "./i01a133588b1f7d4ea13f1b5e79f02e4c.ts";
 import { i01a133588bcc7f8bae725ff70d8f6800 as updateKbDocField } from "./i01a133588bcc7f8bae725ff70d8f6800.ts";
 
-const LOCAL = /^(?:kb\/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.md)?$/;
+const LOCAL = /^(?:[^:]*\/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.md)?$/;
 
 export function i112fbf4a4c7153da8d321f828607a1d0(edit: KbEdit, quid: string, parent: string): void {
 	if (parent === quid) throw new Error(`${quid} cannot be its own parent`);
@@ -22,13 +23,18 @@ export function i112fbf4a4c7153da8d321f828607a1d0(edit: KbEdit, quid: string, pa
 		for (const { key } of back) updateKbDocField(edit, old.id, "links", (links) => mergeKeyedEntries(links, { [key]: null }));
 	}
 	if (!linksOf(edit, quid).some(({ id, rel }) => id === parent && rel === "parent.feat")) {
-		const key = linksOf(edit, quid).find(({ id }) => id === parent)?.key ?? `kb/${parent}.md`;
+		const key = linksOf(edit, quid).find(({ id }) => id === parent)?.key ?? keyOf(target);
 		updateKbDocField(edit, quid, "links", (links) => mergeKeyedEntries(links, { [key]: { rel: "parent.feat" } }));
 	}
 	if (!linksOf(edit, parent).some(({ id, rel }) => id === quid && rel === "child.feat")) {
-		const key = linksOf(edit, parent).find(({ id }) => id === quid)?.key ?? `kb/${quid}.md`;
+		const key = linksOf(edit, parent).find(({ id }) => id === quid)?.key ?? keyOf(child);
 		updateKbDocField(edit, parent, "links", (links) => mergeKeyedEntries(links, { [key]: { rel: "child.feat" } }));
 	}
+}
+
+/** A link's key: the doc's path from the root of its repo, as bridge/<id>.md in a ship. */
+function keyOf(doc: { path: string; repoDir: string }): string {
+	return relative(doc.repoDir, doc.path).replace(/\\/g, "/");
 }
 
 function linksOf(edit: KbEdit, id: string): { key: string; id: string | undefined; rel: unknown }[] {

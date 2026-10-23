@@ -8,7 +8,7 @@ import { ok, run, tempBridge } from "../test/harness.ts";
 test("changes the kind, refusing meta the new kind's schema forbids, and warning on an undeclared kind", async () => {
 	const bridge = await tempBridge("crud-kind");
 	const path = ok(await run(["crud", "memo", "a", "note"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 	ok(await run(["crud", id, "--meta", "-"], bridge, "owner: dan\n"));
 
 	const refused = await run(["crud", id, "--kind", "repo"], bridge);

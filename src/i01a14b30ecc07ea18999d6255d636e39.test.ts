@@ -11,7 +11,7 @@ import { ok, run, tempBridge } from "../test/harness.ts";
 test("applies an edit named as its flag, with its value inline, and refuses an unknown one or a bad quid", async () => {
 	const bridge = await tempBridge("crud-edit");
 	const path = ok(await run(["crud", "goal", "a"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 	const ctx = { cwd: bridge, capes: [], out: () => {}, err: () => {} } as unknown as Ctx;
 
 	const edit = editKbDocs(bridge);

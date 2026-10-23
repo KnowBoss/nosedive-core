@@ -8,7 +8,7 @@ import { git, ok, run, tempBridge } from "../test/harness.ts";
 test("replaces the one place its text occurs, newlines and backslashes kept, each source losing one trailing newline", async () => {
 	const bridge = await tempBridge("crud-replace");
 	const path = ok(await run(["crud", "memo", "a", "note"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 	ok(await run(["crud", id, "--body", "-"], bridge, "Keep this.\n\nA path: C:\\old\\dir\nand a line.\n\nKeep that.\n"));
 	const front = readFileSync(join(bridge, path), "utf8").split("\n# ")[0];
 
@@ -26,7 +26,7 @@ test("replaces the one place its text occurs, newlines and backslashes kept, eac
 test("refuses text found nowhere, more than once, or only in the title, and an empty old text or two stdins", async () => {
 	const bridge = await tempBridge("crud-replace-refused");
 	const path = ok(await run(["crud", "memo", "a", "note"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 	ok(await run(["crud", id, "--body", "-"], bridge, "twice, twice.\n"));
 	const before = readFileSync(join(bridge, path), "utf8");
 	writeFileSync(join(bridge, "new.txt"), "x");

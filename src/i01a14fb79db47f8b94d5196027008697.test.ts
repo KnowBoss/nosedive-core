@@ -4,7 +4,7 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
-import { lock, ok, run, shoutPackage, tempBridge } from "../test/harness.ts";
+import { lock, ok, run, shoutPackage, tempBridge, kbOf } from "../test/harness.ts";
 
 const HELLO = "01a14fba-1f85-72f5-8685-94c90e206721";
 const READY = "01a14fba-1f86-7d2a-9f27-269a3819ca27";
@@ -15,7 +15,7 @@ const implOf = (id: string, usage: string) => join("src", `i${usageId(usage, id)
 async function helloBase(label: string): Promise<string> {
 	const bridge = await tempBridge(label);
 	const doc = (id: string, name: string, gist: string, usage: string) =>
-		writeFileSync(join(bridge, "kb", `${id}.md`), `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${gist}"\nmeta:\n  usages:\n    - ${usage}\n---\n`);
+		writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${gist}"\nmeta:\n  usages:\n    - ${usage}\n---\n`);
 	doc(HELLO, "hello", "Says hello", "hello <who>");
 	doc(READY, "ready-memo", "A memo is ready", "pass --ready <memo>");
 	ok(await run(["scaf"], bridge));
@@ -42,7 +42,7 @@ test("runs a base's own commands, built from its working tree, lists them under 
 
 test("passes a doc through the base's own gates, which are no commands", async () => {
 	const bridge = await helloBase("base-ready");
-	const memo = ok(await run(["crud", "memo", "a", "memo"], bridge)).replace(/^kb\/|\.md$/g, "");
+	const memo = ok(await run(["crud", "memo", "a", "memo"], bridge)).replace(/^.*\/|\.md$/g, "");
 	ok(await run(["crud", memo, "--links", "-"], bridge, `kb/${READY}.md:\n  rel: ready.gate\n`));
 	assert.match(ok(await run(["pass", "--ready", memo], bridge)), /^a-memo-\w{6} is ready\ngate ready-memo: passed$/);
 	assert.match((await run(["ready-memo"], bridge)).err, /ready-memo is a gate: `nosedive pass --ready <memo>`/);
@@ -65,7 +65,7 @@ test("reads only the docs its src/ names, so a doc with no code yet is no part o
 	ok(await run(["hello", "ann"], bridge));
 	const builds = () => readdirSync(join(bridge, ".nosedive", "capes")).filter((file) => file.startsWith("base-"));
 	const before = builds();
-	writeFileSync(join(bridge, "kb", `${LATER}.md`), `---\nkind: action\nid: ${LATER}\nname: later\ngist: "Not written yet"\nmeta:\n  usages:\n    - later\n---\n`);
+	writeFileSync(join(kbOf(bridge), `${LATER}.md`), `---\nkind: action\nid: ${LATER}\nname: later\ngist: "Not written yet"\nmeta:\n  usages:\n    - later\n---\n`);
 	assert.equal(ok(await run(["hello", "ann"], bridge)), "hello ann");
 	assert.deepEqual(builds(), before, "the base was not rebuilt");
 	assert.doesNotMatch(ok(await run(["help"], bridge)), /later/);

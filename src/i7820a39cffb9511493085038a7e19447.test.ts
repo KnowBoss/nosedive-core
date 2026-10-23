@@ -11,7 +11,7 @@ const REPO_B = "01a12b6e-7152-7704-890d-4e398742c50f";
 test("adds, merges onto and removes scope entries", async () => {
 	const bridge = await tempBridge("crud-scopes");
 	const path = ok(await run(["crud", "feat", "scoped"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 
 	ok(await run(["crud", id, "--scopes", "-"], bridge, `${REPO_A}:\n  work-branch: work/a\n${REPO_B}:\n`));
 	ok(await run(["crud", id, "--scopes", "-"], bridge, `${REPO_A}:\n  ref: main\n${REPO_B}: null\n`));

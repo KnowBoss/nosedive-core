@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { git, ok, run, tempBridge } from "../test/harness.ts";
+import { git, ok, run, tempBridge, kbOf } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
@@ -38,11 +38,11 @@ test("applies every edit in order and commits once, with text inline", async () 
 	assert.deepEqual(ok(await run(["crud", "--batch", "-"], bridge, batch)).split("\n").sort(), [a, b].sort());
 	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "crud: updated 2 docs");
 	assert.match(readFileSync(join(bridge, a), "utf8"), /\n---\n\n# Alpha\n\nA path: D:\\new\\dir\n\nDone\.\n\n## Open\n\nNothing yet\.\n$/);
-	assert.match(readFileSync(join(bridge, a), "utf8"), new RegExp(`- kb/${idOf(b)}\\.md:\n {6}rel: child\\.feat\n`));
+	assert.match(readFileSync(join(bridge, a), "utf8"), new RegExp(`- bridge/${idOf(b)}\\.md:\n {6}rel: child\\.feat\n`));
 	const second = readFileSync(join(bridge, b), "utf8");
 	assert.match(second, /\ngist: "second"\n/);
 	assert.match(second, /\nmeta:\n {2}size: 2\n/);
-	assert.match(second, new RegExp(`- kb/${idOf(a)}\\.md:\n {6}rel: parent\\.feat\n`));
+	assert.match(second, new RegExp(`- bridge/${idOf(a)}\\.md:\n {6}rel: parent\\.feat\n`));
 });
 
 test("writes nothing when any edit is refused, naming the item", async () => {
@@ -74,7 +74,7 @@ test("checks a doc's meta once, against its final kind, so kind and meta change 
 	const q = idOf(ok(await run(["crud", "question", "which", "--meta", "-"], bridge, "options: [a, b]\n")));
 	const out = await run(["crud", "--batch", "-"], bridge, `- quid: ${q}\n  kind: decision\n- quid: ${q}\n  meta: { answer: a }\n`);
 	assert.equal(out.code, 0, out.err);
-	assert.match(readFileSync(join(bridge, "kb", `${q}.md`), "utf8"), /^---\nkind: decision\n[^]*\n {2}answer: a\n/);
+	assert.match(readFileSync(join(kbOf(bridge), `${q}.md`), "utf8"), /^---\nkind: decision\n[^]*\n {2}answer: a\n/);
 	const refused = await run(["crud", "--batch", "-"], bridge, `- quid: ${q}\n  kind: question\n`);
 	assert.match(refused.err, new RegExp(`--batch ${q}: meta does not fit kind question`));
 });

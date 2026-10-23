@@ -8,7 +8,7 @@ import { ok, run, tempBridge } from "../test/harness.ts";
 test("adds and relabels links, keeping their order", async () => {
 	const bridge = await tempBridge("crud-links");
 	const path = ok(await run(["crud", "feat", "linked"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 
 	ok(await run(["crud", id, "--links", "-"], bridge, "kb/a.md:\n  rel: parent.feat\nkb/b.md: {}\n"));
 	ok(await run(["crud", id, "--links", "-"], bridge, "kb/a.md:\n  rel: planned.dive\n"));

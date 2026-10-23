@@ -10,7 +10,7 @@ import { git, ok, run, tempBridge } from "../test/harness.ts";
 test("sets the updated body under the same frontmatter; a throwing update changes nothing", async () => {
 	const bridge = await tempBridge("update-body");
 	const path = ok(await run(["crud", "memo", "a", "note"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 	const before = readFileSync(join(bridge, path), "utf8");
 
 	const edit = editKbDocs(bridge);

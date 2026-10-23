@@ -8,6 +8,7 @@ import { i01a1336cb234701bb0338faf5183960c as codeSection } from "../src/i01a133
 import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "../src/i01a1335480c776ba8945020d0af333eb.ts";
 import { after } from "node:test";
 import { i01a1336a958f71c7beec4db3195c7966 as launch, type Cape, type Ctx } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "../src/i01a13dee4b1d78f7a699c3777bf63587.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 
@@ -150,11 +151,16 @@ export function waveCapeRepo(options: Fixture = {}): string {
 	return dir;
 }
 
+/** The directory a repo keeps its docs in, as its config names it: a ship's bridge, any other repo's kb. */
+export function kbOf(dir: string): string {
+	return readRepoConfig(dir)?.kbDir ?? join(dir, "kb");
+}
+
 /** Registers a repo doc named `name` in a bridge, cloned from `path` when given; returns its id. */
 export async function registerRepo(bridge: string, name: string, path?: string): Promise<string> {
 	const id = mintUuid();
 	const meta = path === undefined ? "" : `meta:\n  remotes:\n    origin: ${JSON.stringify(path)}\n`;
-	writeFileSync(join(bridge, "kb", `${id}.md`), `---\nkind: repo\nid: ${id}\nname: ${name}\n${meta}---\n`);
+	writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: repo\nid: ${id}\nname: ${name}\n${meta}---\n`);
 	return id;
 }
 

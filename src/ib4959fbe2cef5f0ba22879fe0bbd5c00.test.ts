@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
 import { i01a1336cb234701bb0338faf5183960c as codeSection } from "./i01a1336cb234701bb0338faf5183960c.ts";
-import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
+import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir, kbOf } from "../test/harness.ts";
 
 const ROOT = "01a14b36-0cfd-7521-ae18-bece3dfaa6cf";
 const STAMP = "01a14b36-0faa-71c7-bf35-9e1af7f29d0b";
@@ -105,7 +105,7 @@ async function helloBridge(label: string): Promise<{ bridge: string; id: string;
 	const source = gitRepo(`${label}-source`);
 	git(["commit", "-q", "--allow-empty", "-m", "first"], source);
 	const id = await registerRepo(bridge, "hello", source);
-	git(["add", "kb"], bridge);
+	git(["add", kbOf(bridge)], bridge);
 	git(["commit", "-qm", "hello"], bridge);
 	return { bridge, id, source };
 }
@@ -187,7 +187,7 @@ test("status compares a repo's role with what it says it is, hydrating it first"
 	const source = gitRepo("pass-status-plain");
 	git(["commit", "-q", "--allow-empty", "-m", "first"], source);
 	const plain = await registerRepo(bridge, "plain", source);
-	git(["add", "kb"], bridge);
+	git(["add", kbOf(bridge)], bridge);
 	git(["commit", "-qm", "repos"], bridge);
 
 	const unset = await run(["pass", "--status", id], bridge);

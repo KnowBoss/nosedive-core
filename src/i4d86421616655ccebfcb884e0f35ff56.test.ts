@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { git, ok, run, tempBridge } from "../test/harness.ts";
+import { git, ok, run, tempBridge, kbOf } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
@@ -49,6 +49,6 @@ test("refuses a line that is not a quid", async () => {
 test("ignores mentions in docs git does not track", async () => {
 	const bridge = await tempBridge("crud-drop-list-untracked");
 	const a = idOf(ok(await run(["crud", "goal", "a"], bridge)));
-	writeFileSync(join(bridge, "kb", "01a14a48-61cd-7c88-a0e1-b700d01901ed.md"), `---\nkind: memo\nid: 01a14a48-61cd-7c88-a0e1-b700d01901ed\nname: copy\n---\n\nSee ${a}.\n`);
+	writeFileSync(join(kbOf(bridge), "01a14a48-61cd-7c88-a0e1-b700d01901ed.md"), `---\nkind: memo\nid: 01a14a48-61cd-7c88-a0e1-b700d01901ed\nname: copy\n---\n\nSee ${a}.\n`);
 	ok(await run(["crud", "--drop-list", "-"], bridge, `${a}\n`));
 });

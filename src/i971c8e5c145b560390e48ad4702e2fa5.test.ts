@@ -8,7 +8,7 @@ import { ok, run, tempBridge } from "../test/harness.ts";
 test("renames a doc, and refuses a name that is not a slug", async () => {
 	const bridge = await tempBridge("crud-name");
 	const path = ok(await run(["crud", "memo", "a", "note"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 	ok(await run(["crud", id, "--name", "better.name"], bridge));
 	assert.match(readFileSync(join(bridge, path), "utf8"), /\nname: better\.name\n/);
 	const refused = await run(["crud", id, "--name", "Not A Slug"], bridge);

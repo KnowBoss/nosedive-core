@@ -49,11 +49,13 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 	const configPath = join(dir, ".nosedive", "config.yaml");
 	const config = existsSync(configPath) ? parseDocument(readFileSync(configPath, "utf8")) : new Document({});
 	if (config.errors.length > 0) throw new Error(`${configPath}: ${config.errors[0]!.message}`);
-	if (!config.has("kb")) config.set("kb", "./kb");
+	const seeding = !ROOT_KEYS.some((key) => config.has(key));
+	// A new ship's docs are its bridge; any other repo's, and an older config's, are its kb.
+	if (!config.has("kb")) config.set("kb", seeding && rootKind === "ship" ? "./bridge" : "./kb");
 	const kbDir = join(dir, String(config.get("kb")));
 	mkdirSync(kbDir, { recursive: true });
 	// A config names its root under its kind's key, or one of the legacy names; any of them is its root.
-	if (!ROOT_KEYS.some((key) => config.has(key))) {
+	if (seeding) {
 		// The root every action, kind and gate of this bridge hangs from; its kind says what the repo is.
 		if (checkMeta(rootKind, {}, [kbDir], ctx.capes)) throw new Error(`no kind ${rootKind} is declared, so it cannot be the root's kind`);
 		// The root takes the repo's name, which is what ships call it: a cape's name is its root's.

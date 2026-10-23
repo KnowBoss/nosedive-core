@@ -8,7 +8,7 @@ import { git, ok, run, tempBridge } from "../test/harness.ts";
 test("replaces the gist, and commits", async () => {
 	const bridge = await tempBridge("crud-gist");
 	const path = ok(await run(["crud", "memo", "old", "gist"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 	ok(await run(["crud", id, "--gist", "A new gist: with a colon"], bridge));
 	assert.match(readFileSync(join(bridge, path), "utf8"), /\ngist: "A new gist: with a colon"\n/);
 	assert.match(git(["log", "-1", "--format=%s"], bridge), new RegExp(`^crud\\(${id}\\): updated memo `));

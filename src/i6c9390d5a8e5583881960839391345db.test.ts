@@ -6,12 +6,12 @@ import { test } from "node:test";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
-import { checkedOut, git, gitRepo, ok, run, tempBridge, tempDir } from "../test/harness.ts";
+import { checkedOut, git, gitRepo, ok, run, tempBridge, tempDir, kbOf } from "../test/harness.ts";
 
 test("mints a doc named from its gist, and commits it", async () => {
 	const bridge = await tempBridge("crud-mint");
 	const path = ok(await run(["crud", "memo", "Hello,", "capes", "world!"], bridge));
-	const id = path.replace(/^kb\/|\.md$/g, "");
+	const id = path.replace(/^.*\/|\.md$/g, "");
 	assert.equal(
 		readFileSync(join(bridge, path), "utf8"),
 		`---\nkind: memo\nid: ${id}\nname: hello-capes-world-${id.slice(-6)}\ngist: "Hello, capes world!"\n---\n\n# Hello, capes world!\n`,
@@ -54,7 +54,7 @@ test("checks the kind: warns when nothing declares it, refuses a schema an empty
 	assert.equal(undeclared.code, 0);
 	assert.match(undeclared.err, /no kind feat is declared here; its meta is not checked/);
 	writeFileSync(
-		join(bridge, "kb", "task-kind.md"),
+		join(kbOf(bridge), "task-kind.md"),
 		"---\nkind: kind\nid: k\nname: task\nmeta:\n  schema:\n    type: object\n    additionalProperties: false\n    required: [owner]\n    properties:\n      owner: {type: string}\n---\n",
 	);
 	const refused = await run(["crud", "task", "a", "task"], bridge);
