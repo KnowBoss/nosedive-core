@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
@@ -27,12 +27,21 @@ export function i01a138b2b8f175bc95242dc33d92138b(ctx: RepoTests): void {
 			modules[name] = pathToFileURL(file).href;
 		}
 		const resolver = join(dir, "resolve.mjs");
+		// What the code imports from assets/ the build bundles as text; the tests get the same text.
+		const assets = pathToFileURL(join(ctx.repoDir, "assets") + sep).href;
 		writeFileSync(
 			resolver,
 			[
+				'import { readFileSync } from "node:fs";',
 				'import { registerHooks } from "node:module";',
+				'import { fileURLToPath } from "node:url";',
 				`const modules = ${JSON.stringify(modules)};`,
-				"registerHooks({ resolve: (specifier, context, next) => (modules[specifier] ? { url: modules[specifier], shortCircuit: true } : next(specifier, context)) });",
+				`const assets = ${JSON.stringify(assets)};`,
+				"registerHooks({",
+				"\tresolve: (specifier, context, next) => (modules[specifier] ? { url: modules[specifier], shortCircuit: true } : next(specifier, context)),",
+				"\tload: (url, context, next) =>",
+				"\t\turl.startsWith(assets) ? { format: \"module\", source: `export default ${JSON.stringify(readFileSync(fileURLToPath(url), \"utf8\"))};`, shortCircuit: true } : next(url, context),",
+				"});",
 				"",
 			].join("\n"),
 		);

@@ -1,5 +1,6 @@
 // run-repo-tests
 import assert from "node:assert/strict";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
@@ -34,4 +35,19 @@ test("resolves another cape by its name to its checkout beside the repo in the w
 	const wave = gate(join(workspace, "wave-cape"), bridge);
 	runRepoTests(wave.ctx);
 	assert.match(wave.out.join("\n"), /✔ wave <who>/);
+});
+
+test("loads what the code imports from assets/ as its text", async () => {
+	const bridge = await tempBridge("run-repo-tests-assets");
+	const repo = greetCapeRepo();
+	mkdirSync(join(repo, "assets"), { recursive: true });
+	writeFileSync(join(repo, "assets", "page.html"), "<p>hi</p>\n");
+	writeFileSync(join(repo, "assets", "app.client.ts"), "const x: number = 1;\n");
+	writeFileSync(
+		join(repo, "src", "assets.test.ts"),
+		'import assert from "node:assert/strict";\nimport { test } from "node:test";\nimport page from "../assets/page.html";\nimport app from "../assets/app.client.ts";\ntest("assets are text", () => {\n\tassert.equal(page, "<p>hi</p>\\n");\n\tassert.equal(app, "const x: number = 1;\\n");\n});\n',
+	);
+	const run = gate(repo, bridge);
+	runRepoTests(run.ctx);
+	assert.match(run.out.join("\n"), /✔ assets are text/);
 });
