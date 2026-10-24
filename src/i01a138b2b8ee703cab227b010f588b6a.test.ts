@@ -13,7 +13,7 @@ const THERE = "01a1335b-f30a-7dd2-a1d4-b675fd419238";
 test("looks in the bridge, then each workspace repo, naming the repo it found the doc in", async () => {
 	const dir = await tempBridge("locate-kb-doc");
 	const repo = checkedOut(dir, "other");
-	writeFileSync(join(dir, "bridge", `${HERE}.md`), `---\nid: ${HERE}\n---\n`);
+	writeFileSync(join(dir, "kb", `${HERE}.md`), `---\nid: ${HERE}\n---\n`);
 	writeFileSync(join(repo, "kb", `${THERE}.md`), `---\nid: ${THERE}\n---\n`);
 	const bridge = findBridge(dir)!;
 	assert.equal(locateKbDoc(bridge, HERE)?.repoDir, dir);

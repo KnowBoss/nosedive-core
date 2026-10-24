@@ -49,8 +49,7 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 	const config = existsSync(configPath) ? parseDocument(readFileSync(configPath, "utf8")) : new Document({});
 	if (config.errors.length > 0) throw new Error(`${configPath}: ${config.errors[0]!.message}`);
 	const seeding = !ROOT_KEYS.some((key) => config.has(key));
-	// A new ship's docs are its bridge; any other repo's, and an older config's, are its kb.
-	if (!config.has("kb")) config.set("kb", seeding && rootKind === "ship" ? "./bridge" : "./kb");
+	if (!config.has("kb")) config.set("kb", "./kb");
 	const kbDir = join(dir, String(config.get("kb")));
 	mkdirSync(kbDir, { recursive: true });
 	// A config names its root under its kind's key, or one of the legacy names; any of them is its root.

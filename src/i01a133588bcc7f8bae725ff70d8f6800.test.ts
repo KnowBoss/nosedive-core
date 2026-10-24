@@ -11,7 +11,7 @@ const ID = "01a1335b-f253-7b80-ab64-d2f9a03c9634";
 
 test("sets, then removes, one field, which later updates in the same edit see", async () => {
 	const bridge = await tempBridge("update-field");
-	const path = `bridge/${ID}.md`;
+	const path = `kb/${ID}.md`;
 	writeFileSync(join(bridge, path), `---\nkind: memo\nid: ${ID}\nname: fielded\n---\n`);
 	git(["add", path], bridge);
 	git(["commit", "-qm", "doc"], bridge);

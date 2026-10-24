@@ -16,7 +16,7 @@ test("registers the cape by its root's name, builds it, lists it in config, and 
 	assert.match(config(bridge), /\ncapes:\n {2}- greet-cape\n/);
 	assert.equal(git(["log", "-1", "--format=%s"], bridge), "cape: added greet-cape");
 	assert.equal(git(["status", "--porcelain"], bridge), "");
-	const doc = git(["show", "--name-only", "--format=", "HEAD"], bridge).split("\n").find((file) => file.startsWith("bridge/"))!;
+	const doc = git(["show", "--name-only", "--format=", "HEAD"], bridge).split("\n").find((file) => file.startsWith("kb/"))!;
 	assert.match(readFileSync(join(bridge, doc), "utf8"), /^kind: repo\n[^]*\nname: greet-cape\n[^]*\n {2}remotes:\n {4}cloud: /m);
 	assert.match(ok(await run(["greet", "ann"], bridge)), /^hello ann /);
 });
