@@ -20,7 +20,8 @@ export function i01a138b2b8f175bc95242dc33d92138b(ctx: RepoTests): void {
 	const dir = mkdtempSync(join(tmpdir(), "nosedive-tests-"));
 	try {
 		const modules: Record<string, string> = { "nosedive-core": ctx.core.url };
-		for (const [name, repoDir] of workspaceCapes(ctx)) {
+		// Core is the running one, never a checkout of it in the workspace.
+		for (const [name, repoDir] of workspaceCapes(ctx).filter(([name]) => name !== ctx.core.name)) {
 			const file = join(dir, `${name}.mjs`);
 			const { entries } = describeCapeSource(repoDir);
 			writeFileSync(file, entries.map((entry) => `export { ${entry.name} } from ${JSON.stringify(pathToFileURL(entry.file).href)};`).join("\n"));

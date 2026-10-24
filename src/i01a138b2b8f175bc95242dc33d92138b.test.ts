@@ -1,6 +1,6 @@
 // run-repo-tests
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
@@ -50,4 +50,18 @@ test("loads what the code imports from assets/ as its text", async () => {
 	const run = gate(repo, bridge);
 	runRepoTests(run.ctx);
 	assert.match(run.out.join("\n"), /✔ assets are text/);
+});
+
+test("resolves nosedive-core to the running core, even with core checked out in the workspace", async () => {
+	const bridge = await tempBridge("run-repo-tests-core-checkout");
+	// A cape checked out under core's name, which exports none of core's functions.
+	cpSync(greetCapeRepo(), join(bridge, "workspace", core.name), { recursive: true });
+	const repo = greetCapeRepo();
+	writeFileSync(
+		join(repo, "src", "core.test.ts"),
+		'import assert from "node:assert/strict";\nimport { test } from "node:test";\nimport { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "nosedive-core";\ntest("core is the running one", () => {\n\tassert.equal(typeof namespacedUuid, "function");\n});\n',
+	);
+	const run = gate(repo, bridge);
+	runRepoTests(run.ctx);
+	assert.match(run.out.join("\n"), /✔ core is the running one/);
 });
