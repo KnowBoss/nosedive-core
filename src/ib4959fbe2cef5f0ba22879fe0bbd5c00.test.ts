@@ -1,18 +1,19 @@
 // pass [<argv>...]
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
 import { i01a1336cb234701bb0338faf5183960c as codeSection } from "./i01a1336cb234701bb0338faf5183960c.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir, kbOf } from "../test/harness.ts";
 
 const ROOT = "01a14b36-0cfd-7521-ae18-bece3dfaa6cf";
 const STAMP = "01a14b36-0faa-71c7-bf35-9e1af7f29d0b";
 const REFUSE = "01a14b36-1256-7698-beb6-fccd1b91d169";
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
-const rootOf = (repo: string) => /\nroot: (\S+)/.exec(readFileSync(join(repo, ".nosedive", "config.yaml"), "utf8"))![1]!;
+const rootOf = (repo: string) => readRepoConfig(repo)!.root!;
 
 /** A cape of two gates in the stamp sect: one stamps the doc through crud, one refuses when asked to. */
 function stampCapeRepo(): string {
@@ -129,7 +130,7 @@ test("hydrate checks a repo out as a detached worktree of the bridge's cache of 
 test("hydrate fetches from the home copy, and warns and fetches from the first remote when it cannot", async () => {
 	const { bridge, id, source } = await helloBridge("pass-hydrate-home");
 	const homes = tempDir("pass-hydrate-homes");
-	writeFileSync(join(bridge, ".nosedive", "config.yaml"), `${readFileSync(join(bridge, ".nosedive", "config.yaml"), "utf8")}home: ${JSON.stringify(homes)}\n`);
+	appendFileSync(join(bridge, ".nosedive", "config.yaml"), `home: ${JSON.stringify(homes)}\n`);
 	const missing = await run(["pass", "--hydrate", id], bridge);
 	assert.equal(missing.code, 0);
 	assert.match(missing.err, /cannot fetch hello from its home copy .+: it does not exist; trying its first remote/);
@@ -206,10 +207,18 @@ test("status compares a repo's role with what our checkout of it says, else the 
 	ok(await run(["pass", "--hydrate", plain], bridge));
 	ok(await run(["seed", "--root-kind", "base"], source));
 	assert.match(ok(await run(["pass", "--status", plain], bridge)), /plain: its doc says misc, it says misc \(no nosedive config, read from the checkout workspace\/plain\)\ngate status: passed$/);
-	// An older config names its root as root: its root's kind says.
-	git(["fetch", "-q", "origin"], join(bridge, "workspace", "plain"));
-	git(["checkout", "-q", "--detach", "origin/main"], join(bridge, "workspace", "plain"));
-	const config = join(bridge, "workspace", "plain", ".nosedive", "config.yaml");
-	writeFileSync(config, readFileSync(config, "utf8").replace("base: ", "root: "));
+	// A kind file says what a repo is.
+	const checkout = join(bridge, "workspace", "plain");
+	git(["fetch", "-q", "origin"], checkout);
+	git(["checkout", "-q", "--detach", "origin/main"], checkout);
 	assert.match((await run(["pass", "--status", plain], bridge)).err, /plain's doc says misc, but it is a base/);
+	// An older config names its root as root: its root's kind says.
+	const kindFile = join(checkout, ".nosedive", "base.md");
+	const root = /^id: (\S+)$/m.exec(readFileSync(kindFile, "utf8"))![1]!;
+	mkdirSync(join(checkout, "kb"), { recursive: true });
+	renameSync(kindFile, join(checkout, "kb", `${root}.md`));
+	writeFileSync(join(checkout, ".nosedive", "config.yaml"), `kb: ./kb\nroot: ${root}\n`);
+	const legacy = await run(["pass", "--status", plain], bridge);
+	assert.match(legacy.out, new RegExp(`it says base \\(root ${root}, `));
+	assert.match(legacy.err, /plain's doc says misc, but it is a base/);
 });

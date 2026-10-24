@@ -13,6 +13,7 @@ const bridge = (config: Record<string, unknown>, root: string | undefined = ROOT
 	kbDir: "",
 	root,
 	workspace: undefined,
+	decks: [],
 });
 
 test("names the home copy by the repo's name hashed with the bridge's root", () => {

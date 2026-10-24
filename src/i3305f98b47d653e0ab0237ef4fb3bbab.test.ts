@@ -1,6 +1,6 @@
-// crud <kind> <gist>... [--name <name>] [--meta <source>]
+// crud <kind> <gist>... [--name <name>] [--meta <source>] [--deck <dir>]
 import assert from "node:assert/strict";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
@@ -114,4 +114,30 @@ test("a repo the bridge mints needs a name and a reachable home, and nothing is 
 	appendFileSync(join(twice, ".nosedive", "config.yaml"), `home: ${JSON.stringify(tempDir("crud-mint-twice"))}\n`);
 	ok(await run(["crud", "repo", "once", "--name", "once"], twice));
 	assert.match((await run(["crud", "repo", "again", "--name", "once"], twice)).err, /\.git already exists/);
+});
+
+test("a ship keeps kinds and repos in its bridge, and mints into the deck --deck names, else its only one", async () => {
+	const bridge = await tempBridge("crud-mint-deck");
+	const kind = ok(await run(["crud", "kind", "An", "idea", "--name", "idea", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: false\n"));
+	assert.match(kind, /^\.nosedive\/kinds\/[0-9a-f-]{36}\.md$/, "a kind is shared by every deck");
+	const idea = await run(["crud", "idea", "fly"], bridge);
+	assert.equal(idea.err, "", "a kind in the bridge is declared");
+	assert.match(idea.out, /^kb\/[0-9a-f-]{36}\.md$/);
+	const repo = ok(await run(["crud", "repo", "A", "repo", "--name", "far", "--meta", "-"], bridge, "remotes:\n  origin: git@example.com:far.git\n"));
+	assert.match(repo, /^\.nosedive\/repos\/[0-9a-f-]{36}\.md$/);
+
+	const ship = join(bridge, ".nosedive", "ship.md");
+	const deck = ok(await run(["mint"], bridge));
+	mkdirSync(join(bridge, "docs"));
+	writeFileSync(join(bridge, "docs", `${deck}.md`), `---\nkind: deck\nid: ${deck}\nname: docs\n---\n`);
+	writeFileSync(ship, readFileSync(ship, "utf8").replace("\n---\n", `\n    ./docs: ${deck}\n---\n`));
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "second deck"], bridge);
+	const many = await run(["crud", "memo", "where"], bridge);
+	assert.equal(many.code, 1);
+	assert.match(many.err, /this ship has 2 decks: name one with --deck <dir>/);
+	const docs = ok(await run(["crud", "memo", "here", "--deck", "./docs"], bridge));
+	assert.match(docs, /^docs\/[0-9a-f-]{36}\.md$/);
+	ok(await run(["crud", docs.replace(/^.*\/|\.md$/g, ""), "--gist", "found"], bridge));
+	assert.match((await run(["crud", "memo", "nowhere", "--deck", "./none"], bridge)).err, /\.\/none is no deck of this ship; its decks: kb, docs/);
 });

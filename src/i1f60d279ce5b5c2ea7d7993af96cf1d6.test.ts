@@ -7,16 +7,16 @@ import { git, greetCapeRepo, ok, run, tempBridge, waveCapeRepo } from "../test/h
 
 const config = (bridge: string) => readFileSync(join(bridge, ".nosedive", "config.yaml"), "utf8");
 
-test("registers the cape by its root's name, builds it, lists it in config, and commits", async () => {
+test("registers the cape by its root's name in the bridge's repos, builds it, lists it in config, and commits", async () => {
 	const bridge = await tempBridge("cape-add");
 	const repo = greetCapeRepo();
 	const commit = git(["rev-parse", "HEAD"], repo);
 	const out = ok(await run(["cape", repo], bridge));
 	assert.match(out, new RegExp(`^added cape greet-cape \\S+ \\(${commit.slice(0, 7)}\\)\n  greet  Greets$`));
-	assert.match(config(bridge), /\ncapes:\n {2}- greet-cape\n/);
+	assert.match(config(bridge), /^capes:\n {2}- greet-cape\n/m);
 	assert.equal(git(["log", "-1", "--format=%s"], bridge), "cape: added greet-cape");
 	assert.equal(git(["status", "--porcelain"], bridge), "");
-	const doc = git(["show", "--name-only", "--format=", "HEAD"], bridge).split("\n").find((file) => file.startsWith("kb/"))!;
+	const doc = git(["show", "--name-only", "--format=", "HEAD"], bridge).split("\n").find((file) => file.startsWith(".nosedive/repos/"))!;
 	assert.match(readFileSync(join(bridge, doc), "utf8"), /^kind: repo\n[^]*\nname: greet-cape\n[^]*\n {2}remotes:\n {4}cloud: /m);
 	assert.match(ok(await run(["greet", "ann"], bridge)), /^hello ann /);
 });
@@ -26,7 +26,7 @@ test("--ref pins the cape where config lists it", async () => {
 	const repo = greetCapeRepo();
 	const commit = git(["rev-parse", "HEAD"], repo);
 	ok(await run(["cape", repo, "--ref", commit], bridge));
-	assert.match(config(bridge), new RegExp(`\ncapes:\n {2}- greet-cape@${commit}\n`));
+	assert.match(config(bridge), new RegExp(`^capes:\n {2}- greet-cape@${commit}\n`, "m"));
 });
 
 test("refuses a repo that is not a cape, or one already listed or registered elsewhere, changing nothing, and adds one whose actions clash", async () => {

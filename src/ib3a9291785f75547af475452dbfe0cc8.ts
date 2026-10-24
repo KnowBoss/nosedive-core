@@ -12,7 +12,8 @@ import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
-import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig, ROOT_KEYS } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig, KIND_FILES } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
+import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 
@@ -45,34 +46,38 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 	const dir = root.stdout.trim();
 	const changed: string[] = [];
 
+	const repo = basename(dir);
 	const configPath = join(dir, ".nosedive", "config.yaml");
-	const config = existsSync(configPath) ? parseDocument(readFileSync(configPath, "utf8")) : new Document({});
-	if (config.errors.length > 0) throw new Error(`${configPath}: ${config.errors[0]!.message}`);
-	const seeding = !ROOT_KEYS.some((key) => config.has(key));
-	if (!config.has("kb")) config.set("kb", "./kb");
-	const kbDir = join(dir, String(config.get("kb")));
-	mkdirSync(kbDir, { recursive: true });
-	// A config names its root under its kind's key, or one of the legacy names; any of them is its root.
-	if (seeding) {
-		// The root every action, kind and gate of this bridge hangs from; its kind says what the repo is.
-		if (checkMeta(rootKind, {}, [kbDir], ctx.capes)) throw new Error(`no kind ${rootKind} is declared, so it cannot be the root's kind`);
-		// The root takes the repo's name, which is what ships call it: a cape's name is its root's.
-		// A ship is where other repos are checked out; its workspace is where.
-		const root = mintKbDoc(kbDir, {
-			kind: rootKind,
-			name: basename(dir),
-			gist: `What ${basename(dir)} holds`,
-			title: basename(dir),
-			meta: rootKind === "ship" ? { workspace: "./workspace" } : undefined,
-		});
-		config.set(["ship", "cape", "base"].includes(rootKind) ? rootKind : "root", root.id);
-		changed.push(root.path);
-	}
-	const configText = config.toString({ lineWidth: 0 });
-	if (!existsSync(configPath) || readFileSync(configPath, "utf8") !== configText) {
+	if (!readRepoConfig(dir)) {
+		// The root every action, kind and gate of this repo hangs from; its kind says what the repo is.
+		if (checkMeta(rootKind, {}, [], ctx.capes)) throw new Error(`no kind ${rootKind} is declared, so it cannot be the root's kind`);
 		mkdirSync(join(dir, ".nosedive"), { recursive: true });
-		writeFileSync(configPath, configText);
-		changed.push(configPath);
+		const kbDir = join(dir, "kb");
+		mkdirSync(kbDir, { recursive: true });
+		const named = { name: repo, gist: `What ${repo} holds`, title: repo };
+		if (KIND_FILES.includes(rootKind)) {
+			// A ship, cape or base is what its kind file says, a doc named for its kind; a ship's docs are in decks, its first ./kb.
+			const deck = rootKind === "ship" ? mintKbDoc(kbDir, { kind: "deck", ...named }) : undefined;
+			if (deck) changed.push(deck.path);
+			const minted = mintKbDoc(join(dir, ".nosedive"), { kind: rootKind, ...named, meta: deck ? { workspace: "./workspace", decks: { "./kb": deck.id } } : undefined });
+			const kindFile = join(dir, ".nosedive", `${rootKind}.md`);
+			renameSync(minted.path, kindFile);
+			changed.push(kindFile);
+		} else {
+			// Any other root is a doc of the kb its config names.
+			const root = mintKbDoc(kbDir, { kind: rootKind, ...named });
+			writeFileSync(configPath, new Document({ kb: "./kb", root: root.id }).toString({ lineWidth: 0 }));
+			changed.push(root.path, configPath);
+		}
+	} else if (existsSync(configPath) && !readRepoConfig(dir)!.rootPath) {
+		// An older config without a kb has the default one.
+		const config = parseDocument(readFileSync(configPath, "utf8"));
+		if (config.errors.length > 0) throw new Error(`${configPath}: ${config.errors[0]!.message}`);
+		if (!config.has("kb")) {
+			config.set("kb", "./kb");
+			writeFileSync(configPath, config.toString({ lineWidth: 0 }));
+			changed.push(configPath);
+		}
 	}
 
 	// nosedive's own ignores live beside its config, so the repo's own .gitignore stays the user's.
@@ -85,9 +90,9 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 	}
 
 	const own = readRepoConfig(dir)!;
-	const rootDoc = own.root ? findKbDoc(kbDir, own.root) : undefined;
+	const rootDoc = findRoot(dir);
 	// A cape's or ship's packages build from its lockfile, which a global ignore could hide from every commit.
-	if (rootDoc?.fm.kind === "cape" || own.workspace !== undefined) {
+	if (rootDoc?.kind === "cape" || own.workspace !== undefined) {
 		const repoIgnore = join(dir, ".gitignore");
 		const text = existsSync(repoIgnore) ? readFileSync(repoIgnore, "utf8") : "";
 		if (!text.split(/\r?\n/).includes(LOCKFILE)) {
@@ -97,7 +102,6 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 	}
 	if (own.workspace !== undefined) placeWorkspace(dir, own.workspace);
 
-	const repo = basename(dir);
 	if (changed.length > 0) {
 		commitFiles(dir, changed, `seed: ${repo} set up`);
 		ctx.out(`seeded ${repo}`);
@@ -105,14 +109,18 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 		ctx.out(`${repo} is already seeded`);
 	}
 
-	// The root's body is its tree, rendered from its links.
-	if (rootDoc) {
-		const tree = renderTree(kbDir, rootDoc);
-		if (tree !== rootDoc.body) {
-			writeKbDoc(rootDoc.path, rootDoc.yaml, tree);
-			commitFiles(dir, [rootDoc.path], `seed: ${repo} tree rendered`);
-			ctx.out(`rendered the tree of ${String(rootDoc.fm.name)}`);
-		}
+	// A root's body is its tree, rendered from its links: each of a ship's deck roots, else the repo's root.
+	const deckRoots = own.decks.flatMap((deck) => {
+		const doc = deck.root ? findKbDoc(deck.dir, deck.root) : undefined;
+		return doc ? [{ doc, kbDir: deck.dir }] : [];
+	});
+	const roots = own.rootPath && own.workspace !== undefined ? deckRoots : rootDoc ? [{ doc: rootDoc, kbDir: own.kbDir }] : [];
+	for (const { doc, kbDir } of roots) {
+		const tree = renderTree(kbDir, doc);
+		if (tree === doc.body) continue;
+		writeKbDoc(doc.path, doc.yaml, tree);
+		commitFiles(dir, [doc.path], `seed: ${repo} tree rendered`);
+		ctx.out(`rendered the tree of ${String(doc.fm.name)}`);
 	}
 
 	if (noCapes) return;

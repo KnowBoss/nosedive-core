@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { parseDocument } from "yaml";
 import type { Args, Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
@@ -43,10 +43,10 @@ export async function i1f60d279ce5b5c2ea7d7993af96cf1d6(args: Args, ctx: Ctx): P
 
 	const changed = [bridge.configPath];
 	if (!existing) {
-		changed.push(mintKbDoc(bridge.kbDir, { kind: "repo", id, name, gist: `The ${name} cape`, meta: { remotes: { cloud: remote } } }).path);
+		changed.push(mintKbDoc(bridge.reposDir ?? bridge.kbDir, { kind: "repo", id, name, gist: `The ${name} cape`, meta: { remotes: { cloud: remote } } }).path);
 	}
 	const spec = ref ? `${name}@${ref}` : name;
-	const config = parseDocument(readFileSync(bridge.configPath, "utf8"));
+	const config = parseDocument(existsSync(bridge.configPath) ? readFileSync(bridge.configPath, "utf8") : "");
 	config.set("capes", [...configured.map((cape) => cape.spec), spec]);
 	writeFileSync(bridge.configPath, config.toString({ lineWidth: 0 }));
 	commitFiles(bridge.dir, changed, `cape: added ${spec}`);

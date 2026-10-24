@@ -25,10 +25,15 @@ export async function i413facba4ec6596291333591aab5b760(ctx: GateCtx): Promise<v
 		read = (path) => git(cache, "show", `${tip}:${path}`);
 		from = `${trunk} at ${git(cache, "rev-parse", "--short", tip)} in the cache`;
 	}
+	// A repo is what its kind file says, else what an older config says.
+	const kindFiles = ROLES.flatMap((role) => {
+		const file = read(`.nosedive/${role}.md`);
+		return file === undefined ? [] : [{ role, id: String(readKbDoc(file).fm.id) }];
+	});
 	const text = read(".nosedive/config.yaml");
 	const config = text === undefined ? undefined : ((parse(text) ?? {}) as Record<string, unknown>);
-	const key = ROLES.find((role) => typeof config?.[role] === "string");
-	const root = ROOT_KEYS.map((each) => config?.[each]).find((value): value is string => typeof value === "string");
+	const key = kindFiles.length === 1 ? kindFiles[0]!.role : kindFiles.length > 1 ? "misc" : ROLES.find((role) => typeof config?.[role] === "string");
+	const root = kindFiles.length === 1 ? kindFiles[0]!.id : ROOT_KEYS.map((each) => config?.[each]).find((value): value is string => typeof value === "string");
 	const says = key ?? legacyRole(read, config, root);
 	const role = (ctx.doc.fm.meta as { role?: unknown } | undefined)?.role;
 	ctx.out(`${name}: its doc says ${typeof role === "string" ? role : "nothing"}, it says ${says} (${root ? `root ${root}, ` : config ? "" : "no nosedive config, "}read from ${from})`);

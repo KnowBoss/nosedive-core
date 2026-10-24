@@ -1,6 +1,6 @@
 // render-tree
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
@@ -51,4 +51,13 @@ test("renders each feat group of the root, walking child.feat to any depth, any 
 
 test("a root with no feat links renders as its title alone", () => {
 	assert.equal(renderTree(tempDir("render-tree-empty"), { fm: { id: ROOT, name: "bare" }, body: "" }), "\n# bare\n");
+});
+
+test("links from a root kept outside the kb, as a kind file, into the kb", () => {
+	const dir = tempDir("render-tree-kind-file");
+	const kb = join(dir, "kb");
+	mkdirSync(kb);
+	doc(kb, LEVEL, "memo", "free", "Core alone", [], "Free");
+	const root = { fm: { id: ROOT, links: [{ [`kb/${LEVEL}.md`]: { rel: "levels.feat" } }] }, body: "", path: join(dir, ".nosedive", "cape.md") };
+	assert.match(renderTree(kb, root), /^- \[Free\]\(\.\.\/kb\/01a14a55-dafa-7beb-b493-ea12b0a7ead0\.md\): Core alone$/m);
 });

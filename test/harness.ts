@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { i01a133548178739398941123114401ad as usageId } from "../src/i01a133548178739398941123114401ad.ts";
@@ -61,15 +61,20 @@ const NAMESPACED_UUID = "01a13354-8014-7d06-8652-8aee80f8ee34";
 
 export const CAPE_TESTS_PASS = "01a138b2-b8f3-7d32-82d2-274fae0f5007";
 
-type Fixture = { gated?: boolean; plain?: boolean; name?: string };
+type Fixture = { gated?: boolean; plain?: boolean; legacy?: boolean; name?: string };
 
-/** Makes a repo a cape: a bridge whose root is a cape, linking core's cape-tests-pass when gated. */
+/** Makes a repo a cape by its kind file, or an older config's root when legacy, linking core's cape-tests-pass when gated. */
 function asCape(name: string, files: Record<string, string>, options: Fixture): void {
 	if (options.plain) return;
 	const root = mintUuid();
 	const gate = options.gated ? `links:\n  - nosedive-core:${CAPE_TESTS_PASS}:\n      rel: test.gate\n` : "";
-	files[".nosedive/config.yaml"] = `kb: ./kb\nroot: ${root}\n`;
-	files[`kb/${root}.md`] = `---\nkind: cape\nid: ${root}\nname: ${name}\n${gate}---\n`;
+	const doc = `---\nkind: cape\nid: ${root}\nname: ${name}\n${gate}---\n`;
+	if (options.legacy) {
+		files[".nosedive/config.yaml"] = `kb: ./kb\nroot: ${root}\n`;
+		files[`kb/${root}.md`] = doc;
+	} else {
+		files[".nosedive/cape.md"] = doc;
+	}
 }
 
 /**
@@ -167,7 +172,7 @@ export async function registerRepo(bridge: string, name: string, path?: string):
 /** Lists `capes` in a bridge's config, each as `<repo>` or `<repo>@<ref>`. */
 export function setCapes(bridge: string, capes: string[]): void {
 	const config = join(bridge, ".nosedive", "config.yaml");
-	const kept = readFileSync(config, "utf8").replace(/\ncapes:\n( {2}.*\n)*/, "\n");
+	const kept = (existsSync(config) ? readFileSync(config, "utf8") : "\n").replace(/\ncapes:\n( {2}.*\n)*/, "\n");
 	writeFileSync(config, `${kept}capes:\n${capes.map((spec) => `  - ${spec}\n`).join("")}`);
 }
 
