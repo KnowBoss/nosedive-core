@@ -6,7 +6,7 @@ import { i01a14ac0044f7142a4623b2b7eff2eb5 as homeCopy } from "./i01a14ac0044f71
 
 export function i01a1337d2c14754f9772dc22c1f2edfc(bridge: Bridge, name: string): { id: string; name: string; remote: string } {
 	// A ship with a kind file keeps its repos in its bridge; any other keeps them in its kb.
-	const dirs = [...(bridge.reposDir && existsSync(bridge.reposDir) ? [bridge.reposDir] : []), bridge.kbDir];
+	const dirs = [...(bridge.reposDir && existsSync(bridge.reposDir) ? [bridge.reposDir] : []), ...new Set([...bridge.roots.map((root) => root.dir), bridge.kbDir])];
 	const doc = dirs.flatMap((dir) => listKbDocs(dir)).find((candidate) => candidate.fm.kind === "repo" && candidate.fm.name === name);
 	if (!doc) throw new Error(`no repo named ${name} in ${bridge.reposDir ?? bridge.kbDir}`);
 	const remotes = ((doc.fm.meta as { remotes?: Record<string, unknown> } | undefined)?.remotes ?? {}) as Record<string, unknown>;

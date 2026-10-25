@@ -13,7 +13,7 @@ const implOf = (id: string, usage: string) => join("src", `i${usageId(usage, id)
 
 /** A base with a command, `hello <who>`, and a gate, `pass --ready <memo>`, scaffolded and written, none of it committed. */
 async function helloBase(label: string): Promise<string> {
-	const bridge = await tempBridge(label);
+	const bridge = await tempBridge(label, ["--root-kind", "cape"]);
 	const doc = (id: string, name: string, gist: string, usage: string) =>
 		writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${gist}"\nmeta:\n  usages:\n    - ${usage}\n---\n`);
 	doc(HELLO, "hello", "Says hello", "hello <who>");

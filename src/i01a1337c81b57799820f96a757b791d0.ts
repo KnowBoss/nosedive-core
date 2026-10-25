@@ -47,7 +47,7 @@ export async function i01a1337c81b57799820f96a757b791d0(
 		git(dir, "checkout", "-q", "--detach", commit);
 	}
 
-	const root = findRoot(dir);
+	const root = findRoot(dir, "cape") ?? findRoot(dir);
 	if (root?.kind !== "cape") throw new Error(`${repo.name} is not a cape: ${root ? `its root is a ${root.kind}` : "it has no root"}`);
 	const problems = checkCapeSource(dir);
 	if (problems.length > 0) throw new Error(`${repo.name} at ${commit.slice(0, 7)} does not check out:\n  ${problems.join("\n  ")}`);

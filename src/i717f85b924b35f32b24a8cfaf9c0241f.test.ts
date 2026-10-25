@@ -38,13 +38,11 @@ test("refuses while anything links to it, naming each link, and edits nothing", 
 	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
 });
 
-test("refuses the root, its kind file, and a deck root it names", async () => {
+test("refuses a root its config lists", async () => {
 	const bridge = await tempBridge("crud-drop-root");
-	const root = /^id: (\S+)/m.exec(git(["show", "HEAD:.nosedive/ship.md"], bridge))![1]!;
+	const root = /kb\/(\S+)\.md/.exec(git(["show", "HEAD:.nosedive/config.yaml"], bridge))![1]!;
 	const refused = await run(["crud", "--drop", root, "--hard"], bridge);
-	assert.match(refused.err, /it is \.nosedive\/ship\.md, what its repo is/);
-	const deck = /^ {4}\.\/kb: (\S+)/m.exec(git(["show", "HEAD:.nosedive/ship.md"], bridge))![1]!;
-	assert.match((await run(["crud", "--drop", deck, "--hard"], bridge)).err, /\.nosedive\/ship\.md names it as a deck root/);
+	assert.match(refused.err, /\.nosedive\/config\.yaml lists it among its roots/);
 });
 
 test("keeps a durable doc unless --hard", async () => {

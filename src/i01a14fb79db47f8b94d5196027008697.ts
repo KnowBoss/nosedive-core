@@ -14,8 +14,8 @@ import { i01a14fb7a14b7f85b7dc8bb894d6e76b as bundleCape } from "./i01a14fb7a14b
 type Loaded = { __nosediveCore?: Cape; __nosediveBase?: Record<string, Cape> };
 
 export async function i01a14fb79db47f8b94d5196027008697(bridge: Bridge, core: Cape): Promise<Cape | undefined> {
-	const root = findRoot(bridge.dir);
-	if (root?.bridge.workspace === undefined) return undefined;
+	const root = findRoot(bridge.dir, "cape");
+	if (!root) return undefined;
 	const source = describeCapeSource(bridge.dir, true);
 	if (source.entries.length === 0) return undefined;
 

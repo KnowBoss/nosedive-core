@@ -25,16 +25,23 @@ export async function i413facba4ec6596291333591aab5b760(ctx: GateCtx): Promise<v
 		read = (path) => git(cache, "show", `${tip}:${path}`);
 		from = `${trunk} at ${git(cache, "rev-parse", "--short", tip)} in the cache`;
 	}
-	// A repo is what its kind file says, else what an older config says.
-	const kindFiles = ROLES.flatMap((role) => {
-		const file = read(`.nosedive/${role}.md`);
-		return file === undefined ? [] : [{ role, id: String(readKbDoc(file).fm.id) }];
-	});
+	// A repo is what its config enables: a cape root makes a cape, a workspace a ship, roots alone a base.
 	const text = read(".nosedive/config.yaml");
 	const config = text === undefined ? undefined : ((parse(text) ?? {}) as Record<string, unknown>);
-	const key = kindFiles.length === 1 ? kindFiles[0]!.role : kindFiles.length > 1 ? "misc" : ROLES.find((role) => typeof config?.[role] === "string");
-	const root = kindFiles.length === 1 ? kindFiles[0]!.id : ROOT_KEYS.map((each) => config?.[each]).find((value): value is string => typeof value === "string");
-	const says = key ?? legacyRole(read, config, root);
+	const roots = Array.isArray(config?.roots) ? config.roots.filter((path): path is string => typeof path === "string") : undefined;
+	let root: string | undefined;
+	let says: string;
+	if (roots) {
+		root = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.md$/i.exec(roots[0] ?? "")?.[1];
+		const kinds = roots.map((path) => {
+			const doc = read(path.replace(/^\.\//, ""));
+			return doc === undefined ? undefined : readKbDoc(doc).fm.kind;
+		});
+		says = kinds.includes("cape") ? "cape" : typeof config?.workspace === "string" ? "ship" : roots.length > 0 ? "base" : "misc";
+	} else {
+		root = ROOT_KEYS.map((each) => config?.[each]).find((value): value is string => typeof value === "string");
+		says = ROLES.find((role) => typeof config?.[role] === "string") ?? legacyRole(read, config, root);
+	}
 	const role = (ctx.doc.fm.meta as { role?: unknown } | undefined)?.role;
 	ctx.out(`${name}: its doc says ${typeof role === "string" ? role : "nothing"}, it says ${says} (${root ? `root ${root}, ` : config ? "" : "no nosedive config, "}read from ${from})`);
 	if (typeof role !== "string") throw new Error(`${name}'s doc has no role: \`nosedive crud ${ctx.doc.id} --meta -\` with \`role: ${says}\` sets it`);

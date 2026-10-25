@@ -11,13 +11,13 @@ import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
 import { i01a14ac0044f7142a4623b2b7eff2eb5 as homeCopy } from "./i01a14ac0044f7142a4623b2b7eff2eb5.ts";
 
-export async function i3305f98b47d653e0ab0237ef4fb3bbab(
-	doc: { repo: string | undefined; kind: string; gist: string; name: string | undefined; meta: string | undefined; deck?: string },
+export async function ia73b03420ddb598498e19a66b144de9a(
+	doc: { repo: string | undefined; kind: string; gist: string; name: string | undefined; meta: string | undefined; into?: string },
 	ctx: Ctx,
 ): Promise<void> {
 	const bridge = findBridge(ctx.cwd);
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");
-	const target = doc.repo ? workspaceRepo(bridge, doc.repo) : { dir: bridge.dir, kbDir: shipTarget(bridge, doc.kind, doc.deck) };
+	const target = doc.repo ? workspaceRepo(bridge, doc.repo) : { dir: bridge.dir, kbDir: intoTarget(bridge, doc.kind, doc.into) };
 	const meta = doc.meta === undefined ? {} : await readSource(doc.meta, ctx);
 	if (meta === null || typeof meta !== "object" || Array.isArray(meta)) throw new Error("--meta takes a mapping");
 	const warning = checkMeta(doc.kind, meta, [target.kbDir, bridge.kbDir], ctx.capes, bridge);
@@ -51,17 +51,19 @@ export async function i3305f98b47d653e0ab0237ef4fb3bbab(
 }
 
 /**
- * Where the bridge mints a doc: a ship with a kind file keeps kinds and repos in its bridge, shared by its decks,
- * and anything else in the deck named, else its only one.
+ * Where the bridge mints a doc: kinds and repos where it keeps them, anything else in the directory of the root
+ * `--into` names, else of its only root.
  */
-function shipTarget(bridge: Bridge, kind: string, deck: string | undefined): string {
-	if (deck !== undefined) {
-		const named = bridge.decks.find((each) => each.dir === resolve(bridge.dir, deck));
-		if (!named) throw new Error(`${deck} is no deck of this ship; its decks: ${bridge.decks.map((each) => relative(bridge.dir, each.dir).replace(/\\/g, "/")).join(", ")}`);
+function intoTarget(bridge: Bridge, kind: string, into: string | undefined): string {
+	const rel = (dir: string) => relative(bridge.dir, dir).replace(/\\/g, "/");
+	if (into !== undefined) {
+		const at = resolve(bridge.dir, into);
+		const named = bridge.roots.find((root) => root.path === at || root.dir === at);
+		if (!named) throw new Error(`${into} is no root of this repo; its roots: ${bridge.roots.map((root) => rel(root.path)).join(", ")}`);
 		return named.dir;
 	}
 	if (kind === "kind" && bridge.kindsDir) return bridge.kindsDir;
 	if (kind === "repo" && bridge.reposDir) return bridge.reposDir;
-	if (bridge.decks.length > 1) throw new Error(`this ship has ${bridge.decks.length} decks: name one with --deck <dir>`);
+	if (bridge.roots.length > 1) throw new Error(`this repo has ${bridge.roots.length} roots: name one with --into <path>, one of ${bridge.roots.map((root) => rel(root.path)).join(", ")}`);
 	return bridge.kbDir;
 }

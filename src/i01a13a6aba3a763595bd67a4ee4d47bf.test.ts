@@ -22,5 +22,19 @@ test("reads the root the config names, as root or as backlog, and its kind", asy
 test("finds nothing for a repo that is no bridge, even inside a bridge's workspace", async () => {
 	const bridge = await tempBridge("find-root-none");
 	assert.equal(findRoot(checkedOut(bridge, "plain")), undefined);
-	assert.equal(findRoot(bridge)?.kind, "ship", "a ship's root is a ship");
+	assert.equal(findRoot(bridge)?.kind, "root", "seed's root is of kind root");
+});
+
+test("given a kind, finds the first root of that kind among the roots config lists", () => {
+	const dir = gitRepo("find-root-kind");
+	const other = "01a1335b-f253-7b80-ab64-d2f9a03c9635";
+	mkdirSync(join(dir, ".nosedive"));
+	mkdirSync(join(dir, "kb"));
+	mkdirSync(join(dir, "actions"));
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), `id: ${ROOT}\nroots:\n  - kb/${ROOT}.md\n  - actions/${other}.md\n`);
+	writeFileSync(join(dir, "kb", `${ROOT}.md`), `---\nkind: root\nid: ${ROOT}\n---\n`);
+	writeFileSync(join(dir, "actions", `${other}.md`), `---\nkind: cape\nid: ${other}\n---\n`);
+	assert.equal(findRoot(dir)?.kind, "root");
+	assert.equal(findRoot(dir, "cape")?.fm.id, other);
+	assert.equal(findRoot(dir, "memo"), undefined);
 });

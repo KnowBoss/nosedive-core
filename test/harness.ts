@@ -63,7 +63,7 @@ export const CAPE_TESTS_PASS = "01a138b2-b8f3-7d32-82d2-274fae0f5007";
 
 type Fixture = { gated?: boolean; plain?: boolean; legacy?: boolean; name?: string };
 
-/** Makes a repo a cape by its kind file, or an older config's root when legacy, linking core's cape-tests-pass when gated. */
+/** Makes a repo a cape by a cape root its config lists, or an older config's root when legacy, linking core's cape-tests-pass when gated. */
 function asCape(name: string, files: Record<string, string>, options: Fixture): void {
 	if (options.plain) return;
 	const root = mintUuid();
@@ -73,7 +73,8 @@ function asCape(name: string, files: Record<string, string>, options: Fixture): 
 		files[".nosedive/config.yaml"] = `kb: ./kb\nroot: ${root}\n`;
 		files[`kb/${root}.md`] = doc;
 	} else {
-		files[".nosedive/cape.md"] = doc;
+		files[".nosedive/config.yaml"] = `id: ${mintUuid()}\nroots:\n  - kb/${root}.md\n`;
+		files[`kb/${root}.md`] = doc;
 	}
 }
 
@@ -188,9 +189,9 @@ export function checkedOut(bridge: string, name: string): string {
 }
 
 /** A ship, seeded in a fresh temp repo: the repo a team works from, with a workspace. */
-export async function tempBridge(label: string): Promise<string> {
+export async function tempBridge(label: string, seed: string[] = []): Promise<string> {
 	const dir = gitRepo(label);
-	ok(await run(["seed"], dir));
+	ok(await run(["seed", "--workspace", ...seed], dir));
 	return dir;
 }
 
