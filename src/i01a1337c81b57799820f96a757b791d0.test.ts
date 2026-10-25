@@ -15,6 +15,35 @@ import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739
 
 const core: Cape = await sourceCape();
 
+test("prefers the workspace without changing it, logs the source, and rebuilds uncommitted files", async () => {
+	const repo = greetCapeRepo();
+	const { dir } = await build(repo);
+	const checkout = join(dir, "workspace", "greet-cape");
+	mkdirSync(join(dir, "workspace"), { recursive: true });
+	git(["clone", "-q", repo, checkout], dir);
+	const bridge = findBridge(dir)!;
+	const record = findRepoDoc(bridge, "greet-cape");
+	const messages: string[] = [];
+	const built = () => buildCape(bridge, record, "missing-remote-ref", core, [], (message) => messages.push(message));
+	const before = git(["rev-parse", "HEAD"], checkout);
+	const first = await built();
+	assert.equal(first.source, checkout);
+	assert.match(messages[0]!, /using workspace checkout/);
+	assert.equal((await built()).fresh, false);
+	const impl = join(checkout, "src", `i${usageId("greet <who>", GREET)}.ts`);
+	writeFileSync(impl, readFileSync(impl, "utf8").replace("hello", "local hello"));
+	const second = await built();
+	assert.notEqual(second.id, first.id);
+	assert.match(readFileSync(join(dir, ".nosedive", "capes", `${second.id}.js`), "utf8"), /local hello/);
+	mkdirSync(join(checkout, "assets"));
+	writeFileSync(join(checkout, "assets", "new.txt"), "new local asset");
+	const third = await built();
+	assert.notEqual(third.id, second.id);
+	assert.equal((await built()).fresh, false);
+	assert.equal(git(["rev-parse", "HEAD"], checkout), before);
+	assert.match(git(["status", "--porcelain"], checkout), /src\//);
+});
+
 async function build(repo: string, ref = "") {
 	const dir = await tempBridge("build-cape");
 	await registerRepo(dir, "greet-cape", repo);

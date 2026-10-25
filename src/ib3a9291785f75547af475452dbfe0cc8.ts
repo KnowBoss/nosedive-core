@@ -129,7 +129,7 @@ export async function ib3a9291785f75547af475452dbfe0cc8(options: { noCapes: bool
 	const failed: string[] = [];
 	for (const cape of configuredCapes(bridgeAt, core)) {
 		try {
-			const built = await buildCape(bridgeAt, cape.repo ?? findRepoDoc(bridgeAt, cape.name), cape.ref, core);
+			const built = await buildCape(bridgeAt, cape.repo ?? findRepoDoc(bridgeAt, cape.name), cape.ref, core, [], ctx.out);
 			if (!built.fresh) ctx.out(`cape ${cape.spec} is built`);
 			else ctx.out(`built cape ${cape.spec} ${built.version} (${built.commit.slice(0, 7)}): ${Object.keys(built.actions).join(", ") || "no actions"}`);
 		} catch (err) {

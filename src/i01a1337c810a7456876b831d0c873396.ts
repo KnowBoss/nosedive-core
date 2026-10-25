@@ -6,6 +6,8 @@ export type CapeBuild = {
 	repo: string;
 	ref: string;
 	commit: string;
+	/** Workspace checkout used for a local build. */
+	source?: string;
 	core: string;
 	/** The version of that core, for saying which core last built it. */
 	coreVersion: string;

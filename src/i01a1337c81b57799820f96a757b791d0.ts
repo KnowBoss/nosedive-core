@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Cape, CapeDoc } from "./i01a1336a958f71c7beec4db3195c7966.ts";
@@ -28,14 +29,23 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	ref: string,
 	core: Cape,
 	building: string[] = [],
+	log: (message: string) => void = () => {},
 ): Promise<CapeBuild & { fresh: boolean }> {
 	if (building.includes(repo.name)) throw new Error(`capes import each other in a cycle: ${[...building, repo.name].join(" -> ")}`);
-	const dir = join(bridge.dir, ".nosedive", "capes", "src", repo.id);
-	if (existsSync(dir)) git(dir, "fetch", "-q", "origin");
-	else git(bridge.dir, "clone", "-q", repo.remote, dir);
-	const target = COMMIT.test(ref) ? ref : `origin/${ref || trunk(dir)}`;
-	const commit = git(dir, "rev-parse", `${target}^{commit}`);
-	git(dir, "checkout", "-q", "--detach", commit);
+	const local = bridge.workspace ? join(bridge.workspace, repo.name) : undefined;
+	const workspace = local !== undefined && existsSync(local);
+	const dir = workspace ? local : join(bridge.dir, ".nosedive", "capes", "src", repo.id);
+	let commit: string;
+	if (workspace) {
+		log(`cape ${repo.name}: using workspace checkout ${dir}`);
+		commit = git(dir, "rev-parse", "HEAD");
+	} else {
+		if (existsSync(dir)) git(dir, "fetch", "-q", "origin");
+		else git(bridge.dir, "clone", "-q", repo.remote, dir);
+		const target = COMMIT.test(ref) ? ref : `origin/${ref || trunk(dir)}`;
+		commit = git(dir, "rev-parse", `${target}^{commit}`);
+		git(dir, "checkout", "-q", "--detach", commit);
+	}
 
 	const root = findRoot(dir);
 	if (root?.kind !== "cape") throw new Error(`${repo.name} is not a cape: ${root ? `its root is a ${root.kind}` : "it has no root"}`);
@@ -53,8 +63,8 @@ export async function i01a1337c81b57799820f96a757b791d0(
 		}
 		const dependency = tryFindRepoDoc(bridge, specifier);
 		if (!dependency) continue;
-		const built = await i01a1337c81b57799820f96a757b791d0(bridge, dependency, refFor(bridge, specifier), core, [...building, repo.name]);
-		const docs = describeCapeSource(join(bridge.dir, ".nosedive", "capes", "src", dependency.id)).docs;
+		const built = await i01a1337c81b57799820f96a757b791d0(bridge, dependency, refFor(bridge, specifier), core, [...building, repo.name], log);
+		const docs = describeCapeSource(built.source ?? join(bridge.dir, ".nosedive", "capes", "src", dependency.id)).docs;
 		sources.set(specifier, { specifier, capeId: built.id, label: `${specifier} ${built.version}`, docs, ids });
 		needs[specifier] = built.id;
 	}
@@ -68,15 +78,27 @@ export async function i01a1337c81b57799820f96a757b791d0(
 		}
 	}
 
-	const id = capeId(repo.id, commit, core.id, Object.values(needs));
+	const hash = createHash("sha256").update(commit);
+	if (workspace) {
+		for (const file of git(dir, "ls-files", "--cached", "--others", "--exclude-standard", "-z").split("\0").filter(Boolean).sort()) {
+			hash.update(`\0${file}\0`);
+			if (existsSync(join(dir, file))) hash.update(readFileSync(join(dir, file)));
+			else hash.update("deleted");
+		}
+	}
+	const id = capeId(repo.id, workspace ? hash.digest("hex") : commit, core.id, Object.values(needs));
 	const outfile = join(bridge.dir, ".nosedive", "capes", `${id}.js`);
 	const known = capeManifest(bridge.dir).find((build) => build.id === id);
-	if (known && existsSync(outfile)) return { ...known, fresh: false };
+	if (known && existsSync(outfile)) {
+		const selected = { ...known, ref, builtAt: new Date().toISOString() };
+		capeManifest(bridge.dir, selected);
+		return { ...selected, fresh: false };
+	}
 
 	const seconds = Number(git(dir, "log", "-1", "--format=%ct", commit));
 	const date = new Date(seconds * 1000);
 	const millis = seconds * 1000 + (Number.parseInt(commit.slice(0, 3), 16) % 1000);
-	const version = `${date.getUTCFullYear()}.${date.getUTCMonth() + 1}.${date.getUTCDate()}-${millis}`;
+	const version = workspace ? "working tree" : `${date.getUTCFullYear()}.${date.getUTCMonth() + 1}.${date.getUTCDate()}-${millis}`;
 
 	installCapePackages(dir);
 	await bundleCape(dir, source, { id, name: repo.name, commit, version, core: core.id, needs }, [...sources.values()], outfile);
@@ -86,7 +108,7 @@ export async function i01a1337c81b57799820f96a757b791d0(
 			.filter((doc) => doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? ""))
 			.map((doc) => [doc.name, doc.gist]),
 	);
-	const build = { id, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString() };
+	const build = { id, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString(), ...(workspace ? { source: dir } : {}) };
 	capeManifest(bridge.dir, build);
 	return { ...build, fresh: true };
 }
