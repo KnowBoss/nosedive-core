@@ -17,18 +17,27 @@ test("reads only the directory's own config, so a checkout in a workspace reads 
 	assert.match(readRepoConfig(cape)?.root ?? "", /^[0-9a-f-]{36}$/);
 });
 
-test("reads a ship's decks and workspace from its kind file, and refuses two kind files", async () => {
-	const ship = gitRepo("read-repo-config-ship");
-	ok(await run(["seed", "--no-capes"], ship));
-	const bridge = readRepoConfig(ship)!;
-	assert.equal(bridge.rootPath, join(ship, ".nosedive", "ship.md"));
-	assert.equal(bridge.root, /^id: (\S+)$/m.exec(readFileSync(bridge.rootPath, "utf8"))![1]);
-	assert.deepEqual(bridge.decks.map((deck) => deck.dir), [join(ship, "kb")]);
-	assert.equal(bridge.kbDir, join(ship, "kb"), "the first deck");
-	assert.equal(bridge.kindsDir, join(ship, ".nosedive", "kinds"));
-	assert.equal(bridge.reposDir, join(ship, ".nosedive", "repos"));
-	writeFileSync(join(ship, ".nosedive", "base.md"), readFileSync(bridge.rootPath, "utf8"));
-	assert.throws(() => readRepoConfig(ship), /holds ship\.md and base\.md: a repo is one of ship, cape or base/);
+test("reads a repo's id, roots, workspace and where it keeps kinds and repos from its config", async () => {
+	const dir = gitRepo("read-repo-config-roots");
+	const [id, first, second] = ["01a1335b-f253-7b80-ab64-d2f9a03c9630", "01a1335b-f253-7b80-ab64-d2f9a03c9631", "01a1335b-f253-7b80-ab64-d2f9a03c9632"];
+	mkdirSync(join(dir, ".nosedive"));
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), `id: ${id}\nworkspace: ./repos\nroots:\n  - kb/${first}.md\n  - clients/acme/${second}.md\n`);
+	const bridge = readRepoConfig(dir)!;
+	assert.equal(bridge.id, id);
+	assert.deepEqual(bridge.roots, [
+		{ id: first, dir: join(dir, "kb"), path: join(dir, "kb", `${first}.md`) },
+		{ id: second, dir: join(dir, "clients", "acme"), path: join(dir, "clients", "acme", `${second}.md`) },
+	]);
+	assert.equal(bridge.kbDir, join(dir, "kb"), "the first root's directory");
+	assert.equal(bridge.root, first);
+	assert.equal(bridge.workspace, join(dir, "repos"));
+	assert.equal(bridge.kindsDir, join(dir, ".nosedive", "kinds"));
+	assert.equal(bridge.reposDir, join(dir, ".nosedive", "repos"));
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), `roots:\n  - kb/${first}.md\n`);
+	assert.equal(readRepoConfig(dir)!.id, first, "without an id, the first root's stands in");
+	assert.equal(readRepoConfig(dir)!.workspace, undefined, "only a workspace in config makes one");
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), "roots:\n  - kb/notes.md\n");
+	assert.throws(() => readRepoConfig(dir), /each of `roots` is a path to a doc named by its quid, not "kb\/notes\.md"/);
 });
 
 test("reads an older config's root from its kb, a base with a workspace as a ship, and refuses two roots", async () => {
@@ -41,7 +50,7 @@ test("reads an older config's root from its kb, a base with a workspace as a shi
 	const config = join(legacy, ".nosedive", "config.yaml");
 	writeFileSync(config, `kb: ./kb\nbase: ${root}\n`);
 	assert.equal(readRepoConfig(legacy)?.workspace, undefined, "a base is data only");
-	assert.deepEqual(readRepoConfig(legacy)?.decks, [{ dir: join(legacy, "kb"), root }], "its kb is its one deck");
+	assert.deepEqual(readRepoConfig(legacy)?.roots, [{ id: root, dir: join(legacy, "kb"), path: join(legacy, "kb", `${root}.md`) }], "its root is its one root");
 	writeFileSync(doc, readFileSync(doc, "utf8").replace("\n---\n", "\nmeta:\n  workspace: ./repos\n---\n"));
 	writeFileSync(config, readFileSync(config, "utf8").replace("base: ", "backlog: ") + `root: ${root}\n`);
 	assert.equal(readRepoConfig(legacy)?.workspace, join(legacy, "repos"), "the same root under two legacy keys is one root");

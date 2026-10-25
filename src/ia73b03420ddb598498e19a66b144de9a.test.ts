@@ -1,4 +1,4 @@
-// crud <kind> <gist>... [--name <name>] [--meta <source>] [--deck <dir>]
+// crud <kind> <gist>... [--name <name>] [--meta <source>] [--into <path>]
 import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -79,13 +79,13 @@ test("a repo the bridge mints gets a home copy, mirroring its other remote, or e
 	git(["commit", "-q", "--allow-empty", "-m", "first"], cloud);
 
 	const out = ok(await run(["crud", "repo", "hello", "--name", "hello", "--meta", "-"], bridge, `remotes:\n  cloud: ${JSON.stringify(cloud)}\n`));
-	const home = join(homes, `${namespacedUuid("hello", findBridge(bridge)!.root!)}.git`);
+	const home = join(homes, `${namespacedUuid("hello", findBridge(bridge)!.id!)}.git`);
 	assert.equal(out.split("\n")[1], `home copy ${home.replace(/\\/g, "/")}`);
 	assert.equal(git(["log", "-1", "--format=%s"], home), "first");
 	assert.equal(git(["rev-parse", "--is-bare-repository"], home), "true");
 
 	ok(await run(["crud", "repo", "fresh", "--name", "fresh"], bridge));
-	const fresh = join(homes, `${namespacedUuid("fresh", findBridge(bridge)!.root!)}.git`);
+	const fresh = join(homes, `${namespacedUuid("fresh", findBridge(bridge)!.id!)}.git`);
 	assert.equal(git(["rev-parse", "--is-bare-repository"], fresh), "true");
 	assert.equal(findRepoDoc(findBridge(bridge)!, "fresh").remote, fresh, "a repo with no other remote clones from home");
 });
@@ -116,28 +116,29 @@ test("a repo the bridge mints needs a name and a reachable home, and nothing is 
 	assert.match((await run(["crud", "repo", "again", "--name", "once"], twice)).err, /\.git already exists/);
 });
 
-test("a ship keeps kinds and repos in its bridge, and mints into the deck --deck names, else its only one", async () => {
-	const bridge = await tempBridge("crud-mint-deck");
+test("keeps kinds and repos in .nosedive/, and mints into the root --into names, else the only root", async () => {
+	const bridge = await tempBridge("crud-mint-into");
 	const kind = ok(await run(["crud", "kind", "An", "idea", "--name", "idea", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: false\n"));
-	assert.match(kind, /^\.nosedive\/kinds\/[0-9a-f-]{36}\.md$/, "a kind is shared by every deck");
+	assert.match(kind, /^\.nosedive\/kinds\/[0-9a-f-]{36}\.md$/, "a kind is shared by every root");
 	const idea = await run(["crud", "idea", "fly"], bridge);
-	assert.equal(idea.err, "", "a kind in the bridge is declared");
+	assert.equal(idea.err, "", "a kind in .nosedive/ is declared");
 	assert.match(idea.out, /^kb\/[0-9a-f-]{36}\.md$/);
 	const repo = ok(await run(["crud", "repo", "A", "repo", "--name", "far", "--meta", "-"], bridge, "remotes:\n  origin: git@example.com:far.git\n"));
 	assert.match(repo, /^\.nosedive\/repos\/[0-9a-f-]{36}\.md$/);
 
-	const ship = join(bridge, ".nosedive", "ship.md");
-	const deck = ok(await run(["mint"], bridge));
-	mkdirSync(join(bridge, "docs"));
-	writeFileSync(join(bridge, "docs", `${deck}.md`), `---\nkind: deck\nid: ${deck}\nname: docs\n---\n`);
-	writeFileSync(ship, readFileSync(ship, "utf8").replace("\n---\n", `\n    ./docs: ${deck}\n---\n`));
+	const acme = ok(await run(["mint"], bridge));
+	mkdirSync(join(bridge, "clients", "acme"), { recursive: true });
+	writeFileSync(join(bridge, "clients", "acme", `${acme}.md`), `---\nkind: root\nid: ${acme}\nname: acme\n---\n`);
+	const config = join(bridge, ".nosedive", "config.yaml");
+	writeFileSync(config, `${readFileSync(config, "utf8")}  - clients/acme/${acme}.md\n`);
 	git(["add", "-A"], bridge);
-	git(["commit", "-qm", "second deck"], bridge);
+	git(["commit", "-qm", "a second root"], bridge);
 	const many = await run(["crud", "memo", "where"], bridge);
 	assert.equal(many.code, 1);
-	assert.match(many.err, /this ship has 2 decks: name one with --deck <dir>/);
-	const docs = ok(await run(["crud", "memo", "here", "--deck", "./docs"], bridge));
-	assert.match(docs, /^docs\/[0-9a-f-]{36}\.md$/);
-	ok(await run(["crud", docs.replace(/^.*\/|\.md$/g, ""), "--gist", "found"], bridge));
-	assert.match((await run(["crud", "memo", "nowhere", "--deck", "./none"], bridge)).err, /\.\/none is no deck of this ship; its decks: kb, docs/);
+	assert.match(many.err, /this repo has 2 roots: name one with --into <path>, one of kb\/[0-9a-f-]{36}\.md, clients\/acme\/[0-9a-f-]{36}\.md/);
+	const there = ok(await run(["crud", "memo", "here", "--into", "clients/acme"], bridge));
+	assert.match(there, /^clients\/acme\/[0-9a-f-]{36}\.md$/, "a root is named by its directory");
+	assert.match(ok(await run(["crud", "memo", "also", "--into", `clients/acme/${acme}.md`], bridge)), /^clients\/acme\//, "or by its path");
+	ok(await run(["crud", there.replace(/^.*\/|\.md$/g, ""), "--gist", "found"], bridge));
+	assert.match((await run(["crud", "memo", "nowhere", "--into", "./none"], bridge)).err, /\.\/none is no root of this repo; its roots: kb\/[0-9a-f-]{36}\.md, clients\/acme\//);
 });

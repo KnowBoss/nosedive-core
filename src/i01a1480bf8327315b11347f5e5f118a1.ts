@@ -55,8 +55,7 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	}
 	for (const repoDir of repoDirs) {
 		const config = readRepoConfig(repoDir);
-		if (config?.root && dropping.has(config.root)) block(config.root, config.rootPath ? `it is ${at(config.rootPath)}, what its repo is` : `${at(config.configPath)} names it as its root`);
-		for (const deck of config?.rootPath ? config.decks : []) if (deck.root && dropping.has(deck.root)) block(deck.root, `${at(config!.rootPath!)} names it as a deck root`);
+		for (const root of config?.roots ?? []) if (dropping.has(root.id)) block(root.id, `${at(config!.configPath)} lists it among its roots`);
 	}
 	if (blockers.length > 0) {
 		const head = one ? `${docs[0]!.label} is still linked, so it was not dropped` : `docs outside the list still link to these, so none was dropped`;

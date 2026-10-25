@@ -1,8 +1,6 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
-import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "./i01a138b2b8ed775297973c2aad478c8f.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 
@@ -21,13 +19,9 @@ export function i01a138b2b8ee703cab227b010f588b6a(bridge: Bridge, id: string) {
 	return undefined;
 }
 
-/** A doc of one repo: its kind file, named for its kind not its id, then its kinds, repos and decks. */
+/** A doc of one repo: its kinds and repos, then each root's directory. */
 function inRepo(repo: Bridge, id: string) {
-	if (repo.rootPath && repo.root === id) {
-		const text = readFileSync(repo.rootPath, "utf8");
-		return { ...readKbDoc(text, repo.rootPath), path: repo.rootPath, text, repoDir: repo.dir, kbDir: dirname(repo.rootPath) };
-	}
-	const dirs = [...(repo.kindsDir ? [repo.kindsDir] : []), ...(repo.reposDir ? [repo.reposDir] : []), ...repo.decks.map((deck) => deck.dir), repo.kbDir];
+	const dirs = [...(repo.kindsDir ? [repo.kindsDir] : []), ...(repo.reposDir ? [repo.reposDir] : []), ...repo.roots.map((root) => root.dir), repo.kbDir];
 	for (const kbDir of [...new Set(dirs)]) {
 		const doc = existsSync(kbDir) ? findKbDoc(kbDir, id) : undefined;
 		if (doc) return { ...doc, repoDir: repo.dir, kbDir };

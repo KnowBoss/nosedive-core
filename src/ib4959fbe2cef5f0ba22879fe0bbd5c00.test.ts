@@ -1,7 +1,7 @@
 // pass [<argv>...]
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
@@ -205,18 +205,17 @@ test("status compares a repo's role with what our checkout of it says, else the 
 	// Once checked out, the checkout is what it reads, whatever its remote has since.
 	ok(await run(["crud", plain, "--meta", "-"], bridge, "role: misc\n"));
 	ok(await run(["pass", "--hydrate", plain], bridge));
-	ok(await run(["seed", "--root-kind", "base"], source));
+	ok(await run(["seed"], source));
 	assert.match(ok(await run(["pass", "--status", plain], bridge)), /plain: its doc says misc, it says misc \(no nosedive config, read from the checkout workspace\/plain\)\ngate status: passed$/);
-	// A kind file says what a repo is.
+	// Its config says what a repo is: roots alone, neither a workspace nor a cape root, make a base.
 	const checkout = join(bridge, "workspace", "plain");
 	git(["fetch", "-q", "origin"], checkout);
 	git(["checkout", "-q", "--detach", "origin/main"], checkout);
 	assert.match((await run(["pass", "--status", plain], bridge)).err, /plain's doc says misc, but it is a base/);
 	// An older config names its root as root: its root's kind says.
-	const kindFile = join(checkout, ".nosedive", "base.md");
-	const root = /^id: (\S+)$/m.exec(readFileSync(kindFile, "utf8"))![1]!;
-	mkdirSync(join(checkout, "kb"), { recursive: true });
-	renameSync(kindFile, join(checkout, "kb", `${root}.md`));
+	const root = /kb\/(\S+)\.md/.exec(readFileSync(join(checkout, ".nosedive", "config.yaml"), "utf8"))![1]!;
+	const doc = join(checkout, "kb", `${root}.md`);
+	writeFileSync(doc, readFileSync(doc, "utf8").replace("kind: root", "kind: base"));
 	writeFileSync(join(checkout, ".nosedive", "config.yaml"), `kb: ./kb\nroot: ${root}\n`);
 	const legacy = await run(["pass", "--status", plain], bridge);
 	assert.match(legacy.out, new RegExp(`it says base \\(root ${root}, `));

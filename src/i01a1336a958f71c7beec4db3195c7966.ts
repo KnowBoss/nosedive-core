@@ -81,7 +81,7 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		let found = !only || only === core.name ? findAction([core], name) : undefined;
 		if (only === core.name && !found) throw new Error(`${core.name} has no action ${name}`);
 		const bridge = found ? undefined : findBridge(ctx.cwd);
-		const base = bridge && (!only || only === findRoot(bridge.dir)?.fm.name) ? await buildBase(bridge, core) : undefined;
+		const base = bridge && (!only || only === findRoot(bridge.dir, "cape")?.fm.name) ? await buildBase(bridge, core) : undefined;
 		if (base) {
 			found = findAction([base], name);
 			if (found) ctx.capes = [core, base, ...ctx.capes.slice(1)];
@@ -151,8 +151,8 @@ async function renderActions(ctx: Ctx): Promise<string> {
 	groups.push([core.name, coreRows]);
 	const bridge = findBridge(ctx.cwd);
 	// The ship's own commands, read from its docs: listing them needs no build.
-	const root = bridge && findRoot(bridge.dir);
-	if (bridge && root?.bridge.workspace !== undefined) {
+	const root = bridge && findRoot(bridge.dir, "cape");
+	if (bridge && root) {
 		const rows = Object.values(describeCapeSource(bridge.dir, true).docs).flatMap((doc): [string, string][] =>
 			doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") && !coreRows.some(([taken]) => taken === doc.name) ? [[doc.name, doc.gist]] : [],
 		);

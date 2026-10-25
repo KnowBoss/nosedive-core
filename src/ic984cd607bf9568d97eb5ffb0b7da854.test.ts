@@ -67,20 +67,20 @@ test("one action only, and lists what it cannot fix", async () => {
 	assert.equal(existsSync(join(dir, "src", "stray.ts")), true);
 });
 
-test("runs in a base, whose code imports core's types by name", async () => {
+test("runs in a cape outside core, whose code imports core's types by name", async () => {
 	const dir = gitRepo("scaf-base");
-	ok(await run(["seed"], dir));
+	ok(await run(["seed", "--root-kind", "cape"], dir));
 	writeFileSync(join(dir, "kb", `${ACTION}.md`), `---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n---\n`);
 	assert.match(ok(await run(["scaf", ACTION], dir)), /created src\/i01a1335bf2537b80ab64d2f9a03c9634\.ts/);
 	assert.match(readFileSync(join(dir, "src", "i01a1335bf2537b80ab64d2f9a03c9634.ts"), "utf8"), /from "nosedive-core"/);
 });
 
-test("refuses a repo that is neither a cape nor a ship", async () => {
-	const memo = gitRepo("scaf-memo");
-	ok(await run(["seed", "--root-kind", "memo"], memo));
-	const refused = await run(["scaf"], memo);
+test("refuses a repo with no cape root, a ship's workspace not making one", async () => {
+	const ship = gitRepo("scaf-ship");
+	ok(await run(["seed", "--workspace"], ship));
+	const refused = await run(["scaf"], ship);
 	assert.equal(refused.code, 1);
-	assert.match(refused.err, /scaf runs in a cape or a ship, and this repo's root is a memo: `nosedive seed --root-kind cape` makes a cape/);
+	assert.match(refused.err, /scaf runs in a cape, and none of this repo's roots is of kind cape: a root of kind cape in config `roots` makes it one, as `nosedive seed --root-kind cape` does/);
 	const bare = await run(["scaf"], gitRepo("scaf-bare"));
 	assert.match(bare.err, /this repo has no root/);
 });

@@ -7,6 +7,6 @@ export function i01a14ac0044f7142a4623b2b7eff2eb5(bridge: Bridge, name: string):
 	const home = bridge.config.home;
 	if (home === undefined || home === null) return undefined;
 	if (typeof home !== "string" || !home) throw new Error("config `home` must be a path");
-	if (!bridge.root) throw new Error("a bridge with no root cannot name its repos' home copies");
-	return join(resolve(bridge.dir, home), `${namespacedUuid(name, bridge.root)}.git`);
+	if (!bridge.id) throw new Error("a bridge with no id cannot name its repos' home copies");
+	return join(resolve(bridge.dir, home), `${namespacedUuid(name, bridge.id)}.git`);
 }

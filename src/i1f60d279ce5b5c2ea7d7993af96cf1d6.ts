@@ -25,7 +25,7 @@ export async function i1f60d279ce5b5c2ea7d7993af96cf1d6(args: Args, ctx: Ctx): P
 	const dir = join(bridge.dir, ".nosedive", "capes", "src", id);
 	const clone = spawnSync("git", ["clone", "-q", remote, dir], { encoding: "utf8" });
 	if (clone.status !== 0) throw new Error(`cannot clone ${given}: ${(clone.stderr || clone.stdout).trim()}`);
-	const root = findRoot(dir);
+	const root = findRoot(dir, "cape") ?? findRoot(dir);
 	const name = String(root?.fm.name);
 	let existing: { id: string; remote: string } | undefined;
 	try {

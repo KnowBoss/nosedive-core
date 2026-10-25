@@ -5,17 +5,17 @@ export type Bridge = {
 	dir: string;
 	configPath: string;
 	config: Record<string, unknown>;
-	/** Where its docs are: a ship's first deck, a cape's or base's kb. */
+	/** The repo's quid: config `id`, else its first root's. */
+	id: string | undefined;
+	/** The docs its docs hang from, each in the directory holding its docs; an older config's one root. */
+	roots: { id: string; dir: string; path: string }[];
+	/** Its first root's directory. */
 	kbDir: string;
-	/** The id of the bridge's root doc: its kind file's, else its config's `ship`, `cape`, `base`, `root` or `backlog`. */
+	/** Its first root's id. */
 	root: string | undefined;
-	/** Its kind file, `.nosedive/ship.md`, `cape.md` or `base.md`, when it has one. */
-	rootPath?: string;
 	/** Where other repos are checked out, which only a ship has. */
 	workspace: string | undefined;
-	/** A ship's decks, the first its kb; a repo of one kb has that one. */
-	decks: { dir: string; root: string | undefined }[];
-	/** Where a ship with a kind file keeps the kinds and repos its decks share. */
+	/** Where a repo with `roots` keeps the kinds and repos its roots share; an older one keeps them in its kb. */
 	kindsDir?: string;
 	reposDir?: string;
 };
