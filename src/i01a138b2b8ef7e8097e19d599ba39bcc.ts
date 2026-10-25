@@ -18,8 +18,10 @@ export function i01a138b2b8ef7e8097e19d599ba39bcc(kind: string, meta: unknown, k
 		metaSchema: { type: "string", minLength: 1 },
 		errors: false,
 		error: { message: "must resolve to a doc of the declared kind" },
-		validate(expected: string, quid: string) {
-			if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(quid)) return false;
+		validate(expected: string, given: string) {
+			if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(given)) return false;
+			// Docs are named by lowercase quids, which a case-sensitive filesystem tells apart.
+			const quid = given.toLowerCase();
 			if (pending?.has(quid)) return pending.get(quid) === expected;
 			for (const kb of kbDirs) {
 				const doc = findDoc(kb, quid);

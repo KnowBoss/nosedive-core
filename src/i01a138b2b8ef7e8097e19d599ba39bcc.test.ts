@@ -31,6 +31,7 @@ test("kind resolves refs and participates in normal schema composition", () => {
 	} } }, docs: {} } as unknown as Cape;
 	assert.equal(checkMeta("decision", { question: q, optional: null }, [kb], [refs]), undefined);
 	assert.equal(checkMeta("decision", { question: q, optional: q }, [kb], [refs]), undefined);
+	assert.equal(checkMeta("decision", { question: q.toUpperCase() }, [kb], [refs]), undefined, "a quid in capitals is read as the lowercase one");
 	for (const value of ["../escape", "01a17046-c550-7ef0-8503-6917ce9b65f3", 42]) {
 		assert.throws(() => checkMeta("decision", { question: value }, [kb], [refs]), /\/question/);
 	}
