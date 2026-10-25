@@ -7,6 +7,31 @@ import { git, ok, run, tempBridge, kbOf } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
+test("CRUD enforces reference kinds on create and edit, and batch uses final target kinds atomically", async () => {
+	const bridge = await tempBridge("crud-reference-kind");
+	ok(await run(["crud", "kind", "inquiry", "--name", "inquiry", "--meta", "-"], bridge, "schema: {type: object, additionalProperties: true}\n"));
+	ok(await run(["crud", "kind", "resolution", "--name", "resolution", "--meta", "-"], bridge,
+		"schema:\n  type: object\n  additionalProperties: false\n  required: [question]\n  properties:\n    question: {type: string, kind: inquiry}\n"));
+	const q = idOf(ok(await run(["crud", "inquiry", "which"], bridge)));
+	const meta = `question: ${q}\n`;
+	const d = idOf(ok(await run(["crud", "resolution", "answer", "--meta", "-"], bridge, meta)));
+	const head = git(["rev-parse", "HEAD"], bridge);
+	const before = readFileSync(join(kbOf(bridge), `${d}.md`), "utf8");
+	assert.match((await run(["crud", "resolution", "bad", "--meta", "-"], bridge, `question: ${d}\n`)).err, /\/question must resolve/);
+	assert.match((await run(["crud", d, "--meta", "-"], bridge, "question: absent\n")).err, /\/question must resolve/);
+	// The target changes after the referencing doc is edited; validation must see its final kind.
+	const refused = await run(["crud", "--batch", "-"], bridge,
+		`- quid: ${d}\n  meta: {question: ${q}}\n- quid: ${q}\n  kind: goal\n`);
+	assert.match(refused.err, /\/question must resolve/);
+	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+	assert.equal(readFileSync(join(kbOf(bridge), `${d}.md`), "utf8"), before);
+	assert.match(readFileSync(join(kbOf(bridge), `${q}.md`), "utf8"), /kind: inquiry/);
+	// Conversely, a target becoming the correct kind in this batch is accepted.
+	const next = idOf(ok(await run(["crud", "goal", "next question"], bridge)));
+	ok(await run(["crud", "--batch", "-"], bridge,
+		`- quid: ${d}\n  meta: {question: ${next}}\n- quid: ${next}\n  kind: inquiry\n`));
+});
+
 test("applies every edit in order and commits once, with text inline", async () => {
 	const bridge = await tempBridge("crud-batch");
 	const a = ok(await run(["crud", "goal", "a"], bridge));
