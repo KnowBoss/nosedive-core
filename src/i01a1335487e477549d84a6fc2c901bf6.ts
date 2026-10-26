@@ -24,6 +24,11 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = fal
 	const kinds: CapeSource["kinds"] = {};
 	const parents = new Map<string, string[]>();
 	const kbDir = readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb");
+	// The kinds a repo keeps in .nosedive/kinds/ are as much its own as those in its kb.
+	const kindsDir = join(repoDir, ".nosedive", "kinds");
+	for (const doc of existsSync(kindsDir) ? codeDocs(kindsDir) : []) {
+		if (doc.fm.kind === "kind") kinds[String(doc.fm.name)] = { ...((doc.fm.meta ?? {}) as object), links: doc.fm.links ?? [] };
+	}
 	for (const doc of codeDocs(kbDir, fromSrc ? srcDocFiles(repoDir) : undefined)) {
 		if (doc.fm.kind === "kind") kinds[String(doc.fm.name)] = { ...((doc.fm.meta ?? {}) as object), links: doc.fm.links ?? [] };
 		if (doc.fm.kind !== "action" && doc.fm.kind !== "function" && doc.fm.kind !== "migration") continue;

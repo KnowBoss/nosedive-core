@@ -49,3 +49,14 @@ test("reads the kb its config names, and only code and kind docs whole", () => {
 	assert.deepEqual(Object.keys(docs), [SCAF]);
 	assert.equal(entries[0]!.file, join(dir, "src", "i01a133547f5f7c45a3fb2ac0e3a7678e.ts"));
 });
+
+test("reads the kinds a repo keeps in .nosedive/kinds/ as well as its kb's", () => {
+	const dir = tempDir("describe-kinds-dir");
+	mkdirSync(join(dir, ".nosedive", "kinds"), { recursive: true });
+	mkdirSync(join(dir, "kb"));
+	writeFileSync(join(dir, ".nosedive", "kinds", "01a175e2-0000-7000-8000-000000000001.md"), "---\nkind: kind\nid: 01a175e2-0000-7000-8000-000000000001\nname: idea\nmeta:\n  durable: false\n---\n");
+	writeFileSync(join(dir, "kb", "01a175e2-0000-7000-8000-000000000002.md"), "---\nkind: kind\nid: 01a175e2-0000-7000-8000-000000000002\nname: goal\n---\n");
+	const { kinds } = describeCapeSource(dir);
+	assert.deepEqual(Object.keys(kinds).sort(), ["goal", "idea"]);
+	assert.equal((kinds.idea as { durable?: boolean }).durable, false);
+});
