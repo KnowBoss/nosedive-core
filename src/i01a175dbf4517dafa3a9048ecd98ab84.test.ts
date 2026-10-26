@@ -42,4 +42,6 @@ test("the chain in code is the chain the migration docs make: each names the one
 	const after = new Map(docs.map((fm) => [String(fm.id), (fm.meta as { after?: string } | undefined)?.after]));
 	assert.equal(after.size, MIGRATIONS.length, "every migration doc is in the chain");
 	MIGRATIONS.forEach((migration, at) => assert.equal(after.get(migration.id), at === 0 ? undefined : MIGRATIONS[at - 1]!.id, `${migration.name} follows its predecessor`));
+	const root = readFileSync(join(kb, "01a1336b-c0b8-7cde-b7c6-285196062297.md"), "utf8");
+	for (const migration of MIGRATIONS) assert.match(root, new RegExp(`- kb/${migration.id}\\.md:\\n {6}rel: migrations\\.feat\\n`), `core's root lists ${migration.name}`);
 });
