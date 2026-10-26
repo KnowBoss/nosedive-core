@@ -14,7 +14,7 @@ export type CapeSource = {
 	kinds: Record<string, unknown>;
 };
 
-const READ = new Set(["action", "function", "kind"]);
+const READ = new Set(["action", "function", "migration", "kind"]);
 const QUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 
 /** `fromSrc` reads only the docs whose ids name files in `src/`, never the rest of the kb: a doc with no code yet is left out. */
@@ -26,12 +26,13 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = fal
 	const kbDir = readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb");
 	for (const doc of codeDocs(kbDir, fromSrc ? srcDocFiles(repoDir) : undefined)) {
 		if (doc.fm.kind === "kind") kinds[String(doc.fm.name)] = { ...((doc.fm.meta ?? {}) as object), links: doc.fm.links ?? [] };
-		if (doc.fm.kind !== "action" && doc.fm.kind !== "function") continue;
+		if (doc.fm.kind !== "action" && doc.fm.kind !== "function" && doc.fm.kind !== "migration") continue;
 		const id = String(doc.fm.id);
 		const meta = (doc.fm.meta ?? {}) as { usages?: unknown };
 		const usages = Array.isArray(meta.usages) ? meta.usages.map(String) : [];
 		docs[id] = {
-			kind: doc.fm.kind,
+			// A migration's code is a function's: no usages, its tests beside it.
+			kind: doc.fm.kind === "action" ? "action" : "function",
 			name: String(doc.fm.name ?? ""),
 			gist: String(doc.fm.gist ?? ""),
 			usages: usages.map((text) => ({ id: usageId(text, id), text })),

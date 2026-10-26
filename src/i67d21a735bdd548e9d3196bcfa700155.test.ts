@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
+import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
 /** The id and roots a repo's config lists. */
@@ -17,7 +18,7 @@ test("makes a git repo a nosedive repo, its config naming its id and one root of
 	assert.equal(ok(await run(["seed"], dir)), `seeded ${repo}`);
 	const { id, roots, text } = configOf(dir);
 	const root = roots[0]!.replace(/^kb\/|\.md$/g, "");
-	assert.equal(text, `id: ${id}\nroots:\n  - kb/${root}.md\n`, "no workspace unless asked");
+	assert.equal(text, `id: ${id}\nlast-migration: ${MIGRATIONS.at(-1)!.id}\nroots:\n  - kb/${root}.md\n`, "already in today's shape, and no workspace unless asked");
 	assert.notEqual(id, root, "the repo's id is its own");
 	assert.equal(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), `---\nkind: root\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\n---\n\n# ${repo}\n`, "named after the repo");
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "cache/\ncapes/\nlocal/\n");
@@ -31,7 +32,7 @@ test("--workspace makes it able to do work, and a cape root keeps its lockfile c
 	const ship = gitRepo("seed-workspace");
 	ok(await run(["seed", "--workspace"], ship));
 	const { id, roots, text } = configOf(ship);
-	assert.equal(text, `id: ${id}\nworkspace: ./workspace\nroots:\n  - ${roots[0]}\n`);
+	assert.equal(text, `id: ${id}\nlast-migration: ${MIGRATIONS.at(-1)!.id}\nworkspace: ./workspace\nroots:\n  - ${roots[0]}\n`);
 	assert.equal(readFileSync(join(ship, ".gitignore"), "utf8"), "!package-lock.json\n", "the repo's own .gitignore is the user's, but for its lockfile");
 	const later = gitRepo("seed-workspace-later");
 	ok(await run(["seed"], later));
@@ -129,7 +130,7 @@ test("--root-kind makes the root a declared kind, such as cape", async () => {
 	assert.match(undeclared.err, /no kind galleon is declared, so it cannot be the root's kind/);
 });
 
-test("takes an older config's backlog as its root, and adds no other", async () => {
+test("migrates an older config first, its backlog becoming its one root, and says so", async () => {
 	const dir = gitRepo("seed-backlog");
 	const root = ok(await run(["mint"], dir));
 	mkdirSync(join(dir, "kb"));
@@ -137,8 +138,13 @@ test("takes an older config's backlog as its root, and adds no other", async () 
 	mkdirSync(join(dir, ".nosedive"));
 	const config = join(dir, ".nosedive", "config.yaml");
 	writeFileSync(config, `kb: ./kb\nbacklog: ${root}\n`);
-	ok(await run(["seed"], dir));
-	assert.equal(readFileSync(config, "utf8"), `kb: ./kb\nbacklog: ${root}\n`);
+	git(["add", "-A"], dir);
+	git(["commit", "-qm", "older"], dir);
+	assert.match(ok(await run(["seed", "--no-capes"], dir)), new RegExp(`^migrated ${basename(dir)}: baseline$`, "m"));
+	assert.equal(readFileSync(config, "utf8"), `id: ${root}\nroots:\n  - kb/${root}.md\nlast-migration: ${MIGRATIONS.at(-1)!.id}\n`);
+	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), /\nkind: root\n/);
+	assert.match(git(["log", "--format=%s"], dir), /\nmigrate: baseline\n/);
+	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], dir)), /migrated/, "once");
 });
 
 test("a workspace ignores itself, and moves when its path changes", async () => {

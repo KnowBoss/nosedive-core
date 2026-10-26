@@ -14,6 +14,7 @@ import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "./i01a1335480c776ba8945020d0af333eb.ts";
+import { i01a175dbf4517dafa3a9048ecd98ab84 as runMigrations, MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
@@ -49,12 +50,14 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 
 	const repo = basename(dir);
 	const configPath = join(dir, ".nosedive", "config.yaml");
+	// A repo it knows is brought to today's shape before anything else reads it.
+	for (const name of existsSync(configPath) ? runMigrations(dir) : []) ctx.out(`migrated ${repo}: ${name}`);
 	if (!readRepoConfig(dir)) {
 		// A repo is what its config enables: its id, its first root, and a workspace when asked for.
 		if (checkMeta(rootKind, {}, [], ctx.capes)) throw new Error(`no kind ${rootKind} is declared, so it cannot be the root's kind`);
 		mkdirSync(join(dir, ".nosedive"), { recursive: true });
 		const root = mintKbDoc(join(dir, "kb"), { kind: rootKind, name: repo, gist: `What ${repo} holds`, title: repo });
-		const config = { id: mintUuid(), ...(workspace ? { workspace: "./workspace" } : {}), roots: [`kb/${root.id}.md`] };
+		const config = { id: mintUuid(), "last-migration": MIGRATIONS.at(-1)!.id, ...(workspace ? { workspace: "./workspace" } : {}), roots: [`kb/${root.id}.md`] };
 		writeFileSync(configPath, new Document(config).toString({ lineWidth: 0 }));
 		changed.push(root.path, configPath);
 	} else {
