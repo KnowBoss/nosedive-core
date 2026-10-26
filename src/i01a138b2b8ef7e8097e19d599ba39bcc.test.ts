@@ -18,3 +18,28 @@ test("checks against the first kb declaring the kind, then the capes, and warns 
 	assert.throws(() => checkMeta("task", { owner: 1, extra: true }, [], [cape]), /meta does not fit kind task:\n {2}meta must NOT have additional properties\n {2}\/owner must be string/);
 	assert.match(checkMeta("note", {}, [kb], [cape])!, /no kind note is declared here/);
 });
+
+test("kind resolves refs and participates in normal schema composition", () => {
+	const kb = tempDir("doc-kind");
+	const q = "01a17046-c550-7ef0-8503-6917ce9b65f2";
+	writeFileSync(join(kb, `${q}.md`), `---\nkind: question\nid: ${q}\n---\n`);
+	const refs = { kinds: { decision: { schema: {
+		type: "object", required: ["question"], properties: {
+			question: { type: "string", kind: "question" },
+			optional: { anyOf: [{ type: "null" }, { type: "string", kind: "question" }] },
+		},
+	} } }, docs: {} } as unknown as Cape;
+	assert.equal(checkMeta("decision", { question: q, optional: null }, [kb], [refs]), undefined);
+	assert.equal(checkMeta("decision", { question: q, optional: q }, [kb], [refs]), undefined);
+	assert.equal(checkMeta("decision", { question: q.toUpperCase() }, [kb], [refs]), undefined, "a quid in capitals is read as the lowercase one");
+	for (const value of ["../escape", "01a17046-c550-7ef0-8503-6917ce9b65f3", 42]) {
+		assert.throws(() => checkMeta("decision", { question: value }, [kb], [refs]), /\/question/);
+	}
+	assert.throws(() => checkMeta("decision", {}, [kb], [refs]), /required property 'question'/);
+	assert.throws(() => checkMeta("decision", { question: q }, [kb], [refs], undefined, new Map([[q, "memo"]])), /\/question must resolve/);
+	writeFileSync(join(kb, `${q}.md`), `---\nkind: memo\nid: ${q}\n---\n`);
+	assert.throws(() => checkMeta("decision", { question: q }, [kb], [refs]), /\/question must resolve/);
+	assert.equal(checkMeta("decision", { question: q }, [kb], [refs], undefined, new Map([[q, "question"]])), undefined);
+	const packaged = { ...refs, docs: { [q]: { kind: "question" } } } as unknown as Cape;
+	assert.equal(checkMeta("decision", { question: q }, [], [packaged]), undefined);
+});

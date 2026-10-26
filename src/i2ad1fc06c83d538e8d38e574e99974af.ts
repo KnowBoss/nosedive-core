@@ -22,9 +22,10 @@ export async function i2ad1fc06c83d538e8d38e574e99974af(source: string, ctx: Ctx
 			throw new Error(`${where}: ${(error as Error).message}`);
 		}
 	});
+	const pending = new Map([...edit.unchecked].map((doc) => [doc.id, String(doc.fm.kind)]));
 	for (const doc of edit.unchecked) {
 		try {
-			const warning = checkMeta(String(doc.fm.kind), doc.fm.meta, [doc.kbDir, edit.bridge.kbDir], ctx.capes, edit.bridge);
+			const warning = checkMeta(String(doc.fm.kind), doc.fm.meta, [doc.kbDir, edit.bridge.kbDir], ctx.capes, edit.bridge, pending);
 			if (warning) ctx.err(`nosedive: ${warning}`);
 		} catch (error) {
 			throw new Error(`--batch ${doc.id}: ${(error as Error).message}`);
