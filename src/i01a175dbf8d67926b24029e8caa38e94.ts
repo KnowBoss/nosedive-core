@@ -4,20 +4,17 @@ import { parseDocument } from "yaml";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
-import { ROOT_KEYS } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 
-/** Kinds whose root becomes a plain root; any other, a cape's among them, is kept. */
-const PLAIN = ["base", "ship", "memo"];
+/** Kinds whose root becomes a plain root; any other is kept. */
+const PLAIN = ["memo", "base"];
 
 export function i01a175dbf8d67926b24029e8caa38e94(dir: string): string[] {
 	const configPath = join(dir, ".nosedive", "config.yaml");
 	if (!existsSync(configPath)) return [];
 	const config = parseDocument(readFileSync(configPath, "utf8"));
 	if (config.has("roots")) return [];
-	const named = [...new Set(ROOT_KEYS.flatMap((key) => (typeof config.get(key) === "string" ? [String(config.get(key))] : [])))];
-	if (named.length > 1) throw new Error(`${configPath} names more than one root: ${named.join(", ")}`);
-	const root = named[0];
-	if (!root) throw new Error(`${configPath} names no root, so there is nothing to list in roots`);
+	const root = typeof config.get("backlog") === "string" ? String(config.get("backlog")) : undefined;
+	if (!root) throw new Error(`${configPath} names no backlog, so there is no root to list in roots`);
 	const kb = typeof config.get("kb") === "string" ? String(config.get("kb")) : "./kb";
 	const kbDir = join(dir, kb);
 	const changed: string[] = [configPath];
@@ -43,7 +40,7 @@ export function i01a175dbf8d67926b24029e8caa38e94(dir: string): string[] {
 	}
 
 	const workspace = typeof config.get("workspace") === "string" ? String(config.get("workspace")) : existsSync(join(dir, "workspace")) ? "./workspace" : undefined;
-	for (const key of [...ROOT_KEYS, "kb"]) config.delete(key);
+	for (const key of ["backlog", "kb"]) config.delete(key);
 	config.set("id", root);
 	if (workspace !== undefined) config.set("workspace", workspace);
 	config.set("roots", [`${relative(dir, kbDir).replace(/\\/g, "/")}/${root}.md`]);

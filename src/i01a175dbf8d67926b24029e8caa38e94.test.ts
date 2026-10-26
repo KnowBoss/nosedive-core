@@ -50,15 +50,15 @@ test("takes legacy nosedive's config to one that lists its root, keeping its oth
 });
 
 test("keeps a cape root's kind, and takes the workspace from an existing ./workspace when config names none", () => {
-	const cape = repo("baseline-cape", `kb: ./kb\ncape: ${ROOT}\n`, { [ROOT]: `kind: cape\nname: a-cape\n` });
+	const cape = repo("baseline-cape", `kb: ./kb\nbacklog: ${ROOT}\n`, { [ROOT]: `kind: cape\nname: a-cape\n` });
 	baseline(cape);
 	assert.equal(readFileSync(join(cape, ".nosedive", "config.yaml"), "utf8"), `id: ${ROOT}\nroots:\n  - kb/${ROOT}.md\n`);
 	assert.match(readFileSync(join(cape, "kb", `${ROOT}.md`), "utf8"), /\nkind: cape\n/);
 
-	const base = repo("baseline-base", `kb: ./kb\nroot: ${ROOT}\n`, { [ROOT]: `kind: base\nname: mi\nmeta:\n  workspace: ./workspace\n` });
+	const base = repo("baseline-base", `kb: ./kb\nbacklog: ${ROOT}\n`, { [ROOT]: `kind: base\nname: mi\nmeta:\n  workspace: ./workspace\n` });
 	mkdirSync(join(base, "workspace"));
 	baseline(base);
 	assert.equal(readRepoConfig(base)!.workspace, join(base, "workspace"));
 	assert.doesNotMatch(readFileSync(join(base, "kb", `${ROOT}.md`), "utf8"), /meta:/, "the root kind declares no meta");
-	assert.throws(() => baseline(repo("baseline-none", "kb: ./kb\n", {})), /names no root/);
+	assert.throws(() => baseline(repo("baseline-none", "kb: ./kb\n", {})), /names no backlog/);
 });
