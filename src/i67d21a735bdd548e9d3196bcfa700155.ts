@@ -107,7 +107,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		return doc ? [{ doc, kbDir: root.dir }] : [];
 	});
 	for (const { doc, kbDir } of roots) {
-		const tree = renderTree(kbDir, doc);
+		const tree = renderTree(kbDir, doc, [...(own.kindsDir ? [own.kindsDir] : []), ...(own.reposDir ? [own.reposDir] : []), ...own.roots.map((root) => root.dir)]);
 		if (tree === doc.body) continue;
 		writeKbDoc(doc.path, doc.yaml, tree);
 		commitFiles(dir, [doc.path], `seed: ${repo} tree rendered`);

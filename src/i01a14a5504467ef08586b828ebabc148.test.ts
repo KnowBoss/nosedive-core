@@ -61,3 +61,15 @@ test("links from a root kept outside the kb, as a kind file, into the kb", () =>
 	const root = { fm: { id: ROOT, links: [{ [`kb/${LEVEL}.md`]: { rel: "levels.feat" } }] }, body: "", path: join(dir, ".nosedive", "cape.md") };
 	assert.match(renderTree(kb, root), /^- \[Free\]\(\.\.\/kb\/01a14a55-dafa-7beb-b493-ea12b0a7ead0\.md\): Core alone$/m);
 });
+
+test("finds a feat kept outside the kb, as a repo doc in .nosedive/repos/, linking it by its path from the root", () => {
+	const dir = tempDir("render-tree-repos");
+	const kb = join(dir, "kb");
+	const repos = join(dir, ".nosedive", "repos");
+	mkdirSync(kb);
+	mkdirSync(repos, { recursive: true });
+	doc(repos, REPO, "repo", "nosedive", "The repo", [], "Nosedive");
+	const root = { fm: { id: ROOT, links: [{ [`kb/${REPO}.md`]: { rel: "software.feat" } }] }, body: "", path: join(kb, `${ROOT}.md`) };
+	assert.doesNotMatch(renderTree(kb, root), /Nosedive/, "not looked for outside the kb unless named");
+	assert.match(renderTree(kb, root, [repos]), new RegExp(`^- \\[Nosedive\\]\\(\\.\\./\\.nosedive/repos/${REPO}\\.md\\): The repo$`, "m"));
+});
