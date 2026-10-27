@@ -42,6 +42,9 @@ export function tempDir(label: string): string {
 	return dir;
 }
 
+// Repo caches are the user's; a test's go in a user dir of its own.
+process.env.NOSEDIVE_USER_DIR = tempDir("user");
+
 export function git(args: string[], cwd: string): string {
 	const result = spawnSync("git", args, { cwd, encoding: "utf8" });
 	assert.equal(result.status, 0, `git ${args.join(" ")}: ${result.stderr}`);

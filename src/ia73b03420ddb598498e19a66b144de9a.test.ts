@@ -1,9 +1,8 @@
 // crud <kind> <gist>... [--name <name>] [--meta <source>] [--into <path>]
 import assert from "node:assert/strict";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { checkedOut, git, gitRepo, ok, run, tempBridge, tempDir, kbOf } from "../test/harness.ts";
@@ -68,52 +67,30 @@ test("--meta mints the doc with its meta, checked against its kind", async () =>
 	assert.match(readFileSync(join(bridge, path), "utf8"), /\ngist: "the hello cape"\nmeta:\n {2}size: 2\n---\n/);
 	const refused = await run(["crud", "repo", "local", "--name", "local", "--meta", "-"], bridge, "remotes:\n  local: ../hello\n");
 	assert.equal(refused.code, 1);
-	assert.match(refused.err, /meta does not fit kind repo:\n {2}\/remotes must NOT be valid/);
+	assert.match(refused.err, /meta does not fit kind repo:\n {2}\/remotes must have required property 'origin'/);
 });
 
-test("a repo the bridge mints gets a home copy, mirroring its other remote, or empty", async () => {
-	const bridge = await tempBridge("crud-mint-repo-home");
-	const homes = tempDir("crud-mint-homes");
-	appendFileSync(join(bridge, ".nosedive", "config.yaml"), `home: ${JSON.stringify(homes)}\n`);
-	const cloud = gitRepo("crud-mint-cloud");
-	git(["commit", "-q", "--allow-empty", "-m", "first"], cloud);
-
-	const out = ok(await run(["crud", "repo", "hello", "--name", "hello", "--meta", "-"], bridge, `remotes:\n  cloud: ${JSON.stringify(cloud)}\n`));
-	const home = join(homes, `${namespacedUuid("hello", findBridge(bridge)!.id!)}.git`);
-	assert.equal(out.split("\n")[1], `home copy ${home.replace(/\\/g, "/")}`);
-	assert.equal(git(["log", "-1", "--format=%s"], home), "first");
-	assert.equal(git(["rev-parse", "--is-bare-repository"], home), "true");
-
-	ok(await run(["crud", "repo", "fresh", "--name", "fresh"], bridge));
-	const fresh = join(homes, `${namespacedUuid("fresh", findBridge(bridge)!.id!)}.git`);
-	assert.equal(git(["rev-parse", "--is-bare-repository"], fresh), "true");
-	assert.equal(findRepoDoc(findBridge(bridge)!, "fresh").remote, fresh, "a repo with no other remote clones from home");
+test("registers a repo whose origin git reaches, making nothing else", async () => {
+	const bridge = await tempBridge("crud-mint-repo");
+	const source = gitRepo("crud-mint-repo-source");
+	const out = ok(await run(["crud", "repo", "hello", "--name", "hello", "--meta", "-"], bridge, `remotes:\n  origin: ${JSON.stringify(source)}\n  backup: ssh://elsewhere/hello.git\n`));
+	assert.match(out, /^\.nosedive\/repos\/[0-9a-f-]{36}\.md$/);
+	assert.equal(findRepoDoc(findBridge(bridge)!, "hello").remote, source);
+	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
 
-test("with no home, a repo with a remote is registered, not copied", async () => {
-	const bridge = await tempBridge("crud-mint-repo-registered");
-	const source = gitRepo("crud-mint-registered-source");
-	const meta = join(tempDir("crud-mint-registered-meta"), "meta.yaml");
-	writeFileSync(meta, `remotes:\n  cloud: ${JSON.stringify(source)}\n`);
-	const out = ok(await run(["crud", "repo", "theirs", "--name", "theirs", "--meta", meta], bridge));
-	assert.doesNotMatch(out, /home copy/);
-	assert.equal(findRepoDoc(findBridge(bridge)!, "theirs").remote, source);
-});
-
-test("a repo the bridge mints needs a name and a reachable home, and nothing is minted without them", async () => {
+test("refuses a repo with no name, a name taken, or an origin git cannot reach, writing nothing", async () => {
 	const bridge = await tempBridge("crud-mint-repo-refused");
+	const source = gitRepo("crud-mint-repo-refused-source");
+	const meta = `remotes:\n  origin: ${JSON.stringify(source)}\n`;
+	ok(await run(["crud", "repo", "once", "--name", "once", "--meta", "-"], bridge, meta));
 	const head = git(["rev-parse", "HEAD"], bridge);
-	assert.match((await run(["crud", "repo", "unnamed"], bridge)).err, /a repo needs --name/);
-	assert.match((await run(["crud", "repo", "x", "--name", "x"], bridge)).err, /a repo needs a home or a remote: set `home` in \.nosedive\/config\.yaml/);
-	appendFileSync(join(bridge, ".nosedive", "config.yaml"), `home: ${JSON.stringify(join(tempDir("crud-mint-gone"), "missing"))}\n`);
-	assert.match((await run(["crud", "repo", "x", "--name", "x"], bridge)).err, /cannot reach the home .+missing, so no repo was created/);
+	assert.match((await run(["crud", "repo", "unnamed", "--meta", "-"], bridge, meta)).err, /a repo needs --name/);
+	assert.match((await run(["crud", "repo", "again", "--name", "once", "--meta", "-"], bridge, meta)).err, /a repo named once is registered already/);
+	const gone = join(tempDir("crud-mint-repo-gone"), "missing.git");
+	assert.match((await run(["crud", "repo", "x", "--name", "x", "--meta", "-"], bridge, `remotes:\n  origin: ${JSON.stringify(gone)}\n`)).err, /cannot reach .+missing\.git, so no repo was registered/);
 	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
-	assert.equal(git(["status", "--porcelain", "kb"], bridge), "");
-
-	const twice = await tempBridge("crud-mint-repo-twice");
-	appendFileSync(join(twice, ".nosedive", "config.yaml"), `home: ${JSON.stringify(tempDir("crud-mint-twice"))}\n`);
-	ok(await run(["crud", "repo", "once", "--name", "once"], twice));
-	assert.match((await run(["crud", "repo", "again", "--name", "once"], twice)).err, /\.git already exists/);
+	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
 
 test("keeps kinds and repos in .nosedive/, and mints into the root --into names, else the only root", async () => {
@@ -123,7 +100,7 @@ test("keeps kinds and repos in .nosedive/, and mints into the root --into names,
 	const idea = await run(["crud", "idea", "fly"], bridge);
 	assert.equal(idea.err, "", "a kind in .nosedive/ is declared");
 	assert.match(idea.out, /^kb\/[0-9a-f-]{36}\.md$/);
-	const repo = ok(await run(["crud", "repo", "A", "repo", "--name", "far", "--meta", "-"], bridge, "remotes:\n  origin: git@example.com:far.git\n"));
+	const repo = ok(await run(["crud", "repo", "A", "repo", "--name", "far", "--meta", "-"], bridge, `remotes:\n  origin: ${JSON.stringify(gitRepo("crud-mint-into-far"))}\n`));
 	assert.match(repo, /^\.nosedive\/repos\/[0-9a-f-]{36}\.md$/);
 
 	const acme = ok(await run(["mint"], bridge));

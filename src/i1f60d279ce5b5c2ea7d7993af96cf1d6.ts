@@ -43,7 +43,7 @@ export async function i1f60d279ce5b5c2ea7d7993af96cf1d6(args: Args, ctx: Ctx): P
 
 	const changed = [bridge.configPath];
 	if (!existing) {
-		changed.push(mintKbDoc(bridge.reposDir ?? bridge.kbDir, { kind: "repo", id, name, gist: `The ${name} cape`, meta: { remotes: { cloud: remote } } }).path);
+		changed.push(mintKbDoc(bridge.reposDir ?? bridge.kbDir, { kind: "repo", id, name, gist: `The ${name} cape`, meta: { remotes: { origin: remote } } }).path);
 	}
 	const spec = ref ? `${name}@${ref}` : name;
 	const config = parseDocument(existsSync(bridge.configPath) ? readFileSync(bridge.configPath, "utf8") : "");

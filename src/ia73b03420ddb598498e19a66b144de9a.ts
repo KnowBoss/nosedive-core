@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1335487317576a0afd03506ef5555 as readSource } from "./i01a1335487317576a0afd03506ef5555.ts";
@@ -9,7 +9,7 @@ import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894
 import { i01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "./i01a138b2b8ed775297973c2aad478c8f.ts";
 import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7e8097e19d599ba39bcc.ts";
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
-import { i01a14ac0044f7142a4623b2b7eff2eb5 as homeCopy } from "./i01a14ac0044f7142a4623b2b7eff2eb5.ts";
+import { i01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "./i01a13354850c7ba3ba5b8ac41a7b6b11.ts";
 
 export async function ia73b03420ddb598498e19a66b144de9a(
 	doc: { repo: string | undefined; kind: string; gist: string; name: string | undefined; meta: string | undefined; into?: string },
@@ -23,31 +23,22 @@ export async function ia73b03420ddb598498e19a66b144de9a(
 	const warning = checkMeta(doc.kind, meta, [target.kbDir, bridge.kbDir], ctx.capes, bridge);
 	if (warning) ctx.err(`nosedive: ${warning}`);
 
-	// A repo the bridge mints is one it owns, so it gets a home copy; with no home, one with a remote is only registered.
-	let home: string | undefined;
-	const remotes = ((meta as { remotes?: Record<string, unknown> }).remotes ?? {}) as Record<string, unknown>;
-	const other = Object.values(remotes).find((value) => typeof value === "string") as string | undefined;
-	if (doc.kind === "repo" && !doc.repo) {
-		if (!doc.name) throw new Error("a repo needs --name, which names its checkout and its home copy");
-		home = homeCopy(bridge, doc.name);
-		if (!home && !other) throw new Error(`a repo needs a home or a remote: set \`home\` in ${relative(bridge.dir, bridge.configPath).replace(/\\/g, "/")} to where this bridge's repos live, or give meta.remotes`);
-	}
-	if (home) {
-		if (!existsSync(dirname(home))) throw new Error(`cannot reach the home ${dirname(home)}, so no repo was created`);
-		if (existsSync(home)) throw new Error(`${home} already exists`);
-		const source = other && !/^[a-z][a-z0-9+.-]*:\/\/|^git@/i.test(other) && !isAbsolute(other) ? resolve(bridge.dir, other) : other;
-		const created = spawnSync("git", source ? ["clone", "-q", "--mirror", source, home] : ["init", "-q", "--bare", home], { encoding: "utf8" });
-		if (created.status !== 0) throw new Error(`cannot create ${home}: ${(created.stderr || created.stdout).trim()}`);
-	}
-	try {
-		const minted = mintKbDoc(target.kbDir, { kind: doc.kind, gist: doc.gist, name: doc.name, meta: meta as Record<string, unknown> });
-		commitFiles(target.dir, [minted.path], `crud(${minted.id}): created ${doc.kind} ${minted.name}`);
-		ctx.out(relative(bridge.dir, minted.path).replace(/\\/g, "/"));
-		if (home) ctx.out(`home copy ${home.replace(/\\/g, "/")}`);
-	} catch (error) {
-		if (home) rmSync(home, { recursive: true, force: true });
-		throw error;
-	}
+	if (doc.kind === "repo") checkRepo(bridge, target.kbDir, doc.name, meta as Record<string, unknown>);
+	const minted = mintKbDoc(target.kbDir, { kind: doc.kind, gist: doc.gist, name: doc.name, meta: meta as Record<string, unknown> });
+	commitFiles(target.dir, [minted.path], `crud(${minted.id}): created ${doc.kind} ${minted.name}`);
+	ctx.out(relative(bridge.dir, minted.path).replace(/\\/g, "/"));
+}
+
+/** A repo is written only with a name unique where it goes, and an origin git reaches. */
+function checkRepo(bridge: Bridge, kbDir: string, name: string | undefined, meta: Record<string, unknown>): void {
+	if (!name) throw new Error("a repo needs --name, which names its checkout");
+	const dirs = kbDir === bridge.reposDir ? [kbDir, ...bridge.roots.map((root) => root.dir)] : [kbDir];
+	if (dirs.filter((dir) => existsSync(dir)).flatMap((dir) => listKbDocs(dir)).some((doc) => doc.fm.kind === "repo" && doc.fm.name === name)) throw new Error(`a repo named ${name} is registered already`);
+	const origin = ((meta.remotes ?? {}) as Record<string, unknown>).origin;
+	if (typeof origin !== "string" || !origin) throw new Error("a repo needs meta.remotes.origin, where its checkouts fetch from and push to");
+	const url = /^[a-z][a-z0-9+.-]*:\/\/|^git@/i.test(origin) || isAbsolute(origin) ? origin : resolve(bridge.dir, origin);
+	const reached = spawnSync("git", ["ls-remote", "-q", url, "HEAD"], { encoding: "utf8", env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+	if (reached.status !== 0) throw new Error(`cannot reach ${origin}, so no repo was registered: ${(reached.stderr || reached.stdout).trim()}`);
 }
 
 /**
