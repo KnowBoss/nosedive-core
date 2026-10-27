@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { relative } from "node:path";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc, kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
@@ -30,7 +31,23 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string):
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");
 	const docs = new Map<string, EditedDoc>();
 	const changed = new Set<EditedDoc>();
+<<<<<<< HEAD
 	const edits: string[] = [];
+=======
+	// Keep preconditions separate from the mutable documents callers edit.
+	const originals = new Map<EditedDoc, { path: string; repo: string; content: Buffer; identity: string; index: string }>();
+	const heads = new Map<string, string>();
+	const conflict = (message: string) => Object.assign(new Error(message), { code: "REPOSITORY_CHANGED", status: 409, outcome: "not_applied" });
+	const git = (repo: string, ...args: string[]) => {
+		const result = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+		if (result.status !== 0) throw conflict(`Cannot verify the repository before saving: ${result.stderr || result.error?.message || args[0]}`);
+		return result.stdout;
+	};
+	const identity = (path: string) => {
+		const stat = lstatSync(path, { bigint: true });
+		return JSON.stringify([realpathSync(path), ...[stat.dev, stat.ino, stat.mode, stat.size, stat.mtimeNs, stat.ctimeNs].map(String)]);
+	};
+>>>>>>> 13be5cf (Refuse prepared KB edits when their read inputs change)
 	return {
 		bridge,
 		edits,
@@ -42,13 +59,40 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string):
 			const tracked = spawnSync("git", ["ls-files", "--error-unmatch", "--", found.path], { cwd: found.repoDir, encoding: "utf8" });
 			if (tracked.status !== 0) throw new Error(`${id} is not tracked by git in ${found.repoDir}, so crud does not edit it`);
 			const doc = { ...found, id };
+			try {
+				const before = identity(doc.path);
+				const content = readFileSync(doc.path);
+				if (content.toString("utf8") !== doc.text || identity(doc.path) !== before) throw conflict(`${id} changed while it was being opened; read the latest document before saving.`);
+				const head = git(doc.repoDir, "rev-parse", "HEAD");
+				if (heads.has(doc.repoDir) && heads.get(doc.repoDir) !== head) throw conflict("The repository changed while preparing this edit; read the latest state before saving.");
+				heads.set(doc.repoDir, head);
+				originals.set(doc, { path: doc.path, repo: doc.repoDir, content, identity: before, index: git(doc.repoDir, "ls-files", "--stage", "--", doc.path) });
+			} catch (error) {
+				if ((error as { code?: string }).code === "REPOSITORY_CHANGED") throw error;
+				throw conflict(`${id} became unavailable while opening it; read the latest state before saving.`);
+			}
 			docs.set(id, doc);
 			return doc;
 		},
 		change(doc) {
+			if (!originals.has(doc)) throw conflict("This document was not opened by this edit; open it before changing it.");
 			changed.add(doc);
 		},
 		commit(given) {
+			// Validate the entire read set before writing any repository, including unchanged
+			// documents whose contents informed this operation. This is optimistic validation,
+			// not an OS lock against an editor writing after these checks.
+			for (const [repo, head] of heads) if (git(repo, "rev-parse", "HEAD") !== head) throw conflict("The repository changed while preparing this edit; read the latest state before saving.");
+			for (const [doc, original] of originals) {
+				try {
+					if (doc.path !== original.path || doc.repoDir !== original.repo || identity(doc.path) !== original.identity || !readFileSync(doc.path).equals(original.content) || identity(doc.path) !== original.identity || git(doc.repoDir, "ls-files", "--stage", "--", doc.path) !== original.index) {
+						throw conflict(`${doc.id} changed while preparing this edit; read the latest document before saving.`);
+					}
+				} catch (error) {
+					if ((error as { code?: string }).code === "REPOSITORY_CHANGED") throw error;
+					throw conflict(`${doc.id} became unavailable while preparing this edit; nothing was written.`);
+				}
+			}
 			const byRepo = new Map<string, { doc: EditedDoc; text: string }[]>();
 			for (const doc of changed) {
 				// A doc is refused only as it would be written, so an edit can repair one.

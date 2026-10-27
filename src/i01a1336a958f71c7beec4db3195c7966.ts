@@ -17,6 +17,8 @@ export type Ctx = {
 	cwd: string;
 	out(text: string): void;
 	err(text: string): void;
+	/** Optional structured failure observer for in-process consumers; CLI text and exit codes stay the same. */
+	failure?(error: unknown): void;
 	stdin(): Promise<string>;
 	capes: Cape[];
 };
@@ -145,6 +147,7 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		return 0;
 	} catch (err) {
 		ctx.err(`nosedive: ${err instanceof Error ? err.message : String(err)}`);
+		ctx.failure?.(err);
 		return 1;
 	} finally {
 		// --at holds for this command line only, as helm runs many in one process.

@@ -1,6 +1,6 @@
 // edit-kb-docs
 import assert from "node:assert/strict";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a133588bcc7f8bae725ff70d8f6800 as updateKbDocField } from "./i01a133588bcc7f8bae725ff70d8f6800.ts";
@@ -10,6 +10,77 @@ import { checkedOut, git, ok, run, tempBridge, tempDir, kbOf, kbPath } from "../
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 const WORKSPACE_DOC = "01a14ab4-cb92-7dba-bd33-79535603579d";
 const UNTRACKED = "01a14ab4-ce62-7712-b43f-3045d0a1fa4d";
+
+const isConflict = (error: unknown) => {
+	assert.equal((error as { code: string }).code, "REPOSITORY_CHANGED");
+	assert.equal((error as { outcome: string }).outcome, "not_applied");
+	return true;
+};
+
+test("refuses an external edit made after preparation and preserves the external text", async () => {
+	const bridge = await tempBridge("edit-stale");
+	const path = ok(await run(["crud", "memo", "original"], bridge));
+	const full = join(bridge, path), head = git(["rev-parse", "HEAD"], bridge);
+	const edit = editKbDocs(bridge);
+	updateKbDocField(edit, idOf(path), "gist", () => "stale proposal");
+	const external = readFileSync(full, "utf8") + "\nExternal draft\n";
+	writeFileSync(full, external);
+	// Mutating a public field cannot replace the private precondition.
+	edit.doc(idOf(path)).text = external;
+	assert.throws(() => edit.commit(), isConflict);
+	assert.equal(readFileSync(full, "utf8"), external);
+	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+});
+
+test("validates unchanged read dependencies before writing a different document", async () => {
+	const bridge = await tempBridge("edit-read-set");
+	const path = ok(await run(["crud", "memo", "target"], bridge));
+	const dependency = ok(await run(["crud", "memo", "dependency"], bridge));
+	const full = join(bridge, path), original = readFileSync(full, "utf8");
+	const edit = editKbDocs(bridge);
+	edit.doc(idOf(dependency));
+	updateKbDocField(edit, idOf(path), "gist", () => "depends on stale data");
+	appendFileSync(join(bridge, dependency), "\nDependency changed\n");
+	assert.throws(() => edit.commit(), isConflict);
+	assert.equal(readFileSync(full, "utf8"), original);
+});
+
+test("a conflict in a later repository prevents writes and commits in every repository", async () => {
+	const bridge = await tempBridge("edit-cross-repo-conflict");
+	const path = ok(await run(["crud", "memo", "local"], bridge));
+	const repo = checkedOut(bridge, "other");
+	const remote = join(repo, "kb", `${WORKSPACE_DOC}.md`);
+	writeFileSync(remote, `---\nkind: memo\nid: ${WORKSPACE_DOC}\nname: far\n---\n`);
+	git(["add", "."], repo);git(["commit", "-qm", "remote document"], repo);
+	const head = git(["rev-parse", "HEAD"], bridge), remoteHead = git(["rev-parse", "HEAD"], repo);
+	const original = readFileSync(join(bridge, path), "utf8");
+	const edit = editKbDocs(bridge);
+	updateKbDocField(edit, idOf(path), "gist", () => "local proposal");
+	updateKbDocField(edit, WORKSPACE_DOC, "gist", () => "remote proposal");
+	appendFileSync(remote, "\nExternal remote edit\n");
+	assert.throws(() => edit.commit(), isConflict);
+	assert.equal(readFileSync(join(bridge, path), "utf8"), original);
+	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+	assert.equal(git(["rev-parse", "HEAD"], repo), remoteHead);
+});
+
+test("refuses removed documents, index changes, new commits and touched source files", async (t) => {
+	for (const action of ["remove", "index", "head", "touch"] as const) await t.test(action, async () => {
+		const bridge = await tempBridge(`edit-${action}`);
+		const path = ok(await run(["crud", "memo", "original"], bridge));
+		const full = join(bridge, path), original = readFileSync(full, "utf8");
+		const edit = editKbDocs(bridge);
+		updateKbDocField(edit, idOf(path), "gist", () => "proposal");
+		if (action === "remove") rmSync(full);
+		if (action === "index") git(["rm", "--cached", "--", path], bridge);
+		if (action === "head") git(["commit", "--allow-empty", "-qm", "external commit"], bridge);
+		if (action === "touch") { const later = new Date(Date.now() + 10000);utimesSync(full, later, later); }
+		const head = git(["rev-parse", "HEAD"], bridge);
+		assert.throws(() => edit.commit(), isConflict);
+		if (action !== "remove") assert.equal(readFileSync(full, "utf8"), original);
+		assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+	});
+});
 
 test("commits each repo's changed docs once, and skips a doc that ends unchanged", async () => {
 	const bridge = await tempBridge("edit-docs");
