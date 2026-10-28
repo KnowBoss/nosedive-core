@@ -1,5 +1,7 @@
 // edit-kb-docs
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { appendFileSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -16,6 +18,62 @@ const isConflict = (error: unknown) => {
 	assert.equal((error as { outcome: string }).outcome, "not_applied");
 	return true;
 };
+
+test("protected saves exclude a competing process through commit, including unchanged dependencies", {skip:process.platform!=="win32"}, async () => {
+	const bridge=await tempBridge("protected-save");
+	const target=ok(await run(["crud","memo","target"],bridge));
+	const dependency=ok(await run(["crud","memo","dependency"],bridge));
+	const targetPath=join(bridge,target),dependencyPath=join(bridge,dependency);
+	const dependencyText=readFileSync(dependencyPath,"utf8");
+	const probe=join(bridge,".git","probe.cjs"),result=join(bridge,".git","probe.json");
+	writeFileSync(probe,`const fs=require('node:fs');const results=[];
+for(const path of process.argv.slice(3)) {
+ for(const act of ['write','rename','delete']) {
+  let blocked=false;
+  try {if(act==='write')fs.writeFileSync(path,'external overwrite');
+   if(act==='rename'){const other=path+'.swap';fs.writeFileSync(other,'external atomic save');try{fs.renameSync(other,path);}finally{try{fs.unlinkSync(other);}catch{}}}
+   if(act==='delete')fs.unlinkSync(path);
+  } catch(error) {blocked=true;}
+  results.push({act,blocked});
+ }
+}fs.writeFileSync(process.argv[2],JSON.stringify(results));`);
+	const quote=(text:string)=>"'"+text.replace(/'/g,"'\\''")+"'";
+	writeFileSync(join(bridge,".git","hooks","pre-commit"),`#!/bin/sh\n${[process.execPath,probe,result,targetPath,dependencyPath].map(path=>quote(path.replace(/\\/g,"/"))).join(" ")}\n`);
+	const edit=editKbDocs(bridge,{exclusive:true});edit.doc(idOf(dependency));
+	updateKbDocField(edit,idOf(target),"gist",()=>"protected proposal");
+	edit.commit('protected "quoted" message');
+	const attempts=JSON.parse(readFileSync(result,"utf8")) as {act:string;blocked:boolean}[];
+	assert.equal(attempts.length,6);assert.ok(attempts.every(attempt=>attempt.blocked),JSON.stringify(attempts));
+	assert.match(readFileSync(targetPath,"utf8"),/gist: "?protected proposal/);
+	assert.equal(readFileSync(dependencyPath,"utf8"),dependencyText);
+	assert.equal(git(["log","-1","--format=%s"],bridge),'protected "quoted" message');
+	appendFileSync(targetPath,"\nEditor can save after release\n");
+	assert.match(readFileSync(targetPath,"utf8"),/Editor can save after release/);
+});
+
+test("protected save refuses an already open external writer without changing anything", {skip:process.platform!=="win32"}, async () => {
+	const bridge=await tempBridge("protected-busy");const path=ok(await run(["crud","memo","target"],bridge));
+	const dependency=ok(await run(["crud","memo","busy dependency"],bridge));
+	const full=join(bridge,path),original=readFileSync(full,"utf8"),head=git(["rev-parse","HEAD"],bridge);
+	const edit=editKbDocs(bridge,{exclusive:true});updateKbDocField(edit,idOf(path),"gist",()=>"must refuse");edit.doc(idOf(dependency));
+	const writer=spawn(process.execPath,["-e","require('node:fs').openSync(process.argv[1],'r+');console.log('ready');setInterval(()=>{},1000)",join(bridge,dependency)],{stdio:["ignore","pipe","pipe"]});
+	try {
+		await once(writer.stdout,"data");
+		assert.throws(()=>edit.commit(),isConflict);
+		assert.equal(readFileSync(full,"utf8"),original);assert.equal(git(["rev-parse","HEAD"],bridge),head);
+	} finally {const exited=once(writer,"exit");writer.kill("SIGKILL");await exited;}
+	assert.deepEqual(edit.commit(),[path],"a refusal releases earlier handles so a reviewed retry can save");
+});
+
+test("a protected commit failure after writing remains unknown", {skip:process.platform!=="win32"}, async () => {
+	const bridge=await tempBridge("protected-failure"),path=ok(await run(["crud","memo","target"],bridge));
+	const head=git(["rev-parse","HEAD"],bridge);
+	writeFileSync(join(bridge,".git","hooks","pre-commit"),"#!/bin/sh\nexit 1\n");
+	const edit=editKbDocs(bridge,{exclusive:true});updateKbDocField(edit,idOf(path),"gist",()=>"written but not committed");
+	assert.throws(()=>edit.commit(),error=>(error as {outcome:string}).outcome==="unknown");
+	assert.match(readFileSync(join(bridge,path),"utf8"),/written but not committed/);
+	assert.equal(git(["rev-parse","HEAD"],bridge),head);
+});
 
 test("refuses an external edit made after preparation and preserves the external text", async () => {
 	const bridge = await tempBridge("edit-stale");

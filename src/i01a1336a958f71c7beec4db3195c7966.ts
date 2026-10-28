@@ -19,6 +19,8 @@ export type Ctx = {
 	err(text: string): void;
 	/** Optional structured failure observer for in-process consumers; CLI text and exit codes stay the same. */
 	failure?(error: unknown): void;
+	/** Require OS-enforced exclusion for prepared KB writes; unsupported platforms refuse before writing. */
+	exclusiveWrites?: boolean;
 	stdin(): Promise<string>;
 	capes: Cape[];
 };

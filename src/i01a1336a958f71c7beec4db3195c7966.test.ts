@@ -3,15 +3,11 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join, relative, dirname } from "node:path";
 import { test } from "node:test";
-<<<<<<< HEAD
 import { consoleCtx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { greetCapeRepo, kbOf, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
-=======
 import { i01a1336a958f71c7beec4db3195c7966 as launch, type Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
-import { greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
->>>>>>> 13be5cf (Refuse prepared KB edits when their read inputs change)
 
 test("in-process consumers observe the original structured failure while CLI output stays unchanged", async () => {
 	const id="01a175bf-0635-70c8-9c81-4db4184d47ce", action="01a175bf-0635-70c8-9c81-4db4184d47cf";
