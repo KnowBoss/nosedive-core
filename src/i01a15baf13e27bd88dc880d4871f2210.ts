@@ -29,7 +29,7 @@ export function i01a15baf13e27bd88dc880d4871f2210(bridge: Bridge, doc: RepoDoc, 
 	let added;
 	if (feat && branch) {
 		if (!git(cache, "rev-parse", "--verify", "-q", `refs/heads/${branch}`).ok) {
-			const start = [`refs/nosedive/${branch}`, `refs/remotes/origin/${feat.workBranch}`, `refs/remotes/origin/${trunk}`].find((ref) => git(cache, "rev-parse", "--verify", "-q", ref).ok)!;
+			const start = [`refs/remotes/origin/${feat.workBranch}`, `refs/remotes/origin/${trunk}`].find((ref) => git(cache, "rev-parse", "--verify", "-q", ref).ok)!;
 			git(cache, "branch", "-q", "--no-track", branch, start);
 		}
 		git(cache, "config", `branch.${branch}.remote`, "origin");
@@ -61,7 +61,7 @@ function cachePath(doc: RepoDoc): string {
 }
 
 /** Fetches the user's cache of a repo from its origin, making the cache when there is none, without checking anything out; returns it and the repo's trunk. */
-export function fetchCache(bridge: Bridge, doc: RepoDoc, ctx: Say): { cache: string; trunk: string } {
+function fetchCache(bridge: Bridge, doc: RepoDoc, ctx: Say): { cache: string; trunk: string } {
 	const name = String(doc.fm.name);
 	const cache = cachePath(doc);
 	const remote = origin(bridge, doc);

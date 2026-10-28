@@ -7,6 +7,16 @@ import { i01a13c760de87562b4738946402010b8 as checkoutPath } from "./i01a13c760d
 type RepoDoc = { fm: Record<string, unknown> };
 type Say = { out(text: string): void; err(text: string): void };
 
+/** The one refusal a cape can act on, known by its name, since capes import only the function: the checkout's ignored files, which `discard` removes. */
+class DehydrateIgnored extends Error {
+	override name = "DehydrateIgnored";
+	ignored: string[];
+	constructor(dir: string, ignored: string[]) {
+		super(`${dir} has ignored files it would lose, so it stays; discard them to go on:\n${indent(ignored)}`);
+		this.ignored = ignored;
+	}
+}
+
 export function i01a17fba20d673c5b8dd8551943369a2(bridge: Bridge, doc: RepoDoc, ctx: Say, options: { discard?: boolean } = {}): void {
 	const dir = checkoutPath(bridge, String(doc.fm.name));
 	const shown = relative(bridge.dir, dir).replace(/\\/g, "/");
@@ -18,23 +28,14 @@ export function i01a17fba20d673c5b8dd8551943369a2(bridge: Bridge, doc: RepoDoc, 
 	const changed = lines.filter((line) => !line.startsWith("!! "));
 	const ignored = lines.filter((line) => line.startsWith("!! ")).map((line) => line.slice(3));
 	if (changed.length) throw new Error(`${shown} has changes it would lose, so it stays:\n${indent(changed)}`);
-	if (ignored.length && !options.discard) throw new Error(`${shown} has ignored files it would lose, so it stays; discard them to go on:\n${indent(ignored)}`);
+	const unpushed = git(dir, "log", "--oneline", "HEAD", "--not", "--remotes=origin", "--glob=refs/nosedive/*").text.split("\n").filter(Boolean);
+	if (unpushed.length) throw new Error(`${shown} has commits origin does not have, so it stays:\n${indent(unpushed)}`);
+	if (ignored.length && !options.discard) throw new DehydrateIgnored(shown, ignored);
 
-	const on = git(dir, "symbolic-ref", "-q", "--short", "HEAD");
-	let said = "put away";
-	if (on.ok) {
-		// The packed ref holds this branch's commits alone, so it is forced; only land moves a work branch.
-		const pushed = git(dir, "push", "-q", "--force", "origin", `HEAD:refs/nosedive/${on.text}`);
-		if (!pushed.ok) throw new Error(`origin refused ${on.text}, so ${shown} stays: ${pushed.text}`);
-		said = `pushed to refs/nosedive/${on.text} and put away`;
-	} else {
-		const unpushed = git(dir, "log", "--oneline", "HEAD", "--not", "--remotes=origin", "--glob=refs/nosedive/*").text.split("\n").filter(Boolean);
-		if (unpushed.length) throw new Error(`${shown} is detached with commits origin does not have, so it stays; put them on a branch:\n${indent(unpushed)}`);
-	}
 	const cache = git(dir, "rev-parse", "--path-format=absolute", "--git-common-dir").text;
 	const removed = git(cache, "worktree", "remove", ...(ignored.length ? ["--force"] : []), dir);
 	if (!removed.ok) throw new Error(`cannot remove ${shown}: ${removed.text}`);
-	ctx.out(`${shown}: ${said}`);
+	ctx.out(`${shown}: put away`);
 }
 
 function indent(lines: string[]): string {

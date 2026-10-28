@@ -64,21 +64,16 @@ const NAMESPACED_UUID = "01a13354-8014-7d06-8652-8aee80f8ee34";
 
 export const CAPE_TESTS_PASS = "01a138b2-b8f3-7d32-82d2-274fae0f5007";
 
-type Fixture = { gated?: boolean; plain?: boolean; legacy?: boolean; name?: string };
+type Fixture = { gated?: boolean; plain?: boolean; name?: string };
 
-/** Makes a repo a cape by a cape root its config lists, or an older config's root when legacy, linking core's cape-tests-pass when gated. */
+/** Makes a repo a cape by a cape root its config lists, linking core's cape-tests-pass when gated. */
 function asCape(name: string, files: Record<string, string>, options: Fixture): void {
 	if (options.plain) return;
 	const root = mintUuid();
 	const gate = options.gated ? `links:\n  - nosedive-core:${CAPE_TESTS_PASS}:\n      rel: test.gate\n` : "";
 	const doc = `---\nkind: cape\nid: ${root}\nname: ${name}\n${gate}---\n`;
-	if (options.legacy) {
-		files[".nosedive/config.yaml"] = `kb: ./kb\nroot: ${root}\n`;
-		files[`kb/${root}.md`] = doc;
-	} else {
-		files[".nosedive/config.yaml"] = `id: ${mintUuid()}\nroots:\n  - kb/${root}.md\n`;
-		files[`kb/${root}.md`] = doc;
-	}
+	files[".nosedive/config.yaml"] = `id: ${mintUuid()}\nroots:\n  - kb/${root}.md\n`;
+	files[`kb/${root}.md`] = doc;
 }
 
 /**

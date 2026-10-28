@@ -12,7 +12,7 @@ test("finds a checkout, its kb its own bridge's when it is one, and refuses what
 	const plain = checkedOut(dir, "plain");
 	const own = checkedOut(dir, "own");
 	mkdirSync(join(own, ".nosedive"));
-	writeFileSync(join(own, ".nosedive", "config.yaml"), "kb: ./docs\n");
+	writeFileSync(join(own, ".nosedive", "config.yaml"), "roots:\n  - docs/01a180ad-db96-7c09-8216-469e5a0e997c.md\n");
 	const bridge = findBridge(dir)!;
 	assert.deepEqual(workspaceRepo(bridge, "plain"), { dir: plain, kbDir: join(plain, "kb") });
 	assert.deepEqual(workspaceRepo(bridge, "own"), { dir: own, kbDir: join(own, "docs") });

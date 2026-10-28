@@ -7,7 +7,7 @@ export type Bridge = {
 	config: Record<string, unknown>;
 	/** The repo's quid: config `id`, else its first root's. */
 	id: string | undefined;
-	/** The docs its docs hang from, each in the directory holding its docs; an older config's one root. */
+	/** The docs its docs hang from, each in the directory holding its docs. */
 	roots: { id: string; dir: string; path: string }[];
 	/** Its first root's directory. */
 	kbDir: string;
@@ -15,7 +15,7 @@ export type Bridge = {
 	root: string | undefined;
 	/** Where other repos are checked out, which only a hero repo has. */
 	workspace: string | undefined;
-	/** Where a repo with `roots` keeps the kinds and repos its roots share; an older one keeps them in its kb. */
+	/** Where it keeps the kinds and repos its roots share. */
 	kindsDir?: string;
 	reposDir?: string;
 };

@@ -1,6 +1,6 @@
 // dehydrate-repo
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -34,48 +34,44 @@ async function hello(label: string) {
 	return { hero, doc, said, say, origin, checkout, commit };
 }
 
-test("pushes a feat's branch to its packed ref on origin and removes the checkout; the next hydrate picks it up", async () => {
+test("pushes nothing, and refuses a checkout with commits origin lacks, on a branch or detached, until a ref on origin holds them", async () => {
 	const { hero, doc, said, say, origin, checkout, commit } = await hello("dehydrate-repo");
 	hydrateRepo(hero, doc, say, { id: "feat", workBranch: "work" });
 	commit("feat work");
-	dehydrateRepo(hero, doc, say);
-	const branch = `${hero.id}/main/feat`;
-	assert.equal(said.at(-1), `workspace/hello: pushed to refs/nosedive/${branch} and put away`);
-	assert.equal(existsSync(checkout), false);
-	assert.equal(git(["log", "-1", "--format=%s", `refs/nosedive/${branch}`], origin), "feat work");
-	assert.equal(git(["for-each-ref", "refs/heads"], origin).includes("work"), false, "only land moves a work branch");
-
-	hydrateRepo(hero, doc, say, { id: "feat", workBranch: "work" });
-	assert.equal(git(["log", "-1", "--format=%s"], checkout), "feat work");
-});
-
-test("refuses, keeping the checkout, while it has changes, untracked files, or ignored files not discarded", async () => {
-	const { hero, doc, say, checkout } = await hello("dehydrate-repo-files");
-	hydrateRepo(hero, doc, say, { id: "feat", workBranch: "work" });
-	writeFileSync(join(checkout, "new.txt"), "new\n");
-	assert.throws(() => dehydrateRepo(hero, doc, say), /workspace\/hello has changes it would lose, so it stays:\n {2}\?\? new\.txt/);
-	assert.throws(() => dehydrateRepo(hero, doc, say, { discard: true }), /has changes it would lose/, "discarding never takes untracked files");
-	git(["add", "new.txt"], checkout);
-	git(["-c", "user.name=T", "-c", "user.email=t@example.com", "commit", "-qm", "new"], checkout);
-	mkdirSync(join(checkout, "build"));
-	writeFileSync(join(checkout, "build", "out.js"), "built\n");
-	assert.throws(() => dehydrateRepo(hero, doc, say), /has ignored files it would lose, so it stays; discard them to go on:\n {2}build\/out\.js/);
+	assert.throws(() => dehydrateRepo(hero, doc, say), /workspace\/hello has commits origin does not have, so it stays:\n {2}\w+ feat work/);
 	assert.equal(existsSync(checkout), true);
-	dehydrateRepo(hero, doc, say, { discard: true });
-	assert.equal(existsSync(checkout), false);
-});
+	assert.equal(git(["for-each-ref", "refs/nosedive"], origin), "", "nothing was pushed");
 
-test("lets a detached checkout go when origin has its commit, and refuses one holding commits origin lacks", async () => {
-	const { hero, doc, said, say, checkout, commit } = await hello("dehydrate-repo-detached");
-	hydrateRepo(hero, doc, say);
+	// A cape keeps work under its own refs; once origin holds them, as last fetched, the checkout can go.
+	git(["push", "-q", "origin", "HEAD:refs/nosedive/dives/x"], checkout);
+	git(["update-ref", "refs/nosedive/dives/x", "HEAD"], checkout);
 	dehydrateRepo(hero, doc, say);
 	assert.equal(said.at(-1), "workspace/hello: put away");
 	assert.equal(existsSync(checkout), false);
 
 	hydrateRepo(hero, doc, say);
 	commit("stray");
-	assert.throws(() => dehydrateRepo(hero, doc, say), /workspace\/hello is detached with commits origin does not have, so it stays; put them on a branch:\n {2}\w+ stray/);
+	assert.throws(() => dehydrateRepo(hero, doc, say), /has commits origin does not have, so it stays:\n {2}\w+ stray/, "detached too");
+});
+
+test("refuses, keeping the checkout, while it has changes or untracked files, and names its ignored files in an error a cape can act on", async () => {
+	const { hero, doc, say, checkout } = await hello("dehydrate-repo-files");
+	hydrateRepo(hero, doc, say, { id: "feat", workBranch: "work" });
+	writeFileSync(join(checkout, "new.txt"), "new\n");
+	assert.throws(() => dehydrateRepo(hero, doc, say), /workspace\/hello has changes it would lose, so it stays:\n {2}\?\? new\.txt/);
+	assert.throws(() => dehydrateRepo(hero, doc, say, { discard: true }), /has changes it would lose/, "discarding never takes untracked files");
+	rmSync(join(checkout, "new.txt"));
+	mkdirSync(join(checkout, "build"));
+	writeFileSync(join(checkout, "build", "out.js"), "built\n");
+	assert.throws(() => dehydrateRepo(hero, doc, say), (error: Error & { ignored?: string[] }) => {
+		assert.equal(error.name, "DehydrateIgnored");
+		assert.deepEqual(error.ignored, ["build/out.js"]);
+		assert.match(error.message, /has ignored files it would lose, so it stays; discard them to go on:\n {2}build\/out\.js/);
+		return true;
+	});
 	assert.equal(existsSync(checkout), true);
+	dehydrateRepo(hero, doc, say, { discard: true });
+	assert.equal(existsSync(checkout), false);
 });
 
 test("says a repo with no checkout has none", async () => {

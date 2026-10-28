@@ -42,7 +42,7 @@ test("reads the kb its config names, and only code and kind docs whole", () => {
 	const dir = tempDir("describe-configured-kb");
 	mkdirSync(join(dir, ".nosedive"));
 	mkdirSync(join(dir, "notes"));
-	writeFileSync(join(dir, ".nosedive", "config.yaml"), "kb: ./notes\n");
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), "roots:\n  - notes/01a180ad-db95-70d2-b34d-add0b8f7ed41.md\n");
 	writeFileSync(join(dir, "notes", `${SCAF}.md`), `---\nkind: action\nid: ${SCAF}\nname: scaf\nmeta:\n  usages:\n    - scaf\n---\n`);
 	writeFileSync(join(dir, "notes", "memo.md"), "---\nkind: memo\nid: m\n---\n\nkind: action\n");
 	const { docs, entries } = describeCapeSource(dir);

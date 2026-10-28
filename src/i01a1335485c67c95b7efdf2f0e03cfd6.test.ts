@@ -6,10 +6,10 @@ import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { git, ok, run, tempBridge, tempDir } from "../test/harness.ts";
 
-test("walks up to the nearest config and resolves its kb", () => {
+test("walks up to the nearest config and resolves its kb, its first root's directory", () => {
 	const dir = tempDir("find-bridge");
 	mkdirSync(join(dir, ".nosedive"));
-	writeFileSync(join(dir, ".nosedive", "config.yaml"), "bridge: b\nkb: ./docs\n");
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), "bridge: b\nroots:\n  - docs/01a180ad-db94-7ea2-bcd0-b0b19236bf70.md\n");
 	mkdirSync(join(dir, "deep", "er"), { recursive: true });
 	const bridge = findBridge(join(dir, "deep", "er"));
 	assert.equal(bridge?.dir, dir);

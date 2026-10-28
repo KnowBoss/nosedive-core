@@ -68,9 +68,9 @@ test("builds the capes config names, so their actions run", async () => {
 	assert.doesNotMatch(git(["status", "--porcelain", "--untracked-files=all"], bridge), /capes/, "built capes stay out of git");
 });
 
-test("builds a pinned commit once, of a cape an older config names, and --no-capes builds nothing", async () => {
+test("builds a pinned commit once, of a cape, and --no-capes builds nothing", async () => {
 	const bridge = await tempBridge("seed-pinned");
-	const repo = greetCapeRepo({ legacy: true });
+	const repo = greetCapeRepo();
 	await registerRepo(bridge, "greet-cape", repo);
 	setCapes(bridge, [`greet-cape@${git(["rev-parse", "HEAD"], repo)}`]);
 	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], bridge)), /cape/);

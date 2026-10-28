@@ -40,20 +40,12 @@ test("reads a repo's id, roots, workspace and where it keeps kinds and repos fro
 	assert.throws(() => readRepoConfig(dir), /each of `roots` is a path to a doc named by its quid, not "kb\/notes\.md"/);
 });
 
-test("reads an older config's root from its kb, a base with a workspace as a hero repo, and refuses two roots", async () => {
-	const legacy = gitRepo("read-repo-config-legacy");
-	const root = ok(await run(["mint"], legacy));
-	mkdirSync(join(legacy, "kb"));
-	mkdirSync(join(legacy, ".nosedive"));
-	const doc = join(legacy, "kb", `${root}.md`);
-	writeFileSync(doc, `---\nkind: base\nid: ${root}\nname: old\n---\n`);
-	const config = join(legacy, ".nosedive", "config.yaml");
-	writeFileSync(config, `kb: ./kb\nbase: ${root}\n`);
-	assert.equal(readRepoConfig(legacy)?.workspace, undefined, "a base is data only");
-	assert.deepEqual(readRepoConfig(legacy)?.roots, [{ id: root, dir: join(legacy, "kb"), path: join(legacy, "kb", `${root}.md`) }], "its root is its one root");
-	writeFileSync(doc, readFileSync(doc, "utf8").replace("\n---\n", "\nmeta:\n  workspace: ./repos\n---\n"));
-	writeFileSync(config, readFileSync(config, "utf8").replace("base: ", "backlog: ") + `root: ${root}\n`);
-	assert.equal(readRepoConfig(legacy)?.workspace, join(legacy, "repos"), "the same root under two legacy keys is one root");
-	writeFileSync(config, `${readFileSync(config, "utf8")}ship: 01a15bad-d497-76c0-9308-6c2a30a7ad6f\n`);
-	assert.throws(() => readRepoConfig(legacy), /names more than one root/);
+test("reads a config without roots as having none, its kb kb/ and its workspace its own", async () => {
+	const dir = gitRepo("read-repo-config-rootless");
+	mkdirSync(join(dir, ".nosedive"));
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), "kb: ./notes\nbacklog: 01a15bad-d497-76c0-9308-6c2a30a7ad6f\nworkspace: ./repos\n");
+	const config = readRepoConfig(dir)!;
+	assert.deepEqual(config.roots, []);
+	assert.equal(config.kbDir, join(dir, "kb"));
+	assert.equal(config.workspace, join(dir, "repos"));
 });

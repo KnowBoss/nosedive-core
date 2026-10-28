@@ -32,7 +32,7 @@ function stampCapeRepo(): string {
 		};
 	};
 	const files: Record<string, string> = {
-		".nosedive/config.yaml": `kb: ./kb\nroot: ${ROOT}\n`,
+		".nosedive/config.yaml": `roots:\n  - kb/${ROOT}.md\n`,
 		[`kb/${ROOT}.md`]: `---\nkind: cape\nid: ${ROOT}\nname: stamp-cape\n---\n`,
 		...gate(STAMP, "stamp", "pass --stamp <quid> [--loud]", '\tctx.crud(ctx.doc.id, "gist", ctx.args.loud ? "STAMPED" : "stamped");\n\tctx.crud(ctx.doc.id, "section", { heading: "Stamp", text: `by ${ctx.doc.fm.kind}, with ${Object.keys(ctx.args).join(" and ")}` });\n\tctx.out("stamping");'),
 		...gate(REFUSE, "refuse", "pass --stamp <quid> [--refuse]", '\tif (ctx.args.refuse) throw new Error("asked to refuse");'),
@@ -81,9 +81,9 @@ test("fails fast, and writes nothing when a gate fails", async () => {
 test("lists its gates' usages, and refuses argv none matches or a doc that links no gate in the sect", async () => {
 	const { bridge, memo } = await stampBridge("pass-usages");
 	const help = ok(await run(["pass", "--help"], bridge));
-	assert.match(help, /\n {2}pass --stamp <quid> \[--loud\]\n {2}pass --stamp <quid> \[--refuse\]\n {2}pass --status <repo>\n {2}pass --test <cape>$/);
+	assert.match(help, /\n {2}pass --stamp <quid> \[--loud\]\n {2}pass --stamp <quid> \[--refuse\]\n {2}pass --test <cape>$/);
 	assert.equal(ok(await run(["pass"], bridge)), help);
-	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n {2}pass --stamp[^]*\n {2}pass --status <repo>/);
+	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n {2}pass --stamp[^]*\n {2}pass --test <cape>/);
 	const other = idOf(ok(await run(["crud", "memo", "other"], bridge)));
 	assert.match((await run(["pass", "--stamp", other], bridge)).err, /other-\w{6} links no stamp\.gate, nor does its kind memo/);
 });
@@ -101,47 +101,4 @@ test("a cape's root passes its kind's test gate, which runs its tests, once even
 	const failed = await run(["pass", "--test", rootOf(failing)], bridge);
 	assert.equal(failed.code, 1);
 	assert.match(failed.err, /gate cape-tests-pass failed, so nothing was written: the tests of failing-cape failed/);
-});
-
-test("status compares a repo's role with what our checkout of it says, else the cache's trunk, never checking it out", async () => {
-	const bridge = await tempBridge("pass-status");
-	const cape = gitRepo("pass-status-cape");
-	ok(await run(["seed", "--root-kind", "cape"], cape));
-	const id = await registerRepo(bridge, "a-cape", cape);
-	const source = gitRepo("pass-status-plain");
-	git(["commit", "-q", "--allow-empty", "-m", "first"], source);
-	const plain = await registerRepo(bridge, "plain", source);
-	git(["add", kbOf(bridge)], bridge);
-	git(["commit", "-qm", "repos"], bridge);
-
-	const unset = await run(["pass", "--status", id], bridge);
-	assert.equal(unset.code, 1);
-	assert.match(unset.out, /^a-cape: its doc says nothing, it says cape \(root [0-9a-f-]{36}, read from main at \w+ in the cache\)$/m);
-	assert.match(unset.err, new RegExp(`a-cape's doc has no role: \`nosedive crud ${id} --meta -\` with \`role: cape\` sets it`));
-	assert.equal(existsSync(join(bridge, "workspace", "a-cape")), false, "status checks nothing out");
-
-	ok(await run(["crud", id, "--meta", "-"], bridge, "role: cape\n"));
-	assert.match(ok(await run(["pass", "--status", id], bridge)), /^a-cape: its doc says cape, it says cape \(root [0-9a-f-]{36}, read from main at \w+ in the cache\)\ngate status: passed$/);
-	ok(await run(["crud", id, "--meta", "-"], bridge, "role: base\n"));
-	assert.match((await run(["pass", "--status", id], bridge)).err, /a-cape's doc says base, but it is a cape/);
-
-	// Once checked out, the checkout is what it reads, whatever its remote has since.
-	ok(await run(["crud", plain, "--meta", "-"], bridge, "role: misc\n"));
-	const hero = findBridge(bridge)!;
-	hydrateRepo(hero, findKbDoc(hero.kbDir, plain)!, { out: () => {}, err: () => {} });
-	ok(await run(["seed"], source));
-	assert.match(ok(await run(["pass", "--status", plain], bridge)), /plain: its doc says misc, it says misc \(no nosedive config, read from the checkout workspace\/plain\)\ngate status: passed$/);
-	// Its config says what a repo is: roots alone, neither a workspace nor a cape root, make a base.
-	const checkout = join(bridge, "workspace", "plain");
-	git(["fetch", "-q", "origin"], checkout);
-	git(["checkout", "-q", "--detach", "origin/main"], checkout);
-	assert.match((await run(["pass", "--status", plain], bridge)).err, /plain's doc says misc, but it is a base/);
-	// An older config names its root as root: its root's kind says.
-	const root = /kb\/(\S+)\.md/.exec(readFileSync(join(checkout, ".nosedive", "config.yaml"), "utf8"))![1]!;
-	const doc = join(checkout, "kb", `${root}.md`);
-	writeFileSync(doc, readFileSync(doc, "utf8").replace("kind: root", "kind: base"));
-	writeFileSync(join(checkout, ".nosedive", "config.yaml"), `kb: ./kb\nroot: ${root}\n`);
-	const legacy = await run(["pass", "--status", plain], bridge);
-	assert.match(legacy.out, new RegExp(`it says base \\(root ${root}, `));
-	assert.match(legacy.err, /plain's doc says misc, but it is a base/);
 });

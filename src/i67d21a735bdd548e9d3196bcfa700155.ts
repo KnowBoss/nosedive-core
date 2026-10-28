@@ -64,8 +64,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		const config = parseDocument(readFileSync(configPath, "utf8"));
 		if (config.errors.length > 0) throw new Error(`${configPath}: ${config.errors[0]!.message}`);
 		const before = config.toString({ lineWidth: 0 });
-		// An older config without a kb has the default one; --workspace adds a workspace a repo lacks.
-		if (!config.has("roots") && !config.has("kb")) config.set("kb", "./kb");
+		// --workspace adds a workspace a repo lacks.
 		if (workspace && config.has("roots") && !config.has("workspace")) config.set("workspace", "./workspace");
 		if (config.toString({ lineWidth: 0 }) !== before) {
 			writeFileSync(configPath, config.toString({ lineWidth: 0 }));

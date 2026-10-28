@@ -8,15 +8,13 @@ import { checkedOut, gitRepo, tempBridge } from "../test/harness.ts";
 
 const ROOT = "01a1335b-f253-7b80-ab64-d2f9a03c9634";
 
-test("reads the root the config names, as root or as backlog, and its kind", async () => {
-	for (const key of ["root", "backlog"]) {
-		const dir = gitRepo(`find-root-${key}`);
-		mkdirSync(join(dir, ".nosedive"));
-		mkdirSync(join(dir, "kb"));
-		writeFileSync(join(dir, ".nosedive", "config.yaml"), `${key}: ${ROOT}\n`);
-		writeFileSync(join(dir, "kb", `${ROOT}.md`), `---\nkind: cape\nid: ${ROOT}\n---\n`);
-		assert.equal(findRoot(dir)?.kind, "cape");
-	}
+test("reads the first root the config lists, and its kind", async () => {
+	const dir = gitRepo("find-root-first");
+	mkdirSync(join(dir, ".nosedive"));
+	mkdirSync(join(dir, "kb"));
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), `roots:\n  - kb/${ROOT}.md\n`);
+	writeFileSync(join(dir, "kb", `${ROOT}.md`), `---\nkind: cape\nid: ${ROOT}\n---\n`);
+	assert.equal(findRoot(dir)?.kind, "cape");
 });
 
 test("finds nothing for a repo that is no bridge, even inside a bridge's workspace", async () => {
