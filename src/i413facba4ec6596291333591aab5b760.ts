@@ -8,7 +8,7 @@ import { ROOT_KEYS } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a13c760de87562b4738946402010b8 as checkoutPath } from "./i01a13c760de87562b4738946402010b8.ts";
 import { fetchCache } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
 
-const ROLES = ["ship", "cape", "base"];
+const ROLES = ["hero", "cape", "base"];
 
 export async function i413facba4ec6596291333591aab5b760(ctx: GateCtx): Promise<void> {
 	const name = String(ctx.doc.fm.name);
@@ -25,7 +25,7 @@ export async function i413facba4ec6596291333591aab5b760(ctx: GateCtx): Promise<v
 		read = (path) => git(cache, "show", `${tip}:${path}`);
 		from = `${trunk} at ${git(cache, "rev-parse", "--short", tip)} in the cache`;
 	}
-	// A repo is what its config enables: a cape root makes a cape, a workspace a ship, roots alone a base.
+	// A repo is what its config enables: a cape root makes a cape, a workspace a hero repo, roots alone a base.
 	const text = read(".nosedive/config.yaml");
 	const config = text === undefined ? undefined : ((parse(text) ?? {}) as Record<string, unknown>);
 	const roots = Array.isArray(config?.roots) ? config.roots.filter((path): path is string => typeof path === "string") : undefined;
@@ -37,10 +37,10 @@ export async function i413facba4ec6596291333591aab5b760(ctx: GateCtx): Promise<v
 			const doc = read(path.replace(/^\.\//, ""));
 			return doc === undefined ? undefined : readKbDoc(doc).fm.kind;
 		});
-		says = kinds.includes("cape") ? "cape" : typeof config?.workspace === "string" ? "ship" : roots.length > 0 ? "base" : "misc";
+		says = kinds.includes("cape") ? "cape" : typeof config?.workspace === "string" ? "hero" : roots.length > 0 ? "base" : "misc";
 	} else {
 		root = ROOT_KEYS.map((each) => config?.[each]).find((value): value is string => typeof value === "string");
-		says = ROLES.find((role) => typeof config?.[role] === "string") ?? legacyRole(read, config, root);
+		says = typeof config?.ship === "string" ? "hero" : (ROLES.find((role) => typeof config?.[role] === "string") ?? legacyRole(read, config, root));
 	}
 	const role = (ctx.doc.fm.meta as { role?: unknown } | undefined)?.role;
 	ctx.out(`${name}: its doc says ${typeof role === "string" ? role : "nothing"}, it says ${says} (${root ? `root ${root}, ` : config ? "" : "no nosedive config, "}read from ${from})`);
@@ -48,14 +48,14 @@ export async function i413facba4ec6596291333591aab5b760(ctx: GateCtx): Promise<v
 	if (role !== says) throw new Error(`${name}'s doc says ${role}, but it is a ${says}`);
 }
 
-/** An older config names its root as root or backlog: then the root's kind says, a base with a workspace being a ship. */
+/** An older config names its root as root or backlog: then the root's kind says, a ship root or a base with a workspace being a hero. */
 function legacyRole(read: (path: string) => string | undefined, config: Record<string, unknown> | undefined, root: string | undefined): string {
 	if (!config || !root) return "misc";
 	const kb = (typeof config.kb === "string" ? config.kb : "kb").replace(/^\.\//, "").replace(/\/$/, "");
 	const text = read(`${kb}/${root}.md`);
 	if (text === undefined) return "misc";
 	const fm = readKbDoc(text).fm;
-	if (fm.kind === "base" && typeof (fm.meta as { workspace?: unknown } | undefined)?.workspace === "string") return "ship";
+	if (fm.kind === "ship" || (fm.kind === "base" && typeof (fm.meta as { workspace?: unknown } | undefined)?.workspace === "string")) return "hero";
 	return ROLES.includes(String(fm.kind)) ? String(fm.kind) : "misc";
 }
 

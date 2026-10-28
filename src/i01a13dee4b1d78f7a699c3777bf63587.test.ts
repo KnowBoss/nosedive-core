@@ -13,7 +13,7 @@ test("reads only the directory's own config, so a checkout in a workspace reads 
 	assert.equal(readRepoConfig(base)?.workspace, join(base, "workspace"));
 	const cape = gitRepo("read-repo-config-cape");
 	ok(await run(["seed", "--root-kind", "cape"], cape));
-	assert.equal(readRepoConfig(cape)?.workspace, undefined, "only a ship has a workspace");
+	assert.equal(readRepoConfig(cape)?.workspace, undefined, "only a hero repo has a workspace");
 	assert.match(readRepoConfig(cape)?.root ?? "", /^[0-9a-f-]{36}$/);
 });
 
@@ -40,7 +40,7 @@ test("reads a repo's id, roots, workspace and where it keeps kinds and repos fro
 	assert.throws(() => readRepoConfig(dir), /each of `roots` is a path to a doc named by its quid, not "kb\/notes\.md"/);
 });
 
-test("reads an older config's root from its kb, a base with a workspace as a ship, and refuses two roots", async () => {
+test("reads an older config's root from its kb, a base with a workspace as a hero repo, and refuses two roots", async () => {
 	const legacy = gitRepo("read-repo-config-legacy");
 	const root = ok(await run(["mint"], legacy));
 	mkdirSync(join(legacy, "kb"));

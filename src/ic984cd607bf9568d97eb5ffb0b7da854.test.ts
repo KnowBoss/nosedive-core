@@ -75,10 +75,10 @@ test("runs in a cape outside core, whose code imports core's types by name", asy
 	assert.match(readFileSync(join(dir, "src", "i01a1335bf2537b80ab64d2f9a03c9634.ts"), "utf8"), /from "nosedive-core"/);
 });
 
-test("refuses a repo with no cape root, a ship's workspace not making one", async () => {
-	const ship = gitRepo("scaf-ship");
-	ok(await run(["seed", "--workspace"], ship));
-	const refused = await run(["scaf"], ship);
+test("refuses a repo with no cape root, a hero's workspace not making one", async () => {
+	const hero = gitRepo("scaf-hero");
+	ok(await run(["seed", "--workspace"], hero));
+	const refused = await run(["scaf"], hero);
 	assert.equal(refused.code, 1);
 	assert.match(refused.err, /scaf runs in a cape, and none of this repo's roots is of kind cape: a root of kind cape in config `roots` makes it one, as `nosedive seed --root-kind cape` does/);
 	const bare = await run(["scaf"], gitRepo("scaf-bare"));

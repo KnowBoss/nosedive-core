@@ -13,7 +13,7 @@ export type Bridge = {
 	kbDir: string;
 	/** Its first root's id. */
 	root: string | undefined;
-	/** Where other repos are checked out, which only a ship has. */
+	/** Where other repos are checked out, which only a hero repo has. */
 	workspace: string | undefined;
 	/** Where a repo with `roots` keeps the kinds and repos its roots share; an older one keeps them in its kb. */
 	kindsDir?: string;
@@ -27,7 +27,7 @@ export function i01a1335485c67c95b7efdf2f0e03cfd6(start: string): Bridge | undef
 		if (config) found.push(config);
 		if (dirname(dir) === dir) break;
 	}
-	// The nearest ship, unless it is checked out in another ship's workspace: then that ship.
+	// The nearest hero, unless it is checked out in another hero's workspace: then that hero.
 	let bridge = found.find((candidate) => candidate.workspace !== undefined);
 	if (!bridge) return found[0];
 	for (const outer of found.slice(found.indexOf(bridge) + 1)) {

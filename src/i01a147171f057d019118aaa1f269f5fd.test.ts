@@ -21,15 +21,15 @@ test("finds a kind in the first kb that declares it, else in the capes, with its
 	assert.equal(findKind("goal", [kb], [core]), undefined);
 });
 
-test("given a ship, finds a kind its configured capes' builds recorded, without loading them", async () => {
-	const dir = await tempBridge("find-kind-ship");
+test("given a hero repo, finds a kind its configured capes' builds recorded, without loading them", async () => {
+	const dir = await tempBridge("find-kind-hero");
 	const repo = await registerRepo(dir, "kinded-cape", gitRepo("find-kind-cape"));
 	setCapes(dir, ["kinded-cape"]);
 	mkdirSync(join(dir, ".nosedive", "capes"), { recursive: true });
 	const idea = { schema: { type: "object", additionalProperties: false }, durable: false, links: [] };
 	const build = { id: "b", repo, ref: "", commit: "c", core: core.id, coreVersion: core.version, actions: {}, kinds: { idea }, needs: {}, version: "v", builtAt: "2026-01-01T00:00:00.000Z" };
 	writeFileSync(join(dir, ".nosedive", "capes", "manifest.json"), JSON.stringify([build]));
-	const ship = findBridge(dir)!;
-	assert.equal(findKind("idea", [ship.kbDir], [core]), undefined, "not without the ship");
-	assert.deepEqual(findKind("idea", [ship.kbDir], [core], ship), idea);
+	const hero = findBridge(dir)!;
+	assert.equal(findKind("idea", [hero.kbDir], [core]), undefined, "not without the hero");
+	assert.deepEqual(findKind("idea", [hero.kbDir], [core], hero), idea);
 });

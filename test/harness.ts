@@ -160,7 +160,7 @@ export function waveCapeRepo(options: Fixture = {}): string {
 	return dir;
 }
 
-/** The directory a repo keeps its docs in, as its config names it: a ship's bridge, any other repo's kb. */
+/** The directory a repo keeps its docs in, as its config names it: a hero's bridge, any other repo's kb. */
 export function kbOf(dir: string): string {
 	return readRepoConfig(dir)?.kbDir ?? join(dir, "kb");
 }
@@ -191,7 +191,7 @@ export function checkedOut(bridge: string, name: string): string {
 	return dir;
 }
 
-/** A ship, seeded in a fresh temp repo: the repo a team works from, with a workspace. */
+/** A hero repo, seeded in a fresh temp repo: the repo a team works from, with a workspace. */
 export async function tempBridge(label: string, seed: string[] = []): Promise<string> {
 	const dir = gitRepo(label);
 	ok(await run(["seed", "--workspace", ...seed], dir));

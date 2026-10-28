@@ -47,14 +47,14 @@ export function i01a15baf13e27bd88dc880d4871f2210(bridge: Bridge, doc: RepoDoc, 
 	return { dir, trunk };
 }
 
-/** A feat's checkout is named after the ship and its branch too, so checkouts of different ships never share a branch in the user's cache. */
+/** A feat's checkout is named after the hero and its branch too, so checkouts of different hero repos never share a branch in the user's cache. */
 function featBranch(bridge: Bridge, featId: string): string {
 	const on = git(bridge.dir, "symbolic-ref", "-q", "--short", "HEAD");
-	if (!on.ok) throw new Error("the ship is detached, so a feat's checkout has no branch to be named after: put the ship on a branch first");
+	if (!on.ok) throw new Error("the hero is detached, so a feat's checkout has no branch to be named after: put the hero on a branch first");
 	return `${bridge.id}/${on.text}/${featId}`;
 }
 
-/** The user's cache of a repo, shared by every checkout of every ship. */
+/** The user's cache of a repo, shared by every checkout of every hero. */
 function cachePath(doc: RepoDoc): string {
 	const user = process.env.NOSEDIVE_USER_DIR || join(homedir(), ".nosedive");
 	return join(user, "cache", `${String(doc.fm.id)}.git`);

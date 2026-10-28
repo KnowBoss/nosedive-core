@@ -24,7 +24,7 @@ const NOSEDIVE_IGNORES = ["cache/", "capes/", "local/"];
 const LOCKFILE = "!package-lock.json";
 
 /**
- * Makes the ship's workspace, which ignores everything in it, itself included, so nothing checked
+ * Makes the hero's workspace, which ignores everything in it, itself included, so nothing checked
  * out there is ever committed. A workspace whose path changed since the last seed is moved, clones
  * and all, rather than left behind.
  */
@@ -83,7 +83,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 	}
 
 	const own = readRepoConfig(dir)!;
-	// A cape's or ship's packages build from its lockfile, which a global ignore could hide from every commit.
+	// A cape's or hero's packages build from its lockfile, which a global ignore could hide from every commit.
 	if (findRoot(dir, "cape") || own.workspace !== undefined) {
 		const repoIgnore = join(dir, ".gitignore");
 		const text = existsSync(repoIgnore) ? readFileSync(repoIgnore, "utf8") : "";

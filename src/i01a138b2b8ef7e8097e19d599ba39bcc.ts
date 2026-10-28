@@ -6,10 +6,10 @@ import { i01a13354845c7253a55b60bba87285d8 as findDoc } from "./i01a13354845c725
 import { i01a138b2b8ee703cab227b010f588b6a as locateDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
 
 /** Returns a warning when nothing declares the kind; throws when the meta breaks its schema. */
-export function i01a138b2b8ef7e8097e19d599ba39bcc(kind: string, meta: unknown, kbDirs: string[], capes: Cape[], ship?: Bridge, pending?: ReadonlyMap<string, string>): string | undefined {
-	const schema = findKind(kind, kbDirs, capes, ship)?.schema;
+export function i01a138b2b8ef7e8097e19d599ba39bcc(kind: string, meta: unknown, kbDirs: string[], capes: Cape[], hero?: Bridge, pending?: ReadonlyMap<string, string>): string | undefined {
+	const schema = findKind(kind, kbDirs, capes, hero)?.schema;
 	if (schema === undefined) return `no kind ${kind} is declared here; its meta is not checked`;
-	// Each validation owns its resolver, so one ship's refs cannot leak into another.
+	// Each validation owns its resolver, so one hero's refs cannot leak into another.
 	const ajv = new Ajv2020({ allErrors: true, strict: false });
 	ajv.addKeyword({
 		keyword: "kind",
@@ -27,7 +27,7 @@ export function i01a138b2b8ef7e8097e19d599ba39bcc(kind: string, meta: unknown, k
 				const doc = findDoc(kb, quid);
 				if (doc) return doc.fm.kind === expected;
 			}
-			const doc = ship ? locateDoc(ship, quid) : undefined;
+			const doc = hero ? locateDoc(hero, quid) : undefined;
 			if (doc) return doc.fm.kind === expected;
 			for (const cape of capes) {
 				if (cape.docs?.[quid]) return cape.docs[quid]!.kind === expected;

@@ -18,7 +18,7 @@ export function i01a141f869c07c4da8288927a559c8ae(
 	return { id, name, path };
 }
 
-/** A name as a title: `build-ship` is `Build ship`. */
+/** A name as a title: `build-hero` is `Build hero`. */
 function titleOf(name: string): string {
 	const words = name.replace(/-/g, " ");
 	return words.charAt(0).toUpperCase() + words.slice(1);

@@ -68,7 +68,7 @@ export type GateCtx = {
 /** Runs one command line, core's actions first and never shadowed; returns the exit code. */
 export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx): Promise<number> {
 	try {
-		// <cape>:<action> picks whose action runs: core's, the ship's own, or a configured cape's.
+		// <cape>:<action> picks whose action runs: core's, the hero's own, or a configured cape's.
 		const prefixed = /^([^:]+):([^:]+)$/.exec(argv[0] ?? "");
 		const only = prefixed?.[1];
 		if (prefixed) argv = [prefixed[2]!, ...argv.slice(1)];
@@ -150,7 +150,7 @@ async function renderActions(ctx: Ctx): Promise<string> {
 	const coreRows = Object.values(core.docs).flatMap((doc): [string, string][] => (doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") ? [[doc.name, doc.gist]] : []));
 	groups.push([core.name, coreRows]);
 	const bridge = findBridge(ctx.cwd);
-	// The ship's own commands, read from its docs: listing them needs no build.
+	// The hero's own commands, read from its docs: listing them needs no build.
 	const root = bridge && findRoot(bridge.dir, "cape");
 	if (bridge && root) {
 		const rows = Object.values(describeCapeSource(bridge.dir, true).docs).flatMap((doc): [string, string][] =>

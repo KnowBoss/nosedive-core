@@ -69,7 +69,7 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 
 function gitRoot(cwd: string): string {
 	const result = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
-	if (result.status !== 0) throw new Error("scaf runs in a cape or a ship, and this is not a git repo");
+	if (result.status !== 0) throw new Error("scaf runs in a cape or a hero repo, and this is not a git repo");
 	return result.stdout.trim();
 }
 

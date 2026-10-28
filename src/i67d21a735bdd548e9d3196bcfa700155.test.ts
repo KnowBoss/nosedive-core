@@ -29,11 +29,11 @@ test("makes a git repo a nosedive repo, its config naming its id and one root of
 });
 
 test("--workspace makes it able to do work, and a cape root keeps its lockfile committable too", async () => {
-	const ship = gitRepo("seed-workspace");
-	ok(await run(["seed", "--workspace"], ship));
-	const { id, roots, text } = configOf(ship);
+	const hero = gitRepo("seed-workspace");
+	ok(await run(["seed", "--workspace"], hero));
+	const { id, roots, text } = configOf(hero);
 	assert.equal(text, `id: ${id}\nlast-migration: ${MIGRATIONS.at(-1)!.id}\nworkspace: ./workspace\nroots:\n  - ${roots[0]}\n`);
-	assert.equal(readFileSync(join(ship, ".gitignore"), "utf8"), "!package-lock.json\n", "the repo's own .gitignore is the user's, but for its lockfile");
+	assert.equal(readFileSync(join(hero, ".gitignore"), "utf8"), "!package-lock.json\n", "the repo's own .gitignore is the user's, but for its lockfile");
 	const later = gitRepo("seed-workspace-later");
 	ok(await run(["seed"], later));
 	ok(await run(["seed", "--workspace"], later));
@@ -107,7 +107,7 @@ test("builds capes whose actions clash, and the launcher asks which, as <cape>:<
 	assert.match(ambiguous.err, /greet is an action of greet-cape and other-greet: name one, as `greet-cape:greet` or `other-greet:greet`/);
 	assert.match(ok(await run(["other-greet:greet", "ann"], bridge)), /^hello ann /);
 	assert.match((await run(["nosedive-core:greet", "ann"], bridge)).err, /nosedive-core has no action greet/);
-	assert.match((await run(["nope:greet", "ann"], bridge)).err, /no cape nope in this ship's config `capes`/);
+	assert.match((await run(["nope:greet", "ann"], bridge)).err, /no cape nope in this hero's config `capes`/);
 	assert.match(ok(await run(["nosedive-core:mint"], bridge)), /^[0-9a-f-]{36}$/, "core's own actions run under its name too");
 });
 
@@ -148,7 +148,7 @@ test("migrates an older config first, its backlog becoming its one root, and say
 });
 
 test("a workspace ignores itself, and moves when its path changes", async () => {
-	const base = gitRepo("seed-ship");
+	const base = gitRepo("seed-hero");
 	ok(await run(["seed", "--workspace"], base));
 	const config = join(base, ".nosedive", "config.yaml");
 	assert.equal(readFileSync(join(base, "workspace", ".gitignore"), "utf8"), "*\n");

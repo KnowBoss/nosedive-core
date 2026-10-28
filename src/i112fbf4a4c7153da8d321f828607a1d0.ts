@@ -32,7 +32,7 @@ export function i112fbf4a4c7153da8d321f828607a1d0(edit: KbEdit, quid: string, pa
 	}
 }
 
-/** A link's key: the doc's path from the root of its repo, as bridge/<id>.md in a ship. */
+/** A link's key: the doc's path from the root of its repo, as bridge/<id>.md in a hero repo. */
 function keyOf(doc: { path: string; repoDir: string }): string {
 	return relative(doc.repoDir, doc.path).replace(/\\/g, "/");
 }

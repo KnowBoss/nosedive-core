@@ -44,7 +44,7 @@ export function i01a13dee4b1d78f7a699c3777bf63587(dir: string): Bridge | undefin
 	const root = named[0];
 	const rootDoc = root ? findKbDoc(kbDir, root) : undefined;
 	const meta = (rootDoc?.fm.meta ?? {}) as { workspace?: unknown };
-	// A legacy base that carries a workspace is read as a ship.
+	// A legacy base that carries a workspace is read as a hero repo.
 	const hasWorkspace = rootDoc?.fm.kind === "ship" || (rootDoc?.fm.kind === "base" && text(meta.workspace) !== undefined);
 	const workspace = hasWorkspace ? resolve(dir, text(meta.workspace) ?? "workspace") : undefined;
 	const roots = root ? [{ id: root, dir: kbDir, path: join(kbDir, `${root}.md`) }] : [];

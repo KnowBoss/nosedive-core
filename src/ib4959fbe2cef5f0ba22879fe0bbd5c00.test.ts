@@ -127,8 +127,8 @@ test("status compares a repo's role with what our checkout of it says, else the 
 
 	// Once checked out, the checkout is what it reads, whatever its remote has since.
 	ok(await run(["crud", plain, "--meta", "-"], bridge, "role: misc\n"));
-	const ship = findBridge(bridge)!;
-	hydrateRepo(ship, findKbDoc(ship.kbDir, plain)!, { out: () => {}, err: () => {} });
+	const hero = findBridge(bridge)!;
+	hydrateRepo(hero, findKbDoc(hero.kbDir, plain)!, { out: () => {}, err: () => {} });
 	ok(await run(["seed"], source));
 	assert.match(ok(await run(["pass", "--status", plain], bridge)), /plain: its doc says misc, it says misc \(no nosedive config, read from the checkout workspace\/plain\)\ngate status: passed$/);
 	// Its config says what a repo is: roots alone, neither a workspace nor a cape root, make a base.
