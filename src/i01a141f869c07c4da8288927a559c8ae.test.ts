@@ -30,10 +30,10 @@ test("writes a doc with a minted id, a name slugged from its gist, and its meta"
 
 test("takes a given id, name and title, and never overwrites", () => {
 	const kb = tempDir("mint-kb-doc-given");
-	const given = { kind: "base", id: "01a141ff-2539-7f5d-b07d-52a11fd6acb9", name: "my-base", gist: "What my-base holds", title: "my-base" };
+	const given = { kind: "root", id: "01a141ff-2539-7f5d-b07d-52a11fd6acb9", name: "my-root", gist: "What my-root holds", title: "my-root" };
 	const doc = mintKbDoc(kb, given);
-	assert.deepEqual([doc.id, doc.name], [given.id, "my-base"]);
-	assert.match(readFileSync(doc.path, "utf8"), /# my-base/);
+	assert.deepEqual([doc.id, doc.name], [given.id, "my-root"]);
+	assert.match(readFileSync(doc.path, "utf8"), /# my-root/);
 	assert.throws(() => mintKbDoc(kb, given), /already exists/);
 });
 

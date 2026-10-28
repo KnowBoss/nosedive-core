@@ -11,5 +11,5 @@ test("puts a repo at <workspace>/<name> in a base, and refuses anywhere else", a
 	assert.equal(checkoutPath(findBridge(base)!, "other"), join(base, "workspace", "other"));
 	const cape = gitRepo("checkout-path-cape");
 	ok(await run(["seed", "--root-kind", "cape"], cape));
-	assert.throws(() => checkoutPath(findBridge(cape)!, "other"), /other cannot be checked out here: only a base has a workspace/);
+	assert.throws(() => checkoutPath(findBridge(cape)!, "other"), /other cannot be checked out here: only a hero repo has a workspace/);
 });

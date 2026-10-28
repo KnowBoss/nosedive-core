@@ -25,15 +25,15 @@ test("defaults the kb, and finds nothing outside a bridge", () => {
 	assert.equal(findBridge(dir)?.kbDir, join(dir, "kb"));
 });
 
-test("the bridge is the nearest base, unless that base is checked out in another's workspace", async () => {
+test("the bridge is the nearest hero, unless that hero is checked out in another's workspace", async () => {
 	const outer = await tempBridge("find-bridge-outer");
 	const inner = join(outer, "workspace", "inner");
 	mkdirSync(inner, { recursive: true });
 	git(["init", "-q", "-b", "main"], inner);
 	git(["config", "user.name", "Core Test"], inner);
 	git(["config", "user.email", "core@example.com"], inner);
-	ok(await run(["seed", "--root-kind", "base"], inner));
-	assert.equal(findBridge(join(inner, "kb"))?.dir, outer, "a base in another's workspace is one of its repos");
+	ok(await run(["seed"], inner));
+	assert.equal(findBridge(join(inner, "kb"))?.dir, outer, "a hero in another's workspace is one of its repos");
 	assert.equal(findBridge(outer)?.workspace, join(outer, "workspace"));
 	assert.equal(findBridge(inner)?.workspace, join(outer, "workspace"));
 });
