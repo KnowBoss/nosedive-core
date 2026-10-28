@@ -158,6 +158,10 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 	}
 }
 
+Object.defineProperty(i01a1336a958f71c7beec4db3195c7966, "writeProtection", {
+	value: Object.freeze({ protocol: 1, backend: process.platform === "win32" ? "windows-handles" : "unavailable" }),
+});
+
 /** The ctx of a real command line: this process's stdio, in the repo NOSEDIVE_HERO names or else its cwd. */
 export function consoleCtx(capes: Cape[]): Ctx {
 	return {

@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
-import { relative } from "node:path";
+import { relative, resolve, join } from "node:path";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc, kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
+import { hostname } from "node:os";
+import { randomUUID } from "node:crypto";
 import type { KbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge, type Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -103,6 +105,8 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 				if (process.platform !== "win32") throw conflict("Enforced file-write exclusion is unavailable on this platform; no files were written.");
 				const replacements = new Map([...byRepo.values()].flat().map(({ doc, text }) => [doc, Buffer.from(text).toString("base64")]));
 				const plan = {
+					parent: process.pid, host: hostname(),
+					leases: [...new Set([...heads.keys()].map(repo => realpathSync(resolve(repo,git(repo,"rev-parse","--git-common-dir").trim()))))].map(common => join(common,"nosedive-writers",randomUUID()+".json")),
 					files: [...originals].map(([doc, original]) => ({ path: original.path, expected: original.content.toString("base64"), replacement: replacements.get(doc), index: original.index, repo: original.repo })),
 					repos: [...byRepo].map(([repo, written]) => ({ repo, head: heads.get(repo), paths: written.map(({doc}) => relative(repo,doc.path).replace(/\\/g,"/")), message: given ?? (written.length === 1 ? `crud(${written[0]!.doc.id}): updated ${String(written[0]!.doc.fm.kind)} ${String(written[0]!.doc.fm.name)}` : `crud: updated ${written.length} docs`) })),
 					heads: [...heads].map(([repo,head])=>({repo,head})),
@@ -113,7 +117,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 					receipt = JSON.parse(result.stdout);
 					if (!receipt || typeof receipt.ok !== "boolean" || typeof receipt.started !== "boolean") throw new Error("Invalid writer receipt.");
 				} catch { throw Object.assign(new Error(`Protected writer was not acknowledged: ${result.error?.message ?? result.stderr}`), { outcome: "unknown" }); }
-				if (!receipt.ok) throw Object.assign(new Error(receipt.error ?? "Protected write failed."), { status: receipt.started ? 500 : 409, outcome: receipt.started ? "unknown" : "not_applied", code: receipt.started ? "WRITE_FAILED" : "REPOSITORY_CHANGED" });
+				if (!receipt.ok) throw Object.assign(new Error(receipt.error?.trim() || "Protected write failed; inspect its recorded outcome before submitting again."), { status: receipt.started ? 500 : 409, outcome: receipt.started ? "unknown" : "not_applied", code: receipt.started ? "WRITE_FAILED" : "REPOSITORY_CHANGED" });
 				return [...changed].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));
 			}
 			for (const [repoDir, written] of byRepo) {
@@ -135,6 +139,8 @@ $ProgressPreference = 'SilentlyContinue'
 [Console]::InputEncoding = New-Object Text.UTF8Encoding($false)
 [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
 $streams = New-Object 'System.Collections.Generic.List[System.IO.FileStream]'
+$leases = New-Object 'System.Collections.Generic.List[string]'
+$parentProcess = $null
 $started = $false
 function Git($repo, $arguments) {
   $previous = $ErrorActionPreference
@@ -142,11 +148,20 @@ function Git($repo, $arguments) {
   $output = & git.exe -C $repo @arguments 2>&1
   $code = $LASTEXITCODE
   $ErrorActionPreference = $previous
-  if ($code -ne 0) { throw ($output -join [char]10) }
+  if ($code -ne 0) { $reason = ($output -join [char]10); if (!$reason) { $reason = "git $($arguments[0]) failed with exit code $code" }; throw $reason }
   return ($output -join [char]10).TrimEnd([char[]]@(13,10))
 }
 try {
   $plan = [Console]::In.ReadToEnd() | ConvertFrom-Json
+  foreach ($lease in $plan.leases) {
+    $null = [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($lease))
+    $owner = [Text.Encoding]::UTF8.GetBytes((@{pid=$PID;host=$plan.host;parent=$plan.parent} | ConvertTo-Json -Compress))
+    $registration = New-Object IO.FileStream($lease,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::Read)
+    $leases.Add($lease)
+    try { $registration.Write($owner,0,$owner.Length); $registration.Flush($true) } finally { $registration.Dispose() }
+  }
+  $parentProcess = [Diagnostics.Process]::GetProcessById([int]$plan.parent)
+  if ($parentProcess.HasExited) { throw 'The requesting process exited; nothing was written.' }
   foreach ($file in $plan.files) {
     $access = [IO.FileAccess]::Read
     if ($null -ne $file.replacement) { $access = [IO.FileAccess]::ReadWrite }
@@ -166,6 +181,7 @@ try {
   }
   for ($i = 0; $i -lt $plan.files.Count; $i++) {
     if ($null -eq $plan.files[$i].replacement) { continue }
+    if ($parentProcess.HasExited) { throw 'The requesting process exited during saving.' }
     $bytes = [Convert]::FromBase64String($plan.files[$i].replacement)
     $started = $true
     $streams[$i].Position = 0
@@ -174,6 +190,7 @@ try {
     $streams[$i].Flush($true)
   }
   foreach ($repo in $plan.repos) {
+    if ($parentProcess.HasExited) { throw 'The requesting process exited before commit.' }
     $spec = [IO.Path]::GetTempFileName()
     $message = [IO.Path]::GetTempFileName()
     try {
@@ -189,5 +206,7 @@ try {
   @{ok=$false;started=$started;error=$_.Exception.Message} | ConvertTo-Json -Compress
 } finally {
   foreach ($stream in $streams) { $stream.Dispose() }
+  foreach ($lease in $leases) { [IO.File]::Delete($lease) }
+  if ($null -ne $parentProcess) { $parentProcess.Dispose() }
 }
 `;
