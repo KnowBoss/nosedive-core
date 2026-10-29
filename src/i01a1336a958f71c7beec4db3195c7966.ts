@@ -1,8 +1,9 @@
-import { resolve } from "node:path";
+import { existsSync, statSync } from "node:fs";
+import { basename, isAbsolute, relative, resolve } from "node:path";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import { i01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./i01a1335482437c9eb145885f65f12aa1.ts";
 import { i01a1337c825f7457b879d5c039ffeccd as findCape } from "./i01a1337c825f7457b879d5c039ffeccd.ts";
-import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge, insideWorkspace } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 import { i01a14fb79db47f8b94d5196027008697 as buildBase } from "./i01a14fb79db47f8b94d5196027008697.ts";
@@ -69,13 +70,24 @@ export type GateCtx = {
 
 /** Runs one command line, core's actions first and never shadowed; returns the exit code. */
 export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx): Promise<number> {
+	const base = process.env.NOSEDIVE_BASE;
 	try {
-		// --base <base> selects which of the hero's bases, and so which capes, the action runs with.
+		// A workspace checkout is never a hero, so nothing acts on one by running inside it.
+		const inside = process.env.NOSEDIVE_HERO ? undefined : insideWorkspace(ctx.cwd);
+		if (inside) {
+			const name = basename(inside.checkout);
+			throw new Error(`${name} is checked out in ${inside.hero.dir}'s workspace, and a checkout is never a hero: run nosedive from ${inside.hero.workspace} (with --base ./${name} to write into it), or set NOSEDIVE_HERO`);
+		}
+		// --base <base> selects the base: a root, whose capes the action runs with, or any directory for crud to write into.
 		if (argv[0] === "--base") {
 			const wanted = argv[1];
 			const bridge = findBridge(ctx.cwd);
-			if (!wanted || !bridge || !selectBase(bridge.roots, wanted)) throw new Error(`--base names one of the hero's roots, by quid, name or directory, and ${wanted ?? "nothing"} is none`);
-			process.env.NOSEDIVE_BASE = wanted;
+			if (!wanted || !bridge) throw new Error(`--base names one of the hero's roots or a directory in it, and ${wanted ?? "nothing"} is none`);
+			const dir = resolve(ctx.cwd, wanted);
+			const inHero = [bridge.dir, bridge.workspace].some((parent) => parent !== undefined && !relative(parent, dir).startsWith("..") && !isAbsolute(relative(parent, dir)));
+			if (selectBase(bridge.roots, wanted)) process.env.NOSEDIVE_BASE = wanted;
+			else if (inHero && existsSync(dir) && statSync(dir).isDirectory()) process.env.NOSEDIVE_BASE = dir;
+			else throw new Error(`--base names one of the hero's roots, by quid, name or directory, or a directory in the hero or its workspace, and ${wanted} is none`);
 			argv = argv.slice(2);
 		}
 		// <cape>:<action> picks whose action runs: core's, the hero's own, or a worn cape's.
@@ -125,6 +137,10 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 	} catch (err) {
 		ctx.err(`nosedive: ${err instanceof Error ? err.message : String(err)}`);
 		return 1;
+	} finally {
+		// --base holds for this command line only, as helm runs many in one process.
+		if (base === undefined) delete process.env.NOSEDIVE_BASE;
+		else process.env.NOSEDIVE_BASE = base;
 	}
 }
 

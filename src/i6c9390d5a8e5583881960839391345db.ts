@@ -6,26 +6,32 @@ import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1335487317576a0afd03506ef5555 as readSource } from "./i01a1335487317576a0afd03506ef5555.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
-import { i01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "./i01a138b2b8ed775297973c2aad478c8f.ts";
+import { i01a147171f057d019118aaa1f269f5fd as findKind } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7e8097e19d599ba39bcc.ts";
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
 import { i01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "./i01a13354850c7ba3ba5b8ac41a7b6b11.ts";
 
-export async function ia73b03420ddb598498e19a66b144de9a(
-	doc: { repo: string | undefined; kind: string; gist: string; name: string | undefined; meta: string | undefined; into?: string },
+const KIND_OF_KINDS = "01a138b2-b8e9-7f63-9068-f1439b9cb8c9";
+const REPO_KIND = "01a138b2-b8eb-79e8-9d77-6e8379ec18e3";
+
+export async function i6c9390d5a8e5583881960839391345db(
+	doc: { kind: string; gist: string; name: string | undefined; meta: string | undefined },
 	ctx: Ctx,
 ): Promise<void> {
 	const bridge = findBridge(ctx.cwd);
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");
-	const target = doc.repo ? workspaceRepo(bridge, doc.repo) : { dir: bridge.dir, kbDir: intoTarget(bridge, doc.kind, doc.into) };
 	const meta = doc.meta === undefined ? {} : await readSource(doc.meta, ctx);
 	if (meta === null || typeof meta !== "object" || Array.isArray(meta)) throw new Error("--meta takes a mapping");
-	const warning = checkMeta(doc.kind, meta, [target.kbDir, bridge.kbDir], ctx.capes, bridge);
+	const kind = findKind(doc.kind, [bridge.baseDir, bridge.kbDir], ctx.capes, bridge);
+	if (kind?.id === KIND_OF_KINDS && doc.name === "kind") throw new Error("only core declares the kind named kind");
+	const kbDir = targetDir(bridge, kind?.id);
+	const warning = checkMeta(doc.kind, meta, [kbDir, bridge.kbDir], ctx.capes, bridge);
 	if (warning) ctx.err(`nosedive: ${warning}`);
 
-	if (doc.kind === "repo") checkRepo(bridge, target.kbDir, doc.name, meta as Record<string, unknown>);
-	const minted = mintKbDoc(target.kbDir, { kind: doc.kind, gist: doc.gist, name: doc.name, meta: meta as Record<string, unknown> });
-	commitFiles(target.dir, [minted.path], `crud(${minted.id}): created ${doc.kind} ${minted.name}`);
+	if (kind?.id === REPO_KIND) checkRepo(bridge, kbDir, doc.name, meta as Record<string, unknown>);
+	const minted = mintKbDoc(kbDir, { kind: doc.kind, gist: doc.gist, name: doc.name, meta: meta as Record<string, unknown> });
+	// git finds the repo holding the doc from its directory, a checkout's included.
+	commitFiles(kbDir, [minted.path], `crud(${minted.id}): created ${doc.kind} ${minted.name}`);
 	ctx.out(relative(bridge.dir, minted.path).replace(/\\/g, "/"));
 }
 
@@ -41,20 +47,10 @@ function checkRepo(bridge: Bridge, kbDir: string, name: string | undefined, meta
 	if (reached.status !== 0) throw new Error(`cannot reach ${origin}, so no repo was registered: ${(reached.stderr || reached.stdout).trim()}`);
 }
 
-/**
- * Where the bridge mints a doc: kinds and repos where it keeps them, anything else in the directory of the root
- * `--into` names, else of its only root.
- */
-function intoTarget(bridge: Bridge, kind: string, into: string | undefined): string {
-	const rel = (dir: string) => relative(bridge.dir, dir).replace(/\\/g, "/");
-	if (into !== undefined) {
-		const at = resolve(bridge.dir, into);
-		const named = bridge.roots.find((root) => root.path === at || root.dir === at);
-		if (!named) throw new Error(`${into} is no root of this repo; its roots: ${bridge.roots.map((root) => rel(root.path)).join(", ")}`);
-		return named.dir;
-	}
-	if (kind === "kind" && bridge.kindsDir) return bridge.kindsDir;
-	if (kind === "repo" && bridge.reposDir) return bridge.reposDir;
-	if (bridge.roots.length > 1) throw new Error(`this repo has ${bridge.roots.length} roots: name one with --into <path>, one of ${bridge.roots.map((root) => rel(root.path)).join(", ")}`);
-	return bridge.kbDir;
+/** Core's own kinds and repos go where the hero reads them; any other doc goes in the selected base. */
+function targetDir(bridge: Bridge, kindId: string | undefined): string {
+	const managed = kindId === KIND_OF_KINDS ? bridge.kindsDir : kindId === REPO_KIND ? bridge.reposDir : undefined;
+	if (!managed) return bridge.baseDir;
+	if (process.env.NOSEDIVE_BASE) throw new Error(`core's ${kindId === REPO_KIND ? "repos" : "kinds"} live in ${relative(bridge.dir, managed).replace(/\\/g, "/")}, where the hero reads them, whatever base is selected: drop --base`);
+	return managed;
 }

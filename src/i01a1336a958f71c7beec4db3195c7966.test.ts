@@ -1,7 +1,10 @@
 // launch
 import assert from "node:assert/strict";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import { consoleCtx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
 test("lists core's top-level actions, never internal functions", async () => {
@@ -31,12 +34,20 @@ test("--help lists an action's usages and names --help --more, which adds its ##
 	assert.match(ok(await run(["scaf", "--help", "--more"], dir)), /\n\nRun in a cape or a hero repo: /);
 });
 
-test("--base selects one of the hero's roots by directory, name or quid, and refuses any other; NOSEDIVE_HERO names the repo to act on", async () => {
+test("--base selects one of the hero's roots by directory, name or quid, else a directory in the hero for crud to write into; NOSEDIVE_HERO names the repo to act on", async () => {
 	const bridge = await tempBridge("launch-base");
 	try {
-		assert.match((await run(["--base", "nope", "help"], bridge)).err, /--base names one of the hero's roots, by quid, name or directory, and nope is none/);
-		ok(await run(["--base", "kb", "help"], bridge));
-		assert.equal(process.env.NOSEDIVE_BASE, "kb");
+		assert.match((await run(["--base", "nope", "help"], bridge)).err, /--base names one of the hero's roots, by quid, name or directory, or a directory in the hero or its workspace, and nope is none/);
+		assert.match((await run(["--base", "..", "help"], bridge)).err, /and \.\. is none/, "a directory outside the hero");
+		assert.match(ok(await run(["--base", "kb", "crud", "memo", "Home"], bridge)), /^kb\//);
+		const home = findBridge(bridge)!;
+		assert.equal(home.baseDir, home.kbDir);
+		mkdirSync(join(bridge, "notes"));
+		assert.match(ok(await run(["--base", "notes", "crud", "memo", "Apart"], bridge)), /^notes\/[0-9a-f-]{36}\.md$/);
+		assert.equal(process.env.NOSEDIVE_BASE, undefined, "--base holds for one command line");
+		process.env.NOSEDIVE_BASE = join(bridge, "notes");
+		const plain = findBridge(bridge)!;
+		assert.deepEqual([plain.baseDir, plain.base], [join(bridge, "notes"), home.root], "a plain directory is written to, and the home base's capes are worn");
 	} finally {
 		delete process.env.NOSEDIVE_BASE;
 	}

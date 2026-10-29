@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 
 export type Bridge = {
@@ -13,8 +13,10 @@ export type Bridge = {
 	kbDir: string;
 	/** Its primary root's id: the root whose id is config `id`, else its first. */
 	root: string | undefined;
-	/** The selected base's id: the root NOSEDIVE_BASE names, else the primary. */
+	/** The selected base's id: the root NOSEDIVE_BASE names, else the primary, whose capes a plain directory wears. */
 	base: string | undefined;
+	/** Where crud writes: the selected base's directory, or the plain directory NOSEDIVE_BASE names. */
+	baseDir: string;
 	/** Where other repos are checked out, which only a hero repo has. */
 	workspace: string | undefined;
 	/** Where it keeps the kinds and repos its roots share. */
@@ -23,22 +25,22 @@ export type Bridge = {
 };
 
 export function i01a1335485c67c95b7efdf2f0e03cfd6(start: string): Bridge | undefined {
-	const found: Bridge[] = [];
 	for (let dir = resolve(start); ; dir = dirname(dir)) {
 		const config = readRepoConfig(dir);
-		if (config) found.push(config);
-		if (dirname(dir) === dir) break;
+		if (config) return config;
+		if (dirname(dir) === dir) return undefined;
 	}
-	// The nearest hero, unless it is checked out in another hero's workspace: then that hero.
-	let bridge = found.find((candidate) => candidate.workspace !== undefined);
-	if (!bridge) return found[0];
-	for (const outer of found.slice(found.indexOf(bridge) + 1)) {
-		if (outer.workspace !== undefined && within(outer.workspace, bridge.dir)) bridge = outer;
-	}
-	return bridge;
 }
 
-function within(parent: string, child: string): boolean {
-	const rel = relative(parent, child);
-	return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+/** The hero whose workspace holds a directory, and the checkout it sits in; the workspace directory itself is in none. */
+export function insideWorkspace(start: string): { hero: Bridge; checkout: string } | undefined {
+	const at = resolve(start);
+	for (let dir = dirname(at); ; dir = dirname(dir)) {
+		const hero = readRepoConfig(dir);
+		if (hero?.workspace !== undefined) {
+			const rel = relative(hero.workspace, at);
+			if (rel !== "" && !rel.startsWith("..") && !isAbsolute(rel)) return { hero, checkout: join(hero.workspace, rel.split(sep)[0]!) };
+		}
+		if (dirname(dir) === dir) return undefined;
+	}
 }

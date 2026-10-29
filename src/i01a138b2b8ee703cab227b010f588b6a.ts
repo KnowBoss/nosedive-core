@@ -1,4 +1,6 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "./i01a138b2b8ed775297973c2aad478c8f.ts";
@@ -13,8 +15,16 @@ export function i01a138b2b8ee703cab227b010f588b6a(bridge: Bridge, id: string) {
 		if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
 		const repo = workspaceRepo(bridge, entry.name);
 		const config = readRepoConfig(repo.dir);
-		const doc = config ? inRepo(config, id) : existsSync(repo.kbDir) ? findKbDoc(repo.kbDir, id) : undefined;
-		if (doc) return { kbDir: repo.kbDir, ...doc, repoDir: repo.dir };
+		if (config) {
+			const doc = inRepo(config, id);
+			if (doc) return { ...doc, repoDir: repo.dir };
+			continue;
+		}
+		// A repo of data is laid out as its people like: its doc is wherever git tracks it.
+		const tracked = spawnSync("git", ["ls-files", "-z", "--", `:(glob)**/${id}.md`], { cwd: repo.dir, encoding: "utf8" }).stdout?.split("\0")[0];
+		const kbDir = tracked ? dirname(join(repo.dir, tracked)) : undefined;
+		const doc = kbDir ? findKbDoc(kbDir, id) : undefined;
+		if (doc) return { ...doc, repoDir: repo.dir, kbDir: kbDir! };
 	}
 	return undefined;
 }

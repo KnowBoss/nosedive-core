@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { git, ok, run, tempBridge, tempDir } from "../test/harness.ts";
+import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge, insideWorkspace } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { ok, run, tempBridge, tempDir } from "../test/harness.ts";
 
 test("walks up to the nearest config and resolves its kb, its first root's directory", () => {
 	const dir = tempDir("find-bridge");
@@ -25,15 +25,22 @@ test("defaults the kb, and finds nothing outside a bridge", () => {
 	assert.equal(findBridge(dir)?.kbDir, join(dir, "kb"));
 });
 
-test("the bridge is the nearest hero, unless that hero is checked out in another's workspace", async () => {
+test("a workspace checkout is never a hero: nosedive refuses to run inside one unless NOSEDIVE_HERO is set", async () => {
 	const outer = await tempBridge("find-bridge-outer");
-	const inner = join(outer, "workspace", "inner");
-	mkdirSync(inner, { recursive: true });
-	git(["init", "-q", "-b", "main"], inner);
-	git(["config", "user.name", "Core Test"], inner);
-	git(["config", "user.email", "core@example.com"], inner);
-	ok(await run(["seed"], inner));
-	assert.equal(findBridge(join(inner, "kb"))?.dir, outer, "a hero in another's workspace is one of its repos");
-	assert.equal(findBridge(outer)?.workspace, join(outer, "workspace"));
-	assert.equal(findBridge(inner)?.workspace, join(outer, "workspace"));
+	const workspace = join(outer, "workspace");
+	const inner = join(workspace, "inner");
+	mkdirSync(join(inner, ".nosedive"), { recursive: true });
+	writeFileSync(join(inner, ".nosedive", "config.yaml"), "workspace: ./workspace\n");
+	assert.equal(findBridge(join(inner, "kb"))?.dir, inner, "the nearest config");
+	assert.deepEqual(insideWorkspace(join(inner, "kb")), { hero: findBridge(outer), checkout: inner });
+	assert.equal(insideWorkspace(workspace), undefined, "the workspace itself is in no checkout");
+	assert.equal(insideWorkspace(outer), undefined);
+	assert.match((await run(["help"], join(inner, "kb"))).err, /inner is checked out in .*'s workspace, and a checkout is never a hero: run nosedive from .*workspace \(with --base \.\/inner to write into it\), or set NOSEDIVE_HERO/);
+	ok(await run(["help"], workspace));
+	process.env.NOSEDIVE_HERO = inner;
+	try {
+		ok(await run(["help"], inner));
+	} finally {
+		delete process.env.NOSEDIVE_HERO;
+	}
 });

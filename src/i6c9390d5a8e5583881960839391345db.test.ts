@@ -1,4 +1,4 @@
-// crud <kind> <gist>... [--name <name>] [--meta <source>] [--into <path>]
+// crud <kind> <gist>... [--name <name>] [--meta <source>]
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -35,16 +35,23 @@ test("refuses outside a bridge, and a kind that is not a slug", async () => {
 	assert.match(outside.err, /not in a bridge: run `nosedive seed` first/);
 });
 
-test("<repo>:<kind> mints into that repo's checkout in the workspace, and commits there", async () => {
+test("--base writes into a workspace checkout, at any directory of it, and commits there; <cape>:<kind> names whose kind", async () => {
 	const bridge = await tempBridge("crud-mint-repo");
 	const repo = checkedOut(bridge, "other");
-	const path = ok(await run(["crud", "other:memo", "over", "there"], bridge));
-	assert.match(path, /^workspace\/other\/kb\/[0-9a-f-]{36}\.md$/);
+	const path = ok(await run(["--base", "workspace/other", "crud", "memo", "over", "there"], bridge));
+	assert.match(path, /^workspace\/other\/[0-9a-f-]{36}\.md$/);
 	assert.match(git(["log", "-1", "--format=%s"], repo), /^crud\(\S+\): created memo over-there-/);
 	assert.equal(git(["status", "--porcelain"], bridge), "", "the workspace is ignored");
-	const missing = await run(["crud", "elsewhere:memo", "x"], bridge);
-	assert.equal(missing.code, 1);
-	assert.match(missing.err, /elsewhere is not checked out at workspace\/elsewhere/);
+	const cores = ok(await run(["--base", "workspace/other/kb", "crud", "nosedive-core:memo", "core's"], bridge));
+	assert.match(cores, /^workspace\/other\/kb\//);
+	assert.match(readFileSync(join(bridge, cores), "utf8"), /^kind: nosedive-core:memo$/m, "the kind is written as given");
+	assert.match((await run(["crud", "nope-cape:memo", "x"], bridge)).err, /nope-cape declares no kind memo/);
+	assert.match((await run(["--base", "workspace/elsewhere", "crud", "memo", "x"], bridge)).err, /workspace\/elsewhere is none/);
+});
+
+test("refuses a kind doc named kind: only core declares the kind of kinds", async () => {
+	const bridge = await tempBridge("crud-mint-kind-kind");
+	assert.match((await run(["crud", "kind", "Kinds", "--name", "kind"], bridge)).err, /only core declares the kind named kind/);
 });
 
 test("checks the kind: warns when nothing declares it, refuses a schema an empty meta breaks", async () => {
@@ -93,7 +100,7 @@ test("refuses a repo with no name, a name taken, or an origin git cannot reach, 
 	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
 
-test("keeps kinds and repos in .nosedive/, and mints into the root --into names, else the only root", async () => {
+test("keeps core's kinds and repos in .nosedive/, whatever the base, and mints anything else into the selected base", async () => {
 	const bridge = await tempBridge("crud-mint-into");
 	const kind = ok(await run(["crud", "kind", "An", "idea", "--name", "idea", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: false\n"));
 	assert.match(kind, /^\.nosedive\/kinds\/[0-9a-f-]{36}\.md$/, "a kind is shared by every root");
@@ -105,17 +112,14 @@ test("keeps kinds and repos in .nosedive/, and mints into the root --into names,
 
 	const acme = ok(await run(["mint"], bridge));
 	mkdirSync(join(bridge, "clients", "acme"), { recursive: true });
-	writeFileSync(join(bridge, "clients", "acme", `${acme}.md`), `---\nkind: root\nid: ${acme}\nname: acme\n---\n`);
+	writeFileSync(join(bridge, "clients", "acme", `${acme}.md`), `---\nkind: base\nid: ${acme}\nname: acme\n---\n`);
 	const config = join(bridge, ".nosedive", "config.yaml");
 	writeFileSync(config, `${readFileSync(config, "utf8")}  - clients/acme/${acme}.md\n`);
 	git(["add", "-A"], bridge);
 	git(["commit", "-qm", "a second root"], bridge);
-	const many = await run(["crud", "memo", "where"], bridge);
-	assert.equal(many.code, 1);
-	assert.match(many.err, /this repo has 2 roots: name one with --into <path>, one of kb\/[0-9a-f-]{36}\.md, clients\/acme\/[0-9a-f-]{36}\.md/);
-	const there = ok(await run(["crud", "memo", "here", "--into", "clients/acme"], bridge));
-	assert.match(there, /^clients\/acme\/[0-9a-f-]{36}\.md$/, "a root is named by its directory");
-	assert.match(ok(await run(["crud", "memo", "also", "--into", `clients/acme/${acme}.md`], bridge)), /^clients\/acme\//, "or by its path");
+	assert.match(ok(await run(["crud", "memo", "where"], bridge)), /^kb\//, "the home base by default");
+	const there = ok(await run(["--base", "acme", "crud", "memo", "here"], bridge));
+	assert.match(there, /^clients\/acme\/[0-9a-f-]{36}\.md$/, "a root is named by its name");
 	ok(await run(["crud", there.replace(/^.*\/|\.md$/g, ""), "--gist", "found"], bridge));
-	assert.match((await run(["crud", "memo", "nowhere", "--into", "./none"], bridge)).err, /\.\/none is no root of this repo; its roots: kb\/[0-9a-f-]{36}\.md, clients\/acme\//);
+	assert.match((await run(["--base", "acme", "crud", "repo", "B", "--name", "b"], bridge)).err, /core's repos live in \.nosedive\/repos, where the hero reads them, whatever base is selected: drop --base/);
 });

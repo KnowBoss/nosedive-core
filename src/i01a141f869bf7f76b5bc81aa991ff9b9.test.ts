@@ -34,19 +34,19 @@ test("lists each cape the base wears with its repo, and its build once there is 
 	assert.deepEqual(built!.build!.actions, { greet: "Greets" });
 });
 
-test("pass --don-cape builds a registered cape and links it from the base, --doff-cape takes it off, and drop needs it off", async () => {
-	const bridge = await tempBridge("configured-capes-don");
+test("pass --attach-cape builds a registered cape and links it from the base, --detach-cape detaches it, and drop needs it off", async () => {
+	const bridge = await tempBridge("configured-capes-attach");
 	const id = await registerRepo(bridge, "greet-cape", greetCapeRepo());
 	git(["add", "-A"], bridge);
 	git(["commit", "-qm", "register greet-cape"], bridge);
-	assert.match(ok(await run(["pass", "--don-cape", id], bridge)), /wearing greet-cape \S+ \([0-9a-f]{7}\)/);
+	assert.match(ok(await run(["pass", "--attach-cape", id], bridge)), /attached greet-cape \S+ \([0-9a-f]{7}\)/);
 	assert.deepEqual(configuredCapes(findBridge(bridge)!, core).map(({ name, build }) => [name, build?.actions]), [["greet-cape", { greet: "Greets" }]]);
-	assert.equal(git(["log", "-1", "--format=%s"], bridge), `pass(greet-cape): don-cape`);
-	assert.match((await run(["pass", "--don-cape", id], bridge)).err, /the base already wears greet-cape/);
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), `pass(greet-cape): attach-cape`);
+	assert.match((await run(["pass", "--attach-cape", id], bridge)).err, /the base already wears greet-cape/);
 	assert.match((await run(["crud", "--drop", id, "--hard"], bridge)).err, /still linked/);
-	assert.match(ok(await run(["pass", "--doff-cape", id], bridge)), /took off greet-cape/);
+	assert.match(ok(await run(["pass", "--detach-cape", id], bridge)), /detached greet-cape/);
 	assert.deepEqual(configuredCapes(findBridge(bridge)!, core), []);
-	assert.match((await run(["pass", "--doff-cape", id], bridge)).err, /the base does not wear greet-cape/);
+	assert.match((await run(["pass", "--detach-cape", id], bridge)).err, /the base does not wear greet-cape/);
 });
 
 test("refuses a .cape link to a doc that is no repo, and reads only the selected base's", async () => {

@@ -3,7 +3,7 @@ import { i01a1335487317576a0afd03506ef5555 as readSource } from "./i01a133548731
 import { i01a1471723807d6e8ef228ad9472fff7 as readText } from "./i01a1471723807d6e8ef228ad9472fff7.ts";
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs, type KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { if4a09298430355a2a473394fbb5103f2 } from "./if4a09298430355a2a473394fbb5103f2.ts";
-import { ia73b03420ddb598498e19a66b144de9a } from "./ia73b03420ddb598498e19a66b144de9a.ts";
+import { i6c9390d5a8e5583881960839391345db } from "./i6c9390d5a8e5583881960839391345db.ts";
 import { i3ac641d4a9d757a48df1f1de031be120 } from "./i3ac641d4a9d757a48df1f1de031be120.ts";
 import { i7820a39cffb9511493085038a7e19447 } from "./i7820a39cffb9511493085038a7e19447.ts";
 import { i21be7cc759fb5c758e11cffdb2630902 } from "./i21be7cc759fb5c758e11cffdb2630902.ts";
@@ -27,9 +27,9 @@ export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 	switch (call.usage) {
 		case "uf4a09298430355a2a473394fbb5103f2": // crud <quid>
 			return if4a09298430355a2a473394fbb5103f2(quid(args.quid), ctx);
-		case "ua73b03420ddb598498e19a66b144de9a": // crud <kind> <gist>... [--name <name>] [--meta <source>] [--into <path>]
-			return ia73b03420ddb598498e19a66b144de9a(
-				{ ...repoKind(args.kind), gist: (args.gist as string[]).join(" "), name: optionalSlug(args.name), meta: args.meta as string | undefined, into: args.into as string | undefined },
+		case "u6c9390d5a8e5583881960839391345db": // crud <kind> <gist>... [--name <name>] [--meta <source>]
+			return i6c9390d5a8e5583881960839391345db(
+				{ kind: capeKind(args.kind), gist: (args.gist as string[]).join(" "), name: optionalSlug(args.name), meta: args.meta as string | undefined },
 				ctx,
 			);
 		case "u3ac641d4a9d757a48df1f1de031be120": { // crud <quid> --meta <source>
@@ -96,10 +96,10 @@ function slug(value: unknown, what: string): string {
 	return String(value);
 }
 
-/** `<kind>` writes to the bridge, `<repo>:<kind>` to that repo's checkout in the workspace. */
-function repoKind(value: unknown): { repo: string | undefined; kind: string } {
+/** `<cape>:<kind>` names whose kind; the cape's name is checked by find-kind. */
+function capeKind(value: unknown): string {
 	const [first, second] = String(value).split(":", 2) as [string, string | undefined];
-	return second === undefined ? { repo: undefined, kind: slug(first, "kind") } : { repo: slug(first, "repo"), kind: slug(second, "kind") };
+	return second === undefined ? slug(first, "kind") : `${slug(first, "cape")}:${slug(second, "kind")}`;
 }
 
 function optionalSlug(value: unknown): string | undefined {

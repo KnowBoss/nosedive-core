@@ -14,10 +14,10 @@ const core: Cape = await sourceCape();
 
 test("finds a kind in the first kb that declares it, else in the capes, with its durability and links", () => {
 	const kb = tempDir("find-kind");
-	assert.deepEqual(findKind("memo", [kb], [core]), { ...(core.kinds.memo as object) });
+	assert.deepEqual(findKind("memo", [kb], [core]), { ...(core.kinds.memo as object), from: core.name });
 	assert.equal(findKind("memo", [kb], [core])?.durable, true);
 	writeFileSync(join(kb, "memo.md"), "---\nkind: kind\nid: m\nname: memo\nmeta:\n  schema:\n    type: object\n    additionalProperties: true\n---\n");
-	assert.deepEqual(findKind("memo", [kb], [core]), { schema: { type: "object", additionalProperties: true }, links: [] }, "the kb overrides core, durability included");
+	assert.deepEqual(findKind("memo", [kb], [core]), { schema: { type: "object", additionalProperties: true }, links: [], id: "m", from: "hero" }, "the kb overrides core, durability included");
 	assert.equal(findKind("goal", [kb], [core]), undefined);
 });
 
@@ -31,5 +31,18 @@ test("given a hero repo, finds a kind its configured capes' builds recorded, wit
 	writeFileSync(join(dir, ".nosedive", "capes", "manifest.json"), JSON.stringify([build]));
 	const hero = findBridge(dir)!;
 	assert.equal(findKind("idea", [hero.kbDir], [core]), undefined, "not without the hero");
-	assert.deepEqual(findKind("idea", [hero.kbDir], [core], hero), idea);
+	assert.deepEqual(findKind("idea", [hero.kbDir], [core], hero), { ...idea, from: "kinded-cape" });
+});
+
+test("a bare kind is the hero's own, else the one worn cape's, else core's; <cape>:<kind> picks one; two capes tie", () => {
+	const kb = tempDir("find-kind-order");
+	const cape = (name: string, kinds: Record<string, unknown>) => ({ ...core, name, kinds }) as Cape;
+	const greet = cape("greet-cape", { memo: { durable: false } });
+	assert.equal(findKind("memo", [kb], [core, greet])?.from, "greet-cape", "a worn cape's over core's");
+	assert.equal(findKind("nosedive-core:memo", [kb], [core, greet])?.from, "nosedive-core");
+	assert.throws(() => findKind("greet-cape:goal", [kb], [core, greet]), /greet-cape declares no kind goal/);
+	assert.throws(() => findKind("memo", [kb], [core, greet, cape("wave-cape", { memo: {} })]), /greet-cape:memo and wave-cape:memo both declare memo: name one/);
+	assert.equal(findKind("wave-cape:memo", [kb], [core, greet, cape("wave-cape", { memo: {} })])?.from, "wave-cape");
+	writeFileSync(join(kb, "memo.md"), "---\nkind: kind\nid: m\nname: memo\n---\n");
+	assert.equal(findKind("memo", [kb], [core, greet, cape("wave-cape", { memo: {} })])?.from, "hero", "the hero's own over any cape's");
 });

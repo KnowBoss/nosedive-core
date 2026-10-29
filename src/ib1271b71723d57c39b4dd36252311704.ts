@@ -5,7 +5,7 @@ import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c1
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { wornCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 
-export async function i03eb962e29f75aad981e414597379f9e(ctx: GateCtx): Promise<void> {
+export async function ib1271b71723d57c39b4dd36252311704(ctx: GateCtx): Promise<void> {
 	const { bridge, doc } = ctx;
 	if (!bridge.base) throw new Error("the hero has no base to wear a cape");
 	const name = String(doc.fm.name);
@@ -18,5 +18,5 @@ export async function i03eb962e29f75aad981e414597379f9e(ctx: GateCtx): Promise<v
 	if (root?.fm.name !== name) throw new Error(`${name} is no cape named ${name}: ${root ? `its cape root is named ${String(root.fm.name)}` : "it has no cape root"}`);
 	const key = relative(bridge.dir, doc.path).replace(/\\/g, "/");
 	ctx.crud(bridge.base, "links", { [key]: { rel: ".cape", ...(ref ? { ref } : {}) } });
-	ctx.out(`wearing ${ref ? `${name}@${ref}` : name} ${built.version} (${built.commit.slice(0, 7)})`);
+	ctx.out(`attached ${ref ? `${name}@${ref}` : name} ${built.version} (${built.commit.slice(0, 7)})`);
 }

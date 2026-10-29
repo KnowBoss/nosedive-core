@@ -23,7 +23,7 @@ test("refuses while anything links to it, naming each link, and edits nothing", 
 	const id = idOf(ok(await run(["crud", "goal", "parent"], bridge)));
 	const child = ok(await run(["crud", "goal", "child"], bridge));
 	ok(await run(["crud", idOf(child), "--links", "-"], bridge, `kb/${id}.md:\n  rel: parent.feat\n`));
-	const there = ok(await run(["crud", "other:goal", "elsewhere"], (checkedOut(bridge, "other"), bridge)));
+	const there = ok(await run(["--base", "workspace/other/kb", "crud", "goal", "elsewhere"], (checkedOut(bridge, "other"), bridge)));
 	ok(await run(["crud", idOf(there), "--links", "-"], bridge, `kb/${id}.md:\n  rel: uses.goal\n`));
 	const note = ok(await run(["crud", "memo", "a", "note"], bridge));
 	ok(await run(["crud", idOf(note), "--body", "-"], bridge, `See [the parent](${id}.md).\n`));

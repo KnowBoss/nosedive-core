@@ -16,7 +16,7 @@ test("drops docs across the bridge and workspace repos, one commit per repo", as
 	const bridge = await tempBridge("drop-kb-docs");
 	const repo = checkedOut(bridge, "other");
 	const here = ok(await run(["crud", "goal", "here"], bridge));
-	const there = ok(await run(["crud", "other:goal", "there"], bridge));
+	const there = ok(await run(["--base", "workspace/other/kb", "crud", "goal", "there"], bridge));
 	assert.deepEqual(dropKbDocs(bridge, [idOf(here), idOf(there)], false, [core]), [here, there]);
 	assert.equal(existsSync(join(bridge, here)) || existsSync(join(bridge, there)), false);
 	assert.equal(git(["log", "-1", "--format=%s"], bridge), `crud(${idOf(here)}): dropped goal here-${idOf(here).slice(-6)}`);
