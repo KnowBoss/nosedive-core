@@ -172,7 +172,7 @@ async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 		// Core's actions are never shadowed, so a cape's action of the same name is not listed.
 		const rows = Object.entries(cape.build?.actions ?? {}).filter(([name]) => !coreRows.some(([taken]) => taken === name));
 		const build = cape.build;
-		const from = build ? (build.source ? `working tree ${build.source}` : build.ref || "trunk") : "";
+		const from = build ? (build.source ?? (build.ref || "trunk")) : "";
 		const header = build ? `${cape.name} ${build.version}${more ? `\n  ${from} at ${build.commit.slice(0, 12)}, repo ${cape.repo?.id ?? "unregistered"}` : ""}` : cape.name;
 		groups.push([header, build ? rows : [["", "not built: run `nosedive seed`"]]]);
 	}
