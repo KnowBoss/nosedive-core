@@ -11,6 +11,7 @@ import { i01a14fb7a14b7f85b7dc8bb894d6e76b as bundleCape } from "./i01a14fb7a14b
 import { i01a1337c806075ca96d637c9ece7316e as capeId } from "./i01a1337c806075ca96d637c9ece7316e.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest, type CapeBuild } from "./i01a1337c810a7456876b831d0c873396.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
+import { wornCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 
@@ -133,11 +134,9 @@ function bareImports(dir: string): Map<string, Set<string>> {
 	return found;
 }
 
-/** The ref this bridge uses for a repo: the one its config names, or the trunk. */
+/** The ref this bridge uses for a repo: the one its base's .cape link pins, or the trunk. */
 function refFor(bridge: Bridge, repo: string): string {
-	const specs = Array.isArray(bridge.config.capes) ? (bridge.config.capes as unknown[]) : [];
-	const spec = specs.find((spec): spec is string => typeof spec === "string" && spec.split("@")[0] === repo);
-	return spec?.split("@", 2)[1] ?? "";
+	return wornCapes(bridge).find((cape) => cape.name === repo)?.ref ?? "";
 }
 
 function tryFindRepoDoc(bridge: Bridge, name: string): Repo | undefined {

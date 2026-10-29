@@ -19,7 +19,8 @@ test("makes a git repo a nosedive repo, its config naming its id and one root of
 	const { id, roots, text } = configOf(dir);
 	const root = roots[0]!.replace(/^kb\/|\.md$/g, "");
 	assert.equal(text, `id: ${id}\nlast-migration: ${MIGRATIONS.at(-1)!.id}\nroots:\n  - kb/${root}.md\n`, "already in today's shape, and no workspace unless asked");
-	assert.notEqual(id, root, "the repo's id is its own");
+	assert.equal(id, root, "the primary root's id is the repo's");
+	assert.equal(readFileSync(join(dir, "README.md"), "utf8"), `# [${repo}](kb/${root}.md)\n`, "a README linking the primary root");
 	assert.equal(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), `---\nkind: root\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\n---\n\n# ${repo}\n`, "named after the repo");
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "cache/\ncapes/\nlocal/\n");
 	assert.equal(existsSync(join(dir, ".gitignore")), false, "no workspace and no cape root, so no lockfile line");
@@ -92,7 +93,7 @@ test("builds every cape it can, then names each that failed and the core that la
 	const seeded = await run(["seed"], bridge);
 	assert.equal(seeded.code, 1);
 	assert.match(seeded.out, /built cape greet-cape /);
-	assert.match(seeded.err, /- broken-cape: broken-cape is not a cape: it has no root\n {2}it last built at c0ffee0 with core 2026\.1\.1-1: pin it there, as `broken-cape@c0ffee0{34}` in config `capes`, or go back to that core/);
+	assert.match(seeded.err, /- broken-cape: broken-cape is not a cape: it has no root\n {2}it last built at c0ffee0 with core 2026\.1\.1-1: pin it there, with `ref: c0ffee0{34}` on its \.cape link, or go back to that core/);
 	assert.match(ok(await run(["greet", "ann"], bridge)), /^hello ann /, "the capes that built still run");
 });
 

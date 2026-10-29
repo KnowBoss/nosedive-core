@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import { i01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./i01a1335482437c9eb145885f65f12aa1.ts";
 import { i01a1337c825f7457b879d5c039ffeccd as findCape } from "./i01a1337c825f7457b879d5c039ffeccd.ts";
@@ -7,6 +8,7 @@ import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177
 import { i01a14fb79db47f8b94d5196027008697 as buildBase } from "./i01a14fb79db47f8b94d5196027008697.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
+import { selectBase } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import type { EditedDoc, KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 
@@ -68,13 +70,21 @@ export type GateCtx = {
 /** Runs one command line, core's actions first and never shadowed; returns the exit code. */
 export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx): Promise<number> {
 	try {
-		// <cape>:<action> picks whose action runs: core's, the hero's own, or a configured cape's.
+		// --base <base> selects which of the hero's bases, and so which capes, the action runs with.
+		if (argv[0] === "--base") {
+			const wanted = argv[1];
+			const bridge = findBridge(ctx.cwd);
+			if (!wanted || !bridge || !selectBase(bridge.roots, wanted)) throw new Error(`--base names one of the hero's roots, by quid, name or directory, and ${wanted ?? "nothing"} is none`);
+			process.env.NOSEDIVE_BASE = wanted;
+			argv = argv.slice(2);
+		}
+		// <cape>:<action> picks whose action runs: core's, the hero's own, or a worn cape's.
 		const prefixed = /^([^:]+):([^:]+)$/.exec(argv[0] ?? "");
 		const only = prefixed?.[1];
 		if (prefixed) argv = [prefixed[2]!, ...argv.slice(1)];
 		const [name, ...rest] = argv;
 		if (name === undefined || name === "help" || name === "--help") {
-			ctx.out(await renderActions(ctx));
+			ctx.out(await renderActions(ctx, rest.includes("--more")));
 			return 0;
 		}
 		const core = ctx.capes[0]!;
@@ -95,13 +105,13 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 				if (!found) throw new Error(`the ${cape.name} cape was built with ${name}, but its bundle has no such action`);
 			}
 		}
-		if (!found) throw new Error(`unknown action: ${name}\n\n${await renderActions(ctx)}`);
+		if (!found) throw new Error(`unknown action: ${name}\n\n${await renderActions(ctx, false)}`);
 		const { cape, docId, doc } = found;
 		if (gateUsage(doc.usages[0]?.text ?? "")) throw new Error(`${name} is a gate: \`nosedive ${doc.usages[0]!.text}\``);
 		// An action that takes its command line as it is reads its own --help.
 		const raw = doc.usages.some((usage) => /<argv>\.\.\.\]?$/.test(usage.text));
-		if (!raw && (rest[0] === "--help" || rest[0] === "--more")) {
-			ctx.out(renderHelp(doc, rest[0] === "--more"));
+		if (!raw && rest[0] === "--help") {
+			ctx.out(renderHelp(doc, rest[1] === "--more"));
 			return 0;
 		}
 		const matched = matchUsage(
@@ -118,10 +128,10 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 	}
 }
 
-/** The ctx of a real command line: this process's cwd and stdio. */
+/** The ctx of a real command line: this process's stdio, in the repo NOSEDIVE_HERO names or else its cwd. */
 export function consoleCtx(capes: Cape[]): Ctx {
 	return {
-		cwd: process.cwd(),
+		cwd: process.env.NOSEDIVE_HERO ? resolve(process.env.NOSEDIVE_HERO) : process.cwd(),
 		capes,
 		out: (text) => process.stdout.write(`${text}\n`),
 		err: (text) => process.stderr.write(`${text}\n`),
@@ -143,12 +153,12 @@ function findAction(capes: Cape[], name: string) {
 	return undefined;
 }
 
-/** Core's top-level actions, then each configured cape's, as its build recorded them, grouped by cape. */
-async function renderActions(ctx: Ctx): Promise<string> {
+/** Core's top-level actions, then each worn cape's, as its build recorded them, grouped by cape under its name and version; `more` adds where each was built from. */
+async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 	const core = ctx.capes[0]!;
 	const groups: [string, [string, string][]][] = [];
 	const coreRows = Object.values(core.docs).flatMap((doc): [string, string][] => (doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") ? [[doc.name, doc.gist]] : []));
-	groups.push([core.name, coreRows]);
+	groups.push([`${core.name} ${core.version}${more ? `\n  ${core.commit.slice(0, 12)}, id ${core.id}` : ""}`, coreRows]);
 	const bridge = findBridge(ctx.cwd);
 	// The hero's own commands, read from its docs: listing them needs no build.
 	const root = bridge && findRoot(bridge.dir, "cape");
@@ -161,7 +171,10 @@ async function renderActions(ctx: Ctx): Promise<string> {
 	for (const cape of bridge ? configuredCapes(bridge, core) : []) {
 		// Core's actions are never shadowed, so a cape's action of the same name is not listed.
 		const rows = Object.entries(cape.build?.actions ?? {}).filter(([name]) => !coreRows.some(([taken]) => taken === name));
-		groups.push([cape.name, cape.build ? rows : [["", "not built: run `nosedive seed`"]]]);
+		const build = cape.build;
+		const from = build ? (build.source ? `working tree ${build.source}` : build.ref || "trunk") : "";
+		const header = build ? `${cape.name} ${build.version}${more ? `\n  ${from} at ${build.commit.slice(0, 12)}, repo ${cape.repo?.id ?? "unregistered"}` : ""}` : cape.name;
+		groups.push([header, build ? rows : [["", "not built: run `nosedive seed`"]]]);
 	}
 	const width = Math.max(0, ...groups.flatMap(([, rows]) => rows.map(([name]) => name.length)));
 	const lines = groups.flatMap(([name, rows]) => [
@@ -169,11 +182,13 @@ async function renderActions(ctx: Ctx): Promise<string> {
 		name,
 		...rows.sort(([a], [b]) => a.localeCompare(b)).map(([action, gist]) => (action ? `  ${action.padEnd(width)}  ${gist}` : `  ${gist}`)),
 	]);
-	return ["Usage: nosedive <action> [<args>]", ...lines, "", "nosedive <action> --help for its usages."].join("\n");
+	return ["Usage: nosedive [--base <base>] <action> [<args>]", ...lines, "", `nosedive <action> --help for its usages${more ? "" : "; nosedive --help --more for where each cape was built from"}.`].join("\n");
 }
 
 function renderHelp(doc: CapeDoc, more: boolean): string {
 	const lines = [doc.gist, "", ...doc.usages.map((usage) => `  ${usage.text}`)];
-	if (more) lines.push("", doc.body);
+	const usage = /(?:^|\n)## Usage\n([\s\S]*?)(?=\n## |$)/.exec(doc.body)?.[1]?.trim();
+	if (more) lines.push("", usage ?? "Its doc has no ## Usage section.");
+	else if (usage) lines.push("", `nosedive ${doc.name} --help --more for what each usage does.`);
 	return lines.join("\n");
 }

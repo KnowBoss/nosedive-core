@@ -14,6 +14,13 @@ export function i01a1336cb234701bb0338faf5183960c(body: string, doc: CapeDoc, en
 			lines.push(`- \`${usage.text}\`: [impl](../src/i${usage.id}.ts)${tests}`);
 		}
 	}
-	const rest = body.replace(/(^|\n)## Code\n[\s\S]*?(?=\n## |$)/, "").trimEnd();
+	let rest = body.replace(/(^|\n)## Code\n[\s\S]*?(?=\n## |$)/, "").trimEnd();
+	// An action's prose is its ## Usage, what --help --more prints.
+	if (doc.kind === "action" && !/(^|\n)## Usage(\n|$)/.test(rest)) {
+		const lead = /^\n*/.exec(rest)![0];
+		const title = /^# [^\n]*/.exec(rest.slice(lead.length))?.[0] ?? "";
+		const prose = rest.slice(lead.length + title.length).trim();
+		rest = `${lead}${title ? `${title}\n\n` : ""}## Usage${prose ? `\n\n${prose}` : ""}`;
+	}
 	return `${rest}\n\n${lines.join("\n")}\n`;
 }

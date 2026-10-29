@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
+import { parseDocument } from "yaml";
 import { i01a133548178739398941123114401ad as usageId } from "../src/i01a133548178739398941123114401ad.ts";
 import { i01a1336cb234701bb0338faf5183960c as codeSection } from "../src/i01a1336cb234701bb0338faf5183960c.ts";
 import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "../src/i01a1335480c776ba8945020d0af333eb.ts";
@@ -168,11 +169,24 @@ export async function registerRepo(bridge: string, name: string, path?: string):
 	return id;
 }
 
-/** Lists `capes` in a bridge's config, each as `<repo>` or `<repo>@<ref>`. */
+/** Has a bridge's primary root wear exactly `capes`, each `<repo>` or `<repo>@<ref>` by its registered name, as .cape links. */
 export function setCapes(bridge: string, capes: string[]): void {
-	const config = join(bridge, ".nosedive", "config.yaml");
-	const kept = (existsSync(config) ? readFileSync(config, "utf8") : "\n").replace(/\ncapes:\n( {2}.*\n)*/, "\n");
-	writeFileSync(config, `${kept}capes:\n${capes.map((spec) => `  - ${spec}\n`).join("")}`);
+	const config = readRepoConfig(bridge)!;
+	const path = config.roots.find((root) => root.id === config.root)!.path;
+	const [, fm, body] = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(readFileSync(path, "utf8"))!;
+	const doc = parseDocument(fm!);
+	const isCape = (link: Record<string, { rel?: unknown } | null>) => Object.values(link).some((value) => typeof value?.rel === "string" && value.rel.split(".").at(-1) === "cape");
+	const links = ((doc.toJS() as { links?: Record<string, { rel?: unknown } | null>[] }).links ?? []).filter((link) => !isCape(link));
+	const dirs = [join(bridge, ".nosedive", "repos"), kbOf(bridge)].filter((dir) => existsSync(dir));
+	for (const spec of capes) {
+		const [name, ref] = spec.split("@", 2) as [string, string | undefined];
+		const file = dirs.flatMap((dir) => readdirSync(dir).map((each) => join(dir, each))).find((each) => each.endsWith(".md") && new RegExp(`^kind: repo$[^]*^name: ${name}$`, "m").test(readFileSync(each, "utf8")));
+		if (!file) throw new Error(`setCapes: no repo named ${name} is registered in ${bridge}`);
+		links.push({ [relative(bridge, file).replace(/\\/g, "/")]: { rel: ".cape", ...(ref ? { ref } : {}) } as { rel: string } });
+	}
+	if (links.length > 0) doc.set("links", links);
+	else doc.delete("links");
+	writeFileSync(path, `---\n${doc.toString({ lineWidth: 0 })}---\n${body}`);
 }
 
 /** A git repo with an empty kb, checked out at `workspace/<name>` in a bridge. */

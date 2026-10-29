@@ -13,7 +13,6 @@ import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
-import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "./i01a1335480c776ba8945020d0af333eb.ts";
 import { i01a175dbf4517dafa3a9048ecd98ab84 as runMigrations, MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
@@ -57,7 +56,8 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		if (checkMeta(rootKind, {}, [], ctx.capes)) throw new Error(`no kind ${rootKind} is declared, so it cannot be the root's kind`);
 		mkdirSync(join(dir, ".nosedive"), { recursive: true });
 		const root = mintKbDoc(join(dir, "kb"), { kind: rootKind, name: repo, gist: `What ${repo} holds`, title: repo });
-		const config = { id: mintUuid(), "last-migration": MIGRATIONS.at(-1)!.id, ...(workspace ? { workspace: "./workspace" } : {}), roots: [`kb/${root.id}.md`] };
+		// The primary root is the one whose id is the repo's.
+		const config = { id: root.id, "last-migration": MIGRATIONS.at(-1)!.id, ...(workspace ? { workspace: "./workspace" } : {}), roots: [`kb/${root.id}.md`] };
 		writeFileSync(configPath, new Document(config).toString({ lineWidth: 0 }));
 		changed.push(root.path, configPath);
 	} else {
@@ -92,6 +92,12 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		}
 	}
 	if (own.workspace !== undefined) placeWorkspace(dir, own.workspace);
+	const readme = join(dir, "README.md");
+	if (!existsSync(readme) && own.root) {
+		const primary = own.roots.find((root) => root.id === own.root)!;
+		writeFileSync(readme, `# [${repo}](${relative(dir, primary.path).replace(/\\/g, "/")})\n`);
+		changed.push(readme);
+	}
 
 	if (changed.length > 0) {
 		commitFiles(dir, changed, `seed: ${repo} set up`);
@@ -136,5 +142,5 @@ function lastBuilt(bridgeDir: string, name: string, repo: string | undefined, co
 		.sort((a, b) => a.builtAt.localeCompare(b.builtAt))
 		.at(-1);
 	if (!last) return "";
-	return `\n  it last built at ${last.commit.slice(0, 7)} with core ${last.coreVersion}: pin it there, as \`${name}@${last.commit}\` in config \`capes\`, or go back to that core`;
+	return `\n  it last built at ${last.commit.slice(0, 7)} with core ${last.coreVersion}: pin it there, with \`ref: ${last.commit}\` on its .cape link, or go back to that core`;
 }

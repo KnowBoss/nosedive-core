@@ -6,14 +6,18 @@ import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c6
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { git, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge } from "../test/harness.ts";
+
+const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
 const core: Cape = await sourceCape();
 
-test("lists each configured cape with its repo, and its build once there is one", async () => {
+test("lists each cape the base wears with its repo, and its build once there is one", async () => {
 	const bridge = await tempBridge("configured-capes");
 	const repo = greetCapeRepo();
 	const id = await registerRepo(bridge, "greet-cape", repo);
+	await registerRepo(bridge, "unknown-cape");
 	setCapes(bridge, ["greet-cape", "unknown-cape@v1"]);
 	const before = configuredCapes(findBridge(bridge)!, core);
 	assert.deepEqual(
@@ -30,10 +34,29 @@ test("lists each configured cape with its repo, and its build once there is one"
 	assert.deepEqual(built!.build!.actions, { greet: "Greets" });
 });
 
-test("refuses a cape listed twice, and capes that are not a list", async () => {
+test("pass --don-cape builds a registered cape and links it from the base, --doff-cape takes it off, and drop needs it off", async () => {
+	const bridge = await tempBridge("configured-capes-don");
+	const id = await registerRepo(bridge, "greet-cape", greetCapeRepo());
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "register greet-cape"], bridge);
+	assert.match(ok(await run(["pass", "--don-cape", id], bridge)), /wearing greet-cape \S+ \([0-9a-f]{7}\)/);
+	assert.deepEqual(configuredCapes(findBridge(bridge)!, core).map(({ name, build }) => [name, build?.actions]), [["greet-cape", { greet: "Greets" }]]);
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), `pass(greet-cape): don-cape`);
+	assert.match((await run(["pass", "--don-cape", id], bridge)).err, /the base already wears greet-cape/);
+	assert.match((await run(["crud", "--drop", id, "--hard"], bridge)).err, /still linked/);
+	assert.match(ok(await run(["pass", "--doff-cape", id], bridge)), /took off greet-cape/);
+	assert.deepEqual(configuredCapes(findBridge(bridge)!, core), []);
+	assert.match((await run(["pass", "--doff-cape", id], bridge)).err, /the base does not wear greet-cape/);
+});
+
+test("refuses a .cape link to a doc that is no repo, and reads only the selected base's", async () => {
 	const bridge = await tempBridge("configured-capes-bad");
-	setCapes(bridge, ["greet-cape", "greet-cape@v1"]);
-	assert.throws(() => configuredCapes(findBridge(bridge)!, core), /config names greet-cape more than once/);
+	await registerRepo(bridge, "greet-cape", greetCapeRepo());
+	setCapes(bridge, ["greet-cape"]);
 	const at = findBridge(bridge)!;
-	assert.throws(() => configuredCapes({ ...at, config: { capes: { greet: "greet-cape" } } }, core), /config `capes` lists cape repos/);
+	const memo = idOf(ok(await run(["crud", "memo", "Not a repo"], bridge)));
+	const root = at.roots[0]!.path;
+	writeFileSync(root, readFileSync(root, "utf8").replace(/kb\/[0-9a-f-]{36}\.md:\n {6}rel: \.cape/, `kb/${memo}.md:\n      rel: .cape`));
+	assert.throws(() => configuredCapes(findBridge(bridge)!, core), new RegExp(`wears kb/${memo}\\.md, which is no repo doc`));
+	assert.deepEqual(configuredCapes({ ...at, base: undefined }, core), [], "no base selected, no capes");
 });

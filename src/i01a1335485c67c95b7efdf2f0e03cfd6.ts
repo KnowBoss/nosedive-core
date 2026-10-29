@@ -9,10 +9,12 @@ export type Bridge = {
 	id: string | undefined;
 	/** The docs its docs hang from, each in the directory holding its docs. */
 	roots: { id: string; dir: string; path: string }[];
-	/** Its first root's directory. */
+	/** Its primary root's directory. */
 	kbDir: string;
-	/** Its first root's id. */
+	/** Its primary root's id: the root whose id is config `id`, else its first. */
 	root: string | undefined;
+	/** The selected base's id: the root NOSEDIVE_BASE names, else the primary. */
+	base: string | undefined;
 	/** Where other repos are checked out, which only a hero repo has. */
 	workspace: string | undefined;
 	/** Where it keeps the kinds and repos its roots share. */

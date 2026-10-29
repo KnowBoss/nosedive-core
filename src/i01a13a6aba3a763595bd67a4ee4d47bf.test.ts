@@ -20,7 +20,7 @@ test("reads the first root the config lists, and its kind", async () => {
 test("finds nothing for a repo that is no bridge, even inside a bridge's workspace", async () => {
 	const bridge = await tempBridge("find-root-none");
 	assert.equal(findRoot(checkedOut(bridge, "plain")), undefined);
-	assert.equal(findRoot(bridge)?.kind, "root", "seed's root is of kind root");
+	assert.equal(findRoot(bridge)?.kind, "base", "a hero's root is a base");
 });
 
 test("given a kind, finds the first root of that kind among the roots config lists", () => {

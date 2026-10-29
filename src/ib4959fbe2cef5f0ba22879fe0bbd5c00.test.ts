@@ -83,7 +83,7 @@ test("lists its gates' usages, and refuses argv none matches or a doc that links
 	const help = ok(await run(["pass", "--help"], bridge));
 	assert.match(help, /\n {2}pass --stamp <quid> \[--loud\]\n {2}pass --stamp <quid> \[--refuse\]\n {2}pass --test <cape>$/);
 	assert.equal(ok(await run(["pass"], bridge)), help);
-	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n {2}pass --stamp[^]*\n {2}pass --test <cape>/);
+	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n[^]*\n {2}pass --stamp[^]*\n {2}pass --test <cape>/);
 	const other = idOf(ok(await run(["crud", "memo", "other"], bridge)));
 	assert.match((await run(["pass", "--stamp", other], bridge)).err, /other-\w{6} links no stamp\.gate, nor does its kind memo/);
 });
