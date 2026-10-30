@@ -1,7 +1,7 @@
 import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import type { KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { checkDocMeta } from "./i01a138b2b8ef7e8097e19d599ba39bcc.ts";
-import { assertPublished, i01a147171f057d019118aaa1f269f5fd as findKind, kindOfDoc, undeclaredKind, unknownKind } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { pinOf, i01a147171f057d019118aaa1f269f5fd as findKind, kindOfDoc, undeclaredKind, unknownKind } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 
@@ -18,10 +18,13 @@ export function i5225ca8db7b85be197b4b22ee341b5f1(edit: KbEdit, quid: string, ki
 	for (const [key, entry] of entries) {
 		if (entry.canonical !== true) continue;
 		delete entry.canonical;
-		if (entry.meta === undefined) delete entry.version;
+		if (entry.meta === undefined) {
+			delete entry.version;
+			delete entry.schema;
+		}
 		if (Object.keys(entry).length === 0) entries.delete(key);
 	}
-	if (found.owner !== readRepoConfig(doc.repoDir)?.id) entries.set(found.owner, { ...entries.get(found.owner), canonical: true, version: assertPublished(found, edit.bridge) });
+	if (found.owner !== readRepoConfig(doc.repoDir)?.id) entries.set(found.owner, { ...entries.get(found.owner), canonical: true, ...pinOf(found, edit.bridge) });
 
 	const name = found.name;
 	doc.yaml.set("kind", name);

@@ -4,7 +4,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
-import { assertPublished, i01a147171f057d019118aaa1f269f5fd as findKind, kindOfDoc, unknownKind, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { schemaDigest } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { assertPublished, digestOf, i01a147171f057d019118aaa1f269f5fd as findKind, kindOfDoc, unknownKind, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -122,4 +123,24 @@ test("a version is published only when it is on the owner's origin trunk or a wo
 	ok(await run(["crud", idea().id!, "--meta", "-"], dir, "schema:\n  additionalProperties: false\n"));
 	assert.throws(() => assertPublished(idea(), hero), /land or push it first/, "the new schema is not pushed");
 	assert.notEqual(git(["rev-parse", "HEAD"], dir), git(["rev-parse", "origin/main"], dir));
+});
+
+test("a build's published flag is trusted only when the owner's history is not here to ask", async () => {
+	const dir = await heroWithIdea("find-kind-flag");
+	const hero = findBridge(dir)!;
+	const kind = findKind("idea", hero, [core])!;
+	const claimed = { ...kind, version: versionOf(kind), published: true };
+	assert.throws(() => assertPublished(claimed, hero), /land or push it first/, "with history, a version not on the trunk is refused though the build said published");
+	assert.throws(() => assertPublished({ ...claimed, version: "f".repeat(40) }, hero), /land or push it first/, "so is one that history has never seen");
+	for (const repoDir of [undefined, tempDir("find-kind-no-history")]) {
+		assert.equal(assertPublished({ ...claimed, repoDir }, hero), claimed.version, "without history, the flag stands");
+		assert.throws(() => assertPublished({ ...claimed, repoDir, published: false }, hero), /land or push it first/);
+	}
+});
+
+test("a scope entry's schema is the digest of the kind's schema, the build's when it recorded one", async () => {
+	const dir = await heroWithIdea("find-kind-digest");
+	const kind = findKind("idea", findBridge(dir)!, [core])!;
+	assert.equal(digestOf(kind), schemaDigest({ type: "object", additionalProperties: true }));
+	assert.equal(digestOf({ ...kind, digest: "0123456789ab" }), "0123456789ab");
 });

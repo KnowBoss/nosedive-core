@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
-import { kindVersion, onTrunk } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { kindVersion, onTrunk, schemaDigest } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "./i01a13354850c7ba3ba5b8ac41a7b6b11.ts";
 import { i01a18e2a3b4b798d98068d4778a158e6 as docKind, type DocKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
@@ -20,6 +21,8 @@ export type KindMeta = {
 	version?: string;
 	/** Whether that commit was on its owner's origin trunk when a build recorded it. */
 	published?: boolean;
+	/** A digest of its schema as a build recorded it. */
+	digest?: string;
 	/** Its doc, from the root of the repo it is declared in. */
 	file?: string;
 	repoDir?: string;
@@ -81,13 +84,34 @@ export function versionOf(kind: KindMeta): string | undefined {
 	return kindVersion(kind.repoDir, kind.file, kind.schema);
 }
 
+/** The digest of the kind's schema, which a scope entry keeps beside the version. */
+export function digestOf(kind: KindMeta): string {
+	return kind.digest ?? schemaDigest(kind.schema);
+}
+
+/** What a scope entry records of the kind it names: the published version, and the digest of the schema it was written against. */
+export function pinOf(kind: KindMeta, hero: Bridge): { version: string; schema: string } {
+	return { version: assertPublished(kind, hero), schema: digestOf(kind) };
+}
+
+/** Whether the kind's owner has its git history here, which is better evidence than what a build recorded. */
+function hasHistory(dir: string | undefined): dir is string {
+	if (!dir || !existsSync(dir)) return false;
+	const top = spawnSync("git", ["rev-parse", "--show-cdup"], { cwd: dir, encoding: "utf8" });
+	return top.status === 0 && top.stdout.trim() === "";
+}
+
 /** Refuses a kind whose schema commit is on neither its owner's origin trunk nor a work branch a feat names for that owner; returns the commit. */
 export function assertPublished(kind: KindMeta, hero: Bridge): string {
 	const version = versionOf(kind);
 	const where = kind.repoDir;
 	const refuse = () => new Error(`the schema of kind ${kind.name} is not on its owner's origin trunk or a feat's work branch: land or push it first`);
-	if (version && kind.published) return version;
-	if (!version || !where) throw refuse();
+	if (!version) throw refuse();
+	// A build's word is for a hero that has no history to ask; with it, the history decides.
+	if (!hasHistory(where)) {
+		if (kind.published) return version;
+		throw refuse();
+	}
 	if (onTrunk(where, version)) return version;
 	// A feat's scope names the work branch of each repo it works in, by that repo's doc.
 	for (const root of hero.roots) {

@@ -2,7 +2,7 @@ import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import type { KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i01a13354867d7a528cbad55b80708e50 as mergePatch } from "./i01a13354867d7a528cbad55b80708e50.ts";
 import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7e8097e19d599ba39bcc.ts";
-import { assertPublished, kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { kindOfDoc, pinOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 
@@ -34,10 +34,10 @@ export function i3ac641d4a9d757a48df1f1de031be120(edit: KbEdit, quid: string, pa
 		const entry = entries.get(terms.id!) ?? {};
 		const meta = mergePatch(entry.meta ?? {}, patch);
 		check(spelling, meta);
-		const version = assertPublished(kind!, edit.bridge);
-		if (meta !== null && typeof meta === "object" && Object.keys(meta).length > 0) entries.set(terms.id!, { ...entry, version, meta });
+		const pin = pinOf(kind!, edit.bridge);
+		if (meta !== null && typeof meta === "object" && Object.keys(meta).length > 0) entries.set(terms.id!, { ...entry, ...pin, meta });
 		else {
-			const { meta: _meta, version: _version, ...rest } = entry;
+			const { meta: _meta, version: _version, schema: _schema, ...rest } = entry;
 			if (Object.keys(rest).length > 0) entries.set(terms.id!, rest);
 			else entries.delete(terms.id!);
 		}

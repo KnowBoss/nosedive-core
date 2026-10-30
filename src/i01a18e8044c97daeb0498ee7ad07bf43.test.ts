@@ -7,9 +7,10 @@ import { parse } from "yaml";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "./i01a1335480c776ba8945020d0af333eb.ts";
 import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
+import { schemaDigest } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
-import { versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a18e8044c97daeb0498ee7ad07bf43 as canonicalKinds } from "./i01a18e8044c97daeb0498ee7ad07bf43.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
@@ -18,6 +19,7 @@ import { CANONICAL, CORE, git, gitRepo, greetCapeRepo, kbOf, ok, registerRepo, r
 const core: Cape = await sourceCape();
 const OWNER = "01a18e8a-0000-7000-8000-000000000001";
 const SCHEMA_COMMIT = "a".repeat(40);
+const OBJECT_DIGEST = schemaDigest({ type: "object" });
 const QUID = MIGRATIONS.at(-1)!.id;
 
 /** Runs the migration with core, collecting what it says. */
@@ -35,7 +37,7 @@ function legacy(directory: string, kind: string, extra = ""): string {
 }
 
 const read = (directory: string, id: string) => readFileSync(join(directory, `${id}.md`), "utf8");
-const fmOf = (text: string) => parse(/^---\n([\s\S]*?)\n---/.exec(text)![1]!) as { kind: string; scopes?: Record<string, { canonical?: boolean; version?: string }>[]; meta?: Record<string, unknown> };
+const fmOf = (text: string) => parse(/^---\n([\s\S]*?)\n---/.exec(text)![1]!) as { kind: string; scopes?: Record<string, { canonical?: boolean; version?: string; schema?: string }>[]; meta?: Record<string, unknown> };
 const kindDocs = (dir: string) => (existsSync(join(dir, ".nosedive", "kinds")) ? readdirSync(join(dir, ".nosedive", "kinds")) : []).map((file) => readFileSync(join(dir, ".nosedive", "kinds", file), "utf8"));
 
 /** A second root of the repo, in its own directory. */
@@ -112,8 +114,8 @@ test("gives the docs of a name a worn cape declares that cape's entry, with the 
 	const other = legacy(home, "wish");
 
 	const { said } = migrate(dir);
-	assert.deepEqual(fmOf(read(home, task)).scopes, [{ [OWNER]: { canonical: true, version: SCHEMA_COMMIT } }]);
-	assert.deepEqual(fmOf(read(home, epic)).scopes, [{ [OWNER]: { canonical: true, version: "b".repeat(40) } }], "still written with the version it has");
+	assert.deepEqual(fmOf(read(home, task)).scopes, [{ [OWNER]: { canonical: true, version: SCHEMA_COMMIT, schema: OBJECT_DIGEST } }]);
+	assert.deepEqual(fmOf(read(home, epic)).scopes, [{ [OWNER]: { canonical: true, version: "b".repeat(40), schema: OBJECT_DIGEST } }], "still written with the version it has");
 	assert.equal(fmOf(read(home, other)).scopes, undefined, "a name no cape declares is the repo's");
 	assert.equal(kindDocs(dir).some((text) => /^name: task$/m.test(text) || /^name: epic$/m.test(text)), false, "no kind doc for a cape's name");
 	assert.equal(kindDocs(dir).some((text) => /^name: wish$/m.test(text)), true);
@@ -140,7 +142,7 @@ test("waits, writing nothing, while a worn cape has no build here or a build tha
 
 	capeManifest(dir, { ...build, owner: OWNER, kinds: { gizmo: { schema: { type: "object" }, version: SCHEMA_COMMIT, published: true } } });
 	assert.equal(migrate(dir).waiting, false);
-	assert.deepEqual(fmOf(read(home, gizmo)).scopes, [{ [OWNER]: { canonical: true, version: SCHEMA_COMMIT } }]);
+	assert.deepEqual(fmOf(read(home, gizmo)).scopes, [{ [OWNER]: { canonical: true, version: SCHEMA_COMMIT, schema: OBJECT_DIGEST } }]);
 	assert.equal(kindDocs(dir).filter((text) => /^name: feat$/m.test(text)).length, 1);
 });
 
@@ -180,8 +182,9 @@ test("gives the docs of a kind core's code reads core's entry, and declares memo
 	const fn = legacy(home, "function");
 	const memo = legacy(home, "memo", "meta:\n  note: hi\n");
 	const { said } = migrate(dir);
-	const version = versionOf({ ...(core.kinds.function as object), name: "function", owner: CORE, repoDir: core.repoDir });
-	assert.deepEqual(fmOf(read(home, fn)).scopes, [{ [CORE]: { canonical: true, ...(version ? { version } : {}) } }]);
+	const kind = { ...(core.kinds.function as object), name: "function", owner: CORE, repoDir: core.repoDir };
+	const version = versionOf(kind);
+	assert.deepEqual(fmOf(read(home, fn)).scopes, [{ [CORE]: { canonical: true, ...(version ? { version } : {}), schema: digestOf(kind) } }]);
 	assert.equal(fmOf(read(home, memo)).scopes, undefined);
 	assert.equal(kindDocs(dir).filter((text) => /^name: memo$/m.test(text)).length, 1);
 	assert.match(said.join("\n"), /1 doc of function now name core as its owner/);
@@ -193,8 +196,9 @@ test("turns a doc of kind root into base, with the version of base, and declares
 	const stale = legacy(home, "root", `scopes:\n  - ${CORE}:\n      canonical: true\n      version: ${SCHEMA_COMMIT}\n  - ${OWNER}:\n      work-branch: x\n`);
 	const bare = legacy(addRoot(dir, "away"), "root");
 	migrate(dir);
-	const version = versionOf({ ...(core.kinds.base as object), name: "base", owner: CORE, repoDir: core.repoDir });
-	const entry = { [CORE]: { canonical: true, ...(version ? { version } : {}) } };
+	const kind = { ...(core.kinds.base as object), name: "base", owner: CORE, repoDir: core.repoDir };
+	const version = versionOf(kind);
+	const entry = { [CORE]: { canonical: true, ...(version ? { version } : {}), schema: digestOf(kind) } };
 	assert.equal(fmOf(read(home, stale)).kind, "base");
 	assert.deepEqual(fmOf(read(home, stale)).scopes, [{ [OWNER]: { "work-branch": "x" } }, entry], "another scope entry is kept");
 	assert.equal(fmOf(read(join(dir, "away"), bare)).kind, "base");

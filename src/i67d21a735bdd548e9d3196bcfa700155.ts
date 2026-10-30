@@ -7,7 +7,7 @@ import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { i01a1337c81b57799820f96a757b791d0 as buildCape } from "./i01a1337c81b57799820f96a757b791d0.ts";
-import { versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { CORE_OWNER } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
@@ -57,9 +57,10 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		// The root's kind is one of core's, which the root says in a canonical scope.
 		const core = ctx.capes[0]!;
 		if (core.kinds[rootKind] === undefined) throw new Error(`no kind ${rootKind} is declared, so it cannot be the root's kind`);
-		const version = versionOf({ ...(core.kinds[rootKind] as object), name: rootKind, owner: CORE_OWNER, repoDir: core.repoDir });
+		const kind = { ...(core.kinds[rootKind] as object), name: rootKind, owner: CORE_OWNER, repoDir: core.repoDir };
+		const version = versionOf(kind);
 		mkdirSync(join(dir, ".nosedive"), { recursive: true });
-		const scopes = [{ [CORE_OWNER]: { canonical: true, ...(version ? { version } : {}) } }];
+		const scopes = [{ [CORE_OWNER]: { canonical: true, ...(version ? { version } : {}), schema: digestOf(kind) } }];
 		const root = mintKbDoc(join(dir, "kb"), { kind: rootKind, name: repo, gist: `What ${repo} holds`, title: repo, scopes });
 		// The primary root is the one whose id is the repo's.
 		const config = { id: root.id, migrations: MIGRATIONS.map((migration) => migration.id), ...(workspace ? { workspace: "./workspace" } : {}), roots: [`kb/${root.id}.md`] };

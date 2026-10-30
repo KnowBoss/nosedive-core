@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { i01a147171f057d019118aaa1f269f5fd as findKind, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { i01a147171f057d019118aaa1f269f5fd as findKind, digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 import { checkedOut, git, gitRepo, ok, run, tempBridge, tempDir } from "../test/harness.ts";
@@ -88,10 +88,11 @@ test("meta of a doc whose holder is no seeded repo goes in an entry for this rep
 	git(["remote", "add", "origin", origin], bridge);
 	git(["push", "-q", "origin", "main"], bridge);
 	const hero = findBridge(bridge)!;
-	const version = versionOf(findKind("idea", hero, [core])!);
+	const kind = findKind("idea", hero, [core])!;
+	const version = versionOf(kind);
 	ok(await run(["crud", id, "--meta", "-"], bridge, "owner: dan\n"));
 	const text = readFileSync(path, "utf8");
-	assert.ok(text.includes(`\nscopes:\n  - ${hero.id}:\n      version: ${version}\n      meta:\n        owner: dan\n---\n`), text);
+	assert.ok(text.includes(`\nscopes:\n  - ${hero.id}:\n      version: ${version}\n      schema: ${digestOf(kind)}\n      meta:\n        owner: dan\n---\n`), text);
 	assert.doesNotMatch(text, /\nmeta:/, "the root's meta is the holder's, and nobody here owns it");
 	assert.match((await run(["crud", id, "--meta", "-"], bridge, "bogus: 1\n")).err, /meta does not fit kind idea:\n {2}meta must NOT have additional properties/);
 

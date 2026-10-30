@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
 import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
-import { versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
@@ -30,8 +30,9 @@ test("makes a git repo a nosedive repo, its config naming its id and one root of
 	assert.equal(id, root, "the primary root's id is the repo's");
 	assert.equal(readFileSync(join(dir, "README.md"), "utf8"), `# [${repo}](kb/${root}.md)\n`, "a README linking the primary root");
 	// Its kind is core's, which it says in a canonical scope, naming the version of core's base kind.
-	const version = versionOf({ ...(core.kinds.base as object), name: "base", owner: CORE, repoDir: core.repoDir });
-	assert.equal(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), `---\nkind: base\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\nscopes:\n  - ${CORE}:\n      canonical: true\n      version: ${version}\n---\n\n# ${repo}\n`, "named after the repo");
+	const kind = { ...(core.kinds.base as object), name: "base", owner: CORE, repoDir: core.repoDir };
+	const version = versionOf(kind);
+	assert.equal(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), `---\nkind: base\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\nscopes:\n  - ${CORE}:\n      canonical: true\n      version: ${version}\n      schema: ${digestOf(kind)}\n---\n\n# ${repo}\n`, "named after the repo");
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "cache/\ncapes/\nlocal/\n");
 	assert.equal(existsSync(join(dir, ".gitignore")), false, "no workspace and no cape root, so no lockfile line");
 	assert.equal(existsSync(join(dir, "workspace")), false);

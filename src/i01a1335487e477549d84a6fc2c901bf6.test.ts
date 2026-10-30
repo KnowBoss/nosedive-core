@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource, schemaDigest } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { repoDir } from "../scripts/source-cape.mjs";
 import { CANONICAL, git, gitRepo, ok, run, tempDir } from "../test/harness.ts";
@@ -96,4 +96,23 @@ test("records each kind's version, the last commit that changed its schema and n
 	const file = join(dir, ".nosedive", "kinds", `${id}.md`);
 	writeFileSync(file, readFileSync(file, "utf8").replace("additionalProperties: false", "additionalProperties: true"));
 	assert.equal(versionOfIdea(), undefined, "a schema that is not committed has no version");
+});
+
+test("a schema's digest is 12 hex characters, the same for the same schema whatever the order of its keys", () => {
+	const one = { type: "object", properties: { a: { type: "string" }, b: { enum: [1, 2] } }, required: ["a"] };
+	const two = { required: ["a"], properties: { b: { enum: [1, 2] }, a: { type: "string" } }, type: "object" };
+	assert.match(schemaDigest(one), /^[0-9a-f]{12}$/);
+	assert.equal(schemaDigest(one), schemaDigest(two));
+	assert.notEqual(schemaDigest(one), schemaDigest({ ...one, required: [] }));
+	assert.notEqual(schemaDigest({ enum: [1, 2] }), schemaDigest({ enum: [2, 1] }), "an array's order is part of it");
+	assert.equal(schemaDigest(undefined), schemaDigest(null), "a kind with no schema has one digest");
+});
+
+test("records the digest of each kind's schema, with or without versions", async () => {
+	const dir = gitRepo("describe-digest");
+	ok(await run(["seed"], dir));
+	ok(await run(["crud", "core:kind", "An", "idea", "--name", "idea", "--meta", "-"], dir, "schema:\n  type: object\n  additionalProperties: true\n"));
+	const digest = schemaDigest({ type: "object", additionalProperties: true });
+	assert.equal((describeCapeSource(dir).kinds.idea as { digest?: string }).digest, digest);
+	assert.equal((describeCapeSource(dir, false, true).kinds.idea as { digest?: string }).digest, digest);
 });

@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { CapeDoc } from "./i01a1336a958f71c7beec4db3195c7966.ts";
@@ -36,7 +37,7 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = fal
 		const file = relative(repoDir, doc.path).replace(/\\/g, "/");
 		const version = versions ? kindVersion(repoDir, file, meta.schema) : undefined;
 		// Whether the version is on the trunk is recorded with it: a trunk only grows, so the answer stays true for whoever wears this build.
-		kinds[String(doc.fm.name)] = { ...meta, links: doc.fm.links ?? [], id: doc.fm.id, file, ...(version ? { version, published: onTrunk(repoDir, version) } : {}) };
+		kinds[String(doc.fm.name)] = { ...meta, links: doc.fm.links ?? [], id: doc.fm.id, file, digest: schemaDigest(meta.schema), ...(version ? { version, published: onTrunk(repoDir, version) } : {}) };
 	};
 	// The kinds a repo keeps in .nosedive/kinds/ are as much its own as those in its kb.
 	const kindsDir = join(repoDir, ".nosedive", "kinds");
@@ -123,6 +124,22 @@ export function kindVersion(repoDir: string, file: string, schema: unknown): str
 		version = commit;
 	}
 	return version;
+}
+
+/**
+ * A short digest of a schema, the same for the same schema whatever order its keys were written in. It lets a version a force-push
+ * orphaned be re-pinned later to the commit that now holds a schema with the same digest.
+ */
+export function schemaDigest(schema: unknown): string {
+	return createHash("sha256").update(canonical(schema ?? null)).digest("hex").slice(0, 12);
+}
+
+function canonical(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+	if (value !== null && typeof value === "object") {
+		return `{${Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([key, each]) => `${JSON.stringify(key)}:${canonical(each)}`).join(",")}}`;
+	}
+	return JSON.stringify(value);
 }
 
 /** Whether a commit is on the origin trunk the repo last fetched. */

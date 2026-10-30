@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
-import { i01a147171f057d019118aaa1f269f5fd as findKind, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { i01a147171f057d019118aaa1f269f5fd as findKind, digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
@@ -18,10 +18,11 @@ test("mints a doc named from its gist, and commits it", async () => {
 	const path = ok(await run(["crud", "core:memo", "Hello,", "capes", "world!"], bridge));
 	const id = path.replace(/^.*\/|\.md$/g, "");
 	// Core's kind is not the hero's own, so the doc names core in a canonical scope, with the version of core's memo.
-	const memo = versionOf(findKind("core:memo", findBridge(bridge)!, [core])!);
+	const kind = findKind("core:memo", findBridge(bridge)!, [core])!;
+	const memo = versionOf(kind);
 	assert.equal(
 		readFileSync(join(bridge, path), "utf8"),
-		`---\nkind: memo\nid: ${id}\nname: hello-capes-world-${id.slice(-6)}\ngist: "Hello, capes world!"\nscopes:\n  - ${CORE}:\n      canonical: true\n      version: ${memo}\n---\n\n# Hello, capes world!\n`,
+		`---\nkind: memo\nid: ${id}\nname: hello-capes-world-${id.slice(-6)}\ngist: "Hello, capes world!"\nscopes:\n  - ${CORE}:\n      canonical: true\n      version: ${memo}\n      schema: ${digestOf(kind)}\n---\n\n# Hello, capes world!\n`,
 	);
 	assert.match(memo!, /^[0-9a-f]{40}$/);
 	assert.equal(git(["log", "-1", "--format=%s"], bridge), `crud(${id}): created core:memo hello-capes-world-${id.slice(-6)}`);

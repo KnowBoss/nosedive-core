@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { schemaDigest } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1337c81b57799820f96a757b791d0 as buildCape } from "./i01a1337c81b57799820f96a757b791d0.ts";
 import { i01a147171f057d019118aaa1f269f5fd as findKind, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
@@ -134,7 +135,7 @@ test("records its owner, its short name and the kinds it declares with their ver
 	assert.equal(cape.owner, readRepoConfig(repo)!.id);
 	assert.equal(cape.shortName, "greet");
 	const head = git(["rev-parse", "HEAD"], repo);
-	assert.deepEqual({ ...(cape.kinds!.tag as object) }, { schema: { type: "object", additionalProperties: true }, links: [], id: KIND, file: `.nosedive/kinds/${KIND}.md`, version: head, published: true });
+	assert.deepEqual({ ...(cape.kinds!.tag as object) }, { schema: { type: "object", additionalProperties: true }, links: [], id: KIND, file: `.nosedive/kinds/${KIND}.md`, version: head, published: true, digest: schemaDigest({ type: "object", additionalProperties: true }) });
 
 	setCapes(dir, ["greet-cape"]);
 	const hero = findBridge(dir)!;

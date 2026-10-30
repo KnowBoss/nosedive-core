@@ -6,7 +6,7 @@ import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1335487317576a0afd03506ef5555 as readSource } from "./i01a1335487317576a0afd03506ef5555.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
-import { assertPublished, i01a147171f057d019118aaa1f269f5fd as findKind, undeclaredKind, unknownKind } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { pinOf, i01a147171f057d019118aaa1f269f5fd as findKind, undeclaredKind, unknownKind } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7e8097e19d599ba39bcc.ts";
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
@@ -33,7 +33,7 @@ export async function i6c9390d5a8e5583881960839391345db(
 	if (kind.id === REPO_KIND) checkRepo(bridge, kbDir, doc.name, meta as Record<string, unknown>);
 	// The repo holding the doc says whose kind is its own; any other kind is named by a canonical scope.
 	const holder = docKind({ fm: { kind: kind.name }, path: join(kbDir, "doc.md") }).owner;
-	const scopes = kind.owner !== holder ? [{ [kind.owner]: { canonical: true, version: assertPublished(kind, bridge) } }] : undefined;
+	const scopes = kind.owner !== holder ? [{ [kind.owner]: { canonical: true, ...pinOf(kind, bridge) } }] : undefined;
 	const minted = mintKbDoc(kbDir, { kind: kind.name, gist: doc.gist, name: doc.name, meta: meta as Record<string, unknown>, scopes });
 	// git finds the repo holding the doc from its directory, a checkout's included.
 	commitFiles(kbDir, [minted.path], `crud(${minted.id}): created ${doc.kind} ${minted.name}`);

@@ -27,6 +27,6 @@ test("changes the kind, refusing meta the new kind's schema forbids, and refusin
 	assert.doesNotMatch(readFileSync(join(bridge, path), "utf8"), /canonical|scopes/);
 
 	ok(await run(["crud", id, "--kind", "core:memo"], bridge));
-	assert.match(readFileSync(join(bridge, path), "utf8"), new RegExp(`\nkind: memo\n[^]*scopes:\n  - ${CORE}:\n      canonical: true\n      version: [0-9a-f]{40}\n`));
+	assert.match(readFileSync(join(bridge, path), "utf8"), new RegExp(`\nkind: memo\n[^]*scopes:\n  - ${CORE}:\n      canonical: true\n      version: [0-9a-f]{40}\n      schema: [0-9a-f]{12}\n`));
 	assert.match((await run(["crud", id, "--kind", "nope:memo"], bridge)).err, /nope:memo names no kind; memo is reached as core:memo/);
 });

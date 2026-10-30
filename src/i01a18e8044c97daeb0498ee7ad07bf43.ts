@@ -6,7 +6,7 @@ import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
-import { assertPublished, versionOf, type KindMeta } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { assertPublished, digestOf, versionOf, type KindMeta } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { CORE_OWNER, scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { i01a18e40518e7f15a2066909dca2be43 as listKinds } from "./i01a18e40518e7f15a2066909dca2be43.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -71,7 +71,7 @@ export function i01a18e8044c97daeb0498ee7ad07bf43(dir: string, ctx: MigrationCtx
 			const version = versionFor(kind, hero, `${owner.name}:${name}`, ctx);
 			for (const doc of named) {
 				const entries = scopeEntries(doc.fm.scopes);
-				entries.set(owner.id, { ...entries.get(owner.id), canonical: true, ...(version ? { version } : {}) });
+				entries.set(owner.id, { ...entries.get(owner.id), canonical: true, ...(version ? { version } : {}), schema: digestOf(kind) });
 				setScopes(doc, entries);
 				save(doc, changed);
 			}
