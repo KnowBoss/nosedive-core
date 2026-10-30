@@ -22,7 +22,7 @@ const BARE_IMPORT = /import\s*\{([^}]*)\}\s*from\s*["']([^"'./][^"']*)["']/g;
 
 type Repo = { id: string; name: string; remote: string };
 /** What a cape imports from one source: core, or another cape, with the doc ids it uses. */
-type Source = { specifier: string; capeId: string; label: string; docs: Record<string, CapeDoc>; ids: Set<string> };
+type Source = { specifier: string; capeId: string; label: string; docs: Record<string, CapeDoc>; ids: Set<string>; names: Set<string> };
 
 /** Builds the cape unless it exists already; `fresh` says which. */
 export async function i01a1337c81b57799820f96a757b791d0(
@@ -61,20 +61,23 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	// Each cape it imports is built first, at the ref this bridge uses for it.
 	const sources = new Map<string, Source>();
 	const needs: Record<string, string> = {};
-	for (const [specifier, ids] of bareImports(dir)) {
+	for (const [specifier, { ids, names }] of bareImports(dir)) {
 		if (specifier === CORE) {
-			sources.set(specifier, { specifier, capeId: core.id, label: `core ${core.version}`, docs: core.docs, ids });
+			sources.set(specifier, { specifier, capeId: core.id, label: `core ${core.version}`, docs: core.docs, ids, names });
 			continue;
 		}
 		const dependency = tryFindRepoDoc(bridge, specifier);
 		if (!dependency) continue;
 		const built = await i01a1337c81b57799820f96a757b791d0(bridge, dependency, refFor(bridge, specifier), core, [...building, repo.name], log);
 		const docs = describeCapeSource(built.source ?? join(bridge.dir, ".nosedive", "capes", "src", dependency.id)).docs;
-		sources.set(specifier, { specifier, capeId: built.id, label: `${specifier} ${built.version}`, docs, ids });
+		sources.set(specifier, { specifier, capeId: built.id, label: `${specifier} ${built.version}`, docs, ids, names });
 		needs[specifier] = built.id;
 	}
 	const linked = Object.values(source.docs).flatMap((doc) => linksOf(doc.text));
-	for (const { specifier, label, docs, ids } of sources.values()) {
+	for (const { specifier, label, docs, ids, names } of sources.values()) {
+		for (const name of names) {
+			if (specifier === CORE && core.named && !(name in core.named)) throw new Error(`${repo.name} imports ${name} from ${specifier}, which ${label} does not export`);
+		}
 		for (const id of ids) {
 			if (!docs[id]) throw new Error(`${repo.name} imports ${id} from ${specifier}, which ${label} does not have`);
 			if (!linked.some((link) => link.includes(id))) {
@@ -118,9 +121,9 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	return { ...build, fresh: true };
 }
 
-/** Every bare specifier a cape's source imports values from, with the action ids it names. */
-function bareImports(dir: string): Map<string, Set<string>> {
-	const found = new Map<string, Set<string>>();
+/** Every bare specifier a cape's source imports values from, with the action ids and the other names it takes. */
+function bareImports(dir: string): Map<string, { ids: Set<string>; names: Set<string> }> {
+	const found = new Map<string, { ids: Set<string>; names: Set<string> }>();
 	// Tests sit beside the code but are never bundled, so what they import is no import of the cape's.
 	for (const file of readdirSync(join(dir, "src")).filter((name) => !name.endsWith(".test.ts"))) {
 		const text = readFileSync(join(dir, "src", file), "utf8");
@@ -129,9 +132,14 @@ function bareImports(dir: string): Map<string, Set<string>> {
 			for (const part of match[1]!.split(",")) {
 				const name = part.trim().split(/\s+as\s+/)[0]!.trim();
 				const hex = /^i([0-9a-f]{32})$/.exec(name)?.[1];
-				if (!hex) continue;
-				if (!found.has(specifier)) found.set(specifier, new Set());
-				found.get(specifier)!.add(`${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`);
+				if (!name || name.startsWith("type ")) continue;
+				if (!found.has(specifier)) found.set(specifier, { ids: new Set(), names: new Set() });
+				if (!hex) {
+					// Only core hands out names besides its actions.
+					if (specifier === CORE) found.get(specifier)!.names.add(name);
+					continue;
+				}
+				found.get(specifier)!.ids.add(`${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`);
 			}
 		}
 	}

@@ -30,3 +30,17 @@ test("bundles a source into one module of its exports, docs and index, its core 
 	assert.equal(bundle.docs[FN].name, "twice");
 	assert.equal(bundle.index[namespacedUuid(FN, exports.id)]("ab"), "ABAB");
 });
+
+test("a named import from core is read from the loaded core's named exports", async () => {
+	const dir = tempDir("bundle-cape-named");
+	for (const sub of ["kb", "src"]) mkdirSync(join(dir, sub));
+	writeFileSync(join(dir, "kb", `${FN}.md`), `---\nkind: function\nid: ${FN}\nname: shout\n${CANONICAL}---\n`);
+	writeFileSync(join(dir, "src", `i${HEX}.ts`), `import { shout, type Loud } from "nosedive-core";\n\nexport function i${HEX}(text: string): Loud {\n\treturn shout(text);\n}\n`);
+	const outfile = join(dir, "out", "bundle.js");
+	const exports = { id: BUNDLE, name: "shout-cape", commit: "", version: "v", core: CORE, needs: {} };
+	await bundleCape(dir, describeCapeSource(dir), exports, [{ specifier: "nosedive-core", capeId: CORE, ids: [], names: ["shout"] }], outfile);
+
+	(globalThis as { __nosediveCore?: unknown }).__nosediveCore = { id: CORE, index: {}, named: { shout: (text: string) => `${text}!` } };
+	const bundle = await import(pathToFileURL(outfile).href);
+	assert.equal(bundle.index[namespacedUuid(FN, exports.id)]("hey"), "hey!");
+});

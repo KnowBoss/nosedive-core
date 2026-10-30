@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:f
 import { join, relative } from "node:path";
 import { build } from "esbuild";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "../src/i01a1335480147d0686528aee80f8ee34.ts";
-import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "../src/i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource, namedExports } from "../src/i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "../src/i01a1335488937f1c8c3983dd2950028e.ts";
 import { i01a133588c7971b5b116d9c8c1706e04 as capeIndex } from "../src/i01a133588c7971b5b116d9c8c1706e04.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "../src/i01a13a6aba3a763595bd67a4ee4d47bf.ts";
@@ -43,11 +43,14 @@ const source = describeCapeSource(repoDir, false, true);
 const owner = readRepoConfig(repoDir)?.id;
 const shortName = String(findRoot(repoDir)?.fm.name ?? name);
 const { names, entries } = capeIndex(source, id);
+const exported = namedExports(repoDir).filter((each) => each.values.length > 0);
+const exportedTypes = namedExports(repoDir).filter((each) => each.types.length > 0);
 const buildDir = join(repoDir, "build");
 const toEntry = (file) => `./${relative(buildDir, file).replace(/\\/g, "/")}`;
 const entryText = [
 	'import { consoleCtx, i01a1336a958f71c7beec4db3195c7966 as launch, type Cape } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";',
 	...Object.values(entries).map((entry) => `import { ${entry.name} } from ${JSON.stringify(toEntry(entry.file))};`),
+	...exported.map((each, at) => `import * as named${at} from ${JSON.stringify(`../src/${each.file}`)};`),
 	"",
 	`export const id = ${JSON.stringify(id)};`,
 	`export const owner = ${JSON.stringify(owner)};`,
@@ -58,17 +61,19 @@ const entryText = [
 	`export const docs: Cape["docs"] = ${JSON.stringify(source.docs)};`,
 	`export const kinds: Cape["kinds"] = ${JSON.stringify(source.kinds)};`,
 	"export const url = import.meta.url;",
+	`export const named: Cape["named"] = { ${exported.flatMap((each, at) => each.values.map((value) => `${value}: named${at}.${value}`)).join(", ")} };`,
 	"export const index: Cape[\"index\"] = {",
 	...Object.entries(names).map(([key, docId]) => `\t${JSON.stringify(key)}: ${JSON.stringify(docId)},`),
 	...Object.entries(entries).map(([key, entry]) => `\t${JSON.stringify(key)}: ${entry.name},`),
 	"};",
 	"",
 	"export async function main(argv = process.argv.slice(2)): Promise<void> {",
-	"\tprocess.exitCode = await launch(argv, consoleCtx([{ id, owner, name, shortName, commit, version, docs, index, kinds, url }]));",
+	"\tprocess.exitCode = await launch(argv, consoleCtx([{ id, owner, name, shortName, commit, version, docs, index, kinds, named, url }]));",
 	"}",
 	"",
 	// A cape repo's own tests import core's functions by these names; a built cape reads them from the index instead.
 	`export { ${Object.values(entries).map((entry) => entry.name).join(", ")} };`,
+	...exported.map((each) => `export { ${each.values.join(", ")} } from ${JSON.stringify(`../src/${each.file}`)};`),
 	"",
 ].join("\n");
 const typesText = [
@@ -79,8 +84,11 @@ const typesText = [
 	'export declare const index: Cape["index"];',
 	'export declare const kinds: Cape["kinds"];',
 	'export declare const url: string;',
+	'export declare const named: Cape["named"];',
 	"export declare function main(argv?: string[]): Promise<void>;",
 	...Object.values(entries).map((entry) => `export { ${entry.name} } from ${JSON.stringify(`../src/${entry.name}.ts`)};`),
+	...exported.map((each) => `export { ${each.values.join(", ")} } from ${JSON.stringify(`../src/${each.file}`)};`),
+	...exportedTypes.map((each) => `export type { ${each.types.join(", ")} } from ${JSON.stringify(`../src/${each.file}`)};`),
 	"",
 ].join("\n");
 

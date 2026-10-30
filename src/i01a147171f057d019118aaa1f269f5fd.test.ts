@@ -138,6 +138,11 @@ test("a build's published flag is trusted only when the owner's history is not h
 	}
 });
 
+test("core as a cape hands its named exports to the capes that import them", () => {
+	assert.equal(core.named?.assertPublished, assertPublished);
+	assert.equal(core.named?.digestOf, digestOf);
+});
+
 test("a scope entry's schema is the digest of the kind's schema, the build's when it recorded one", async () => {
 	const dir = await heroWithIdea("find-kind-digest");
 	const kind = findKind("idea", findBridge(dir)!, [core])!;

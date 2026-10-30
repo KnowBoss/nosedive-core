@@ -12,8 +12,8 @@ const REQUIRE = 'import { createRequire as __nosediveRequire } from "node:module
 
 /** What a bundle exports besides its docs, kinds and index. */
 export type BundleExports = { id: string; owner?: string; name: string; shortName?: string; commit: string; version: string; core: string; needs: Record<string, string> };
-/** A bare specifier the source imports from: core, or a cape, by its build id, with the doc ids it may take. */
-export type BundleSource = { specifier: string; capeId: string; ids: Iterable<string> };
+/** A bare specifier the source imports from: core, or a cape, by its build id, with the doc ids it may take, and for core the named exports it may take. */
+export type BundleSource = { specifier: string; capeId: string; ids: Iterable<string>; names?: Iterable<string> };
 
 /** `repoDir` is the repo the source is in, whose `node_modules` and `assets/` the bundle takes what the code imports from. */
 export async function i01a14fb7a14b7f85b7dc8bb894d6e76b(repoDir: string, source: CapeSource, exports: BundleExports, sources: BundleSource[], outfile: string): Promise<void> {
@@ -42,12 +42,13 @@ export async function i01a14fb7a14b7f85b7dc8bb894d6e76b(repoDir: string, source:
 	});
 	const bySpecifier = new Map(sources.map((from) => [from.specifier, from]));
 	const rebuild = `${exports.name} was built against other capes than these: run \`nosedive seed\``;
-	const shim = ({ specifier, capeId: from, ids }: BundleSource) =>
+	const shim = ({ specifier, capeId: from, ids, names: named = [] }: BundleSource) =>
 		[
 			specifier === CORE
 				? "const from = globalThis.__nosediveCore;"
 				: `const from = globalThis.__nosediveCapes?.[${JSON.stringify(from)}];`,
 			`if (from?.id !== ${JSON.stringify(from)}) throw new Error(${JSON.stringify(rebuild)});`,
+			...[...named].map((name) => `export const ${name} = from.named[${JSON.stringify(name)}];`),
 			...[...ids].map((docId) => `export const i${docId.replace(/-/g, "")} = from.index[${JSON.stringify(namespacedUuid(docId, from))}];`),
 		].join("\n");
 	try {

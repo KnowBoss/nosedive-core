@@ -69,6 +69,22 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = fal
 	return { docs, entries, kinds };
 }
 
+/** What each non-test file in `src/` exports besides its default function, `i<hex>`: its values and its types, for capes that import them from core. */
+export function namedExports(repoDir: string): { file: string; values: string[]; types: string[] }[] {
+	const src = join(repoDir, "src");
+	if (!existsSync(src)) return [];
+	return readdirSync(src)
+		.filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+		.sort()
+		.flatMap((file) => {
+			const text = readFileSync(join(src, file), "utf8");
+			const named = (pattern: RegExp) => [...text.matchAll(pattern)].map((match) => match[1]!).filter((name) => !/^i[0-9a-f]{32}$/.test(name));
+			const values = named(/^export (?:async )?(?:function|const|class) (\w+)/gm);
+			const types = named(/^export (?:type|interface) (\w+)/gm);
+			return values.length + types.length > 0 ? [{ file, values, types }] : [];
+		});
+}
+
 /** The doc files `src/` names: one per code file named by an id, which a usage's file, named by a hash, never matches. */
 function srcDocFiles(repoDir: string): string[] {
 	const src = join(repoDir, "src");

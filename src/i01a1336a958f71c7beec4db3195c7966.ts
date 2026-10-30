@@ -54,6 +54,8 @@ export type Cape = {
 	index: Record<string, unknown>;
 	/** Each kind the cape declares: its name, to its declaration's meta (schema, durable) and links. */
 	kinds: Record<string, unknown>;
+	/** The values its source files export besides their default functions, which a cape that imports them from it is given. */
+	named?: Record<string, unknown>;
 	/** A module exporting the cape's functions by their ids, for code running outside this process. */
 	url?: string;
 };

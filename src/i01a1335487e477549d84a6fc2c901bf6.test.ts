@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource, schemaDigest } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource, namedExports, schemaDigest } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { repoDir } from "../scripts/source-cape.mjs";
 import { CANONICAL, git, gitRepo, ok, run, tempDir } from "../test/harness.ts";
@@ -106,6 +106,17 @@ test("a schema's digest is 12 hex characters, the same for the same schema whate
 	assert.notEqual(schemaDigest(one), schemaDigest({ ...one, required: [] }));
 	assert.notEqual(schemaDigest({ enum: [1, 2] }), schemaDigest({ enum: [2, 1] }), "an array's order is part of it");
 	assert.equal(schemaDigest(undefined), schemaDigest(null), "a kind with no schema has one digest");
+});
+
+test("lists what each source file exports besides its default function", () => {
+	const dir = tempDir("describe-named");
+	mkdirSync(join(dir, "src"));
+	const hex = "i01a1335487e477549d84a6fc2c901bf6";
+	writeFileSync(join(dir, "src", `${hex}.ts`), `export type Shape = string;\nexport const LIMIT = 1;\nexport async function later() {}\nexport function ${hex}() {}\n`);
+	writeFileSync(join(dir, "src", `${hex}.test.ts`), "export const hidden = 1;\n");
+	writeFileSync(join(dir, "src", "plain.ts"), "const unexported = 1;\n");
+	assert.deepEqual(namedExports(dir), [{ file: `${hex}.ts`, values: ["LIMIT", "later"], types: ["Shape"] }]);
+	assert.ok(namedExports(repoDir).some((each) => each.values.includes("assertPublished") || each.values.includes("pinOf")));
 });
 
 test("records the digest of each kind's schema, with or without versions", async () => {
