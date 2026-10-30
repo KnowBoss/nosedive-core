@@ -9,7 +9,7 @@ import { i01a147171f057d019118aaa1f269f5fd as findKind, versionOf } from "./i01a
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
-import { CORE, checkedOut, git, gitRepo, ok, run, tempBridge, tempDir } from "../test/harness.ts";
+import { CORE, checkedOut, declareKinds, git, gitRepo, ok, run, tempBridge, tempDir } from "../test/harness.ts";
 
 const core: Cape = await sourceCape();
 
@@ -28,15 +28,18 @@ test("mints a doc named from its gist, and commits it", async () => {
 	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
 
-test("a kind of the repo's own is written bare, with no scope; a bare kind nothing declares warns, naming the spelling that is declared", async () => {
+test("a kind of the repo's own is written bare, with no scope; a bare kind nothing declares is refused, naming the spelling that is declared", async () => {
 	const bridge = await tempBridge("crud-mint-own");
 	ok(await run(["crud", "core:kind", "An", "idea", "--name", "idea", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: true\n"));
 	const path = ok(await run(["crud", "idea", "mine"], bridge));
 	assert.doesNotMatch(readFileSync(join(bridge, path), "utf8"), /scopes/);
 	const memo = await run(["crud", "memo", "bare"], bridge);
-	assert.equal(memo.code, 0);
-	assert.match(memo.err, /no kind memo is declared here; its meta is not checked; memo is declared as core:memo, nosedive-core:memo, 01a1336b-c0b8-7cde-b7c6-285196062297:memo/);
-	assert.doesNotMatch(readFileSync(join(bridge, memo.out), "utf8"), /scopes/, "it is the hero's own memo, whatever core's");
+	assert.equal(memo.code, 1);
+	assert.match(memo.err, /no kind memo is declared here, and a bare kind is the repo's own: the hero can declare one of that name; memo is declared as core:memo, nosedive-core:memo, 01a1336b-c0b8-7cde-b7c6-285196062297:memo/);
+	assert.equal(memo.out, "", "nothing was written");
+	const galleon = await run(["crud", "galleon", "bare"], bridge);
+	assert.equal(galleon.code, 1);
+	assert.match(galleon.err, /no kind galleon is declared here, and a bare kind is the repo's own: the hero can declare one of that name$/, "no spelling to name");
 });
 
 test("a kind that is not the holding repo's own is named in a canonical scope, versioned, and refused while its schema is unpublished", async () => {
@@ -93,11 +96,11 @@ test("refuses a kind doc named kind: only core declares the kind of kinds", asyn
 	assert.match((await run(["crud", "core:kind", "Kinds", "--name", "kind"], bridge)).err, /only core declares the kind named kind/);
 });
 
-test("checks the kind: warns when nothing declares it, refuses a schema an empty meta breaks", async () => {
+test("checks the kind: refuses when nothing declares it, and a schema an empty meta breaks", async () => {
 	const bridge = await tempBridge("crud-mint-kinds");
 	const undeclared = await run(["crud", "feat", "a", "feat"], bridge);
-	assert.equal(undeclared.code, 0);
-	assert.match(undeclared.err, /no kind feat is declared here; its meta is not checked/);
+	assert.equal(undeclared.code, 1);
+	assert.match(undeclared.err, /no kind feat is declared here, and a bare kind is the repo's own/);
 	ok(await run(["crud", "core:kind", "a task", "--name", "task", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: false\n  required: [owner]\n  properties:\n    owner: {type: string}\n"));
 	const refused = await run(["crud", "task", "a", "task"], bridge);
 	assert.equal(refused.code, 1);
@@ -106,6 +109,7 @@ test("checks the kind: warns when nothing declares it, refuses a schema an empty
 
 test("--meta mints the doc with its meta, checked against its kind", async () => {
 	const bridge = await tempBridge("crud-mint-meta");
+	await declareKinds(bridge, "goal");
 	const path = ok(await run(["crud", "goal", "the", "hello", "cape", "--meta", "-"], bridge, "size: 2\n"));
 	assert.match(readFileSync(join(bridge, path), "utf8"), /\ngist: "the hello cape"\nmeta:\n {2}size: 2\n---\n/);
 	const refused = await run(["crud", "core:repo", "local", "--name", "local", "--meta", "-"], bridge, "remotes:\n  local: ../hello\n");

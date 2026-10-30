@@ -48,6 +48,12 @@ export function unknownKind(spelling: string, hero: Bridge, capes: Cape[]): Erro
 	return new Error(`${spelling} names no kind${reach.length > 0 ? `; ${name} is reached as ${reach.join(" and ")}` : ": `nosedive crud` lists the kinds there are"}`);
 }
 
+/** Why a bare kind the repo does not declare cannot be written, with the spellings of any cape's kind of that name. */
+export function undeclaredKind(kind: string, hero: Bridge, capes: Cape[]): Error {
+	const reach = listKinds(hero, capes).flatMap((group) => group.kinds.filter((each) => each.name === kind).flatMap((each) => each.spellings));
+	return new Error(`no kind ${kind} is declared here, and a bare kind is the repo's own: the hero can declare one of that name${reach.length > 0 ? `; ${kind} is declared as ${reach.join(", ")}` : ""}`);
+}
+
 /**
  * What a doc's kind is in the terms it is read in: its holding repo's when that is seeded, as `crud` reads a doc in a workspace
  * checkout, else the repo acting. `kind` is that kind's declaration, if the terms have one.
