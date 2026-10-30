@@ -45,3 +45,12 @@ test("refuses a key repeated in scopes, and two canonical owners", async () => {
 	assert.equal(scopeEntries(undefined).size, 0);
 	assert.deepEqual([...scopeEntries([{ a: { "work-branch": "w" } }, { b: {} }]).keys()], ["a", "b"], "a work scope is an entry like another");
 });
+
+test("a bare string in scopes is that key with an empty entry, which is never canonical; repeating its key is refused", async () => {
+	const hero = findBridge(await tempBridge("doc-kind-bare"))!;
+	assert.deepEqual([...scopeEntries([WORK, { b: { "work-branch": "w" } }])], [[WORK, {}], ["b", { "work-branch": "w" }]]);
+	assert.deepEqual(docKind({ fm: { kind: "dive", scopes: [WORK] }, path: join(hero.kbDir, "x.md") }, "holder"), { owner: "holder", name: "dive" });
+	assert.throws(() => scopeEntries([WORK, { [WORK]: {} }]), /scopes repeat the key/);
+	assert.throws(() => scopeEntries([{ [WORK]: {} }, WORK]), /scopes repeat the key/);
+	assert.throws(() => scopeEntries([WORK, WORK]), /scopes repeat the key/);
+});

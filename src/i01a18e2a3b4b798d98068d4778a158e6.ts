@@ -8,12 +8,18 @@ export const CORE_OWNER = "01a1336b-c0b8-7cde-b7c6-285196062297";
 /** `owner` is undefined for a doc in a repo that is not seeded. */
 export type DocKind = { owner: string | undefined; name: string };
 
-/** A doc's scopes by key; a key repeated, or an entry that is no mapping, is refused. */
+/** A doc's scopes by key; a bare string is that key with an empty entry. A key repeated, or an entry that is no mapping, is refused. */
 export function scopeEntries(scopes: unknown): Map<string, Record<string, unknown>> {
 	const entries = new Map<string, Record<string, unknown>>();
 	if (scopes === undefined || scopes === null) return entries;
 	if (!Array.isArray(scopes)) throw new Error("scopes must be a list of keyed entries");
 	for (const item of scopes) {
+		// A bare key is a read-only scope: an empty entry, never canonical and with no meta.
+		if (typeof item === "string") {
+			if (entries.has(item)) throw new Error(`scopes repeat the key ${item}`);
+			entries.set(item, {});
+			continue;
+		}
 		if (item === null || typeof item !== "object" || Array.isArray(item)) throw new Error("each of scopes is a mapping from a key to its entry");
 		for (const [key, entry] of Object.entries(item)) {
 			if (entries.has(key)) throw new Error(`scopes repeat the key ${key}`);
