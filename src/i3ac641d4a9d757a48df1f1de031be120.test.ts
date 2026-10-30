@@ -128,10 +128,10 @@ test("a doc in a seeded workspace repo has its kind and meta read in that repo's
 	// A doc of an idea is the hero's kind to the hero, but the checkout does not declare it.
 	const other = "01a18e62-0000-7000-8000-0000000000e4";
 	const idea = commitDoc(checkout, other, "");
-	const warned = await run(["crud", other, "--meta", "-"], bridge, "anything: 1\n");
-	assert.equal(warned.code, 0);
-	assert.match(warned.err, /no kind idea is declared here; its meta is not checked/);
-	assert.match(readFileSync(idea, "utf8"), /\nmeta:\n {2}anything: 1\n/);
+	const refused = await run(["crud", other, "--meta", "-"], bridge, "anything: 1\n");
+	assert.notEqual(refused.code, 0);
+	assert.match(refused.err, /the kind idea of 01a18e62-0000-7000-8000-0000000000e4 is not declared where the doc is read; the hero can declare one of that name/);
+	assert.doesNotMatch(readFileSync(idea, "utf8"), /anything/);
 });
 
 test("leaves a work scope, and its ref, as it is", async () => {

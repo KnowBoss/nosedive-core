@@ -1,6 +1,6 @@
 // build-cape
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
@@ -13,7 +13,7 @@ import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
-import { GREET, git, greetCapeRepo, lock, ok, registerRepo, run, setCapes, shoutPackage, tempBridge, waveCapeRepo } from "../test/harness.ts";
+import { CANONICAL, GREET, git, greetCapeRepo, lock, ok, registerRepo, run, setCapes, shoutPackage, tempBridge, waveCapeRepo } from "../test/harness.ts";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
 
 const core: Cape = await sourceCape();
@@ -99,6 +99,20 @@ test("builds the capes a cape imports first, and runs across them", async () => 
 
 test("refuses a repo whose root is not a cape", async () => {
 	await assert.rejects((await build(greetCapeRepo({ plain: true }))).built(), /greet-cape is not a cape: it has no root/);
+});
+
+test("refuses a cape whose docs are bare core kinds, saying it predates canonical kinds", async () => {
+	const repo = greetCapeRepo();
+	for (const file of readdirSync(join(repo, "kb"))) {
+		const path = join(repo, "kb", file);
+		writeFileSync(path, readFileSync(path, "utf8").replace(CANONICAL, ""));
+	}
+	git(["commit", "-qam", "before canonical kinds"], repo);
+	const commit = git(["rev-parse", "HEAD"], repo).slice(0, 7);
+	await assert.rejects(
+		(await build(repo)).built(),
+		(err: Error) => err.message === `greet-cape at ${commit} predates canonical kinds: its 1 action/function docs and root do not name core; seed it with this core (the canonical-kinds migration) and push`,
+	);
 });
 
 test("builds a cape whole: the packages its lockfile pins, installed in its clone, and its assets, bundled in", async () => {

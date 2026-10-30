@@ -69,6 +69,14 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = fal
 	return { docs, entries, kinds };
 }
 
+/** How many action, function and migration docs the repo has that do not name core as their kind's owner: bare core kinds, written before canonical kinds, which a cape cannot export. */
+export function uncanonicalDocs(repoDir: string): number {
+	const holder = readRepoConfig(repoDir)?.id;
+	const kbDir = readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb");
+	if (!existsSync(kbDir)) return 0;
+	return codeDocs(kbDir).filter((doc) => ["action", "function", "migration"].includes(String(doc.fm.kind)) && docKind(doc, holder).owner !== CORE_OWNER).length;
+}
+
 /** What each non-test file in `src/` exports besides its default function, `i<hex>`: its values and its types, for capes that import them from core. */
 export function namedExports(repoDir: string): { file: string; values: string[]; types: string[] }[] {
 	const src = join(repoDir, "src");

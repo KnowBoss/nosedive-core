@@ -6,7 +6,6 @@ import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f87
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes, type ConfiguredCape } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
-import { i01a14fdf275b70b48f86f7f5c651719d as kbDocKind } from "./i01a14fdf275b70b48f86f7f5c651719d.ts";
 import type { KindMeta } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { CORE_OWNER, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 
@@ -65,27 +64,23 @@ export function i01a18e40518e7f15a2066909dca2be43(hero: Bridge, capes: Cape[]): 
 	return groups;
 }
 
-/** The kinds a repo declares: in its `.nosedive/kinds/`, and in its roots' directories those of core's kind. */
+/** The kinds a repo declares, in its `.nosedive/kinds/`. */
 function ownKinds(hero: Bridge): Record<string, KindMeta> {
 	const kinds: Record<string, KindMeta> = {};
-	const dirs = [...(hero.kindsDir ? [hero.kindsDir] : []), ...new Set([...hero.roots.map((root) => root.dir), hero.kbDir])];
-	for (const dir of dirs) {
-		if (!existsSync(dir)) continue;
-		for (const file of readdirSync(dir).filter((name) => name.endsWith(".md")).sort()) {
-			const path = join(dir, file);
-			if (dir !== hero.kindsDir && kbDocKind(path) !== "kind") continue;
-			let doc;
-			try {
-				doc = { ...readKbDoc(readFileSync(path, "utf8"), path), path };
-			} catch {
-				continue;
-			}
-			const kind = docKind(doc, hero.id);
-			const name = String(doc.fm.name);
-			if (kind.owner !== CORE_OWNER || kind.name !== "kind" || name in kinds) continue;
-			const meta = (doc.fm.meta ?? {}) as { schema?: unknown; durable?: boolean };
-			kinds[name] = { ...meta, links: doc.fm.links ?? [], id: String(doc.fm.id), name, owner: hero.id!, file: relative(hero.dir, path).replace(/\\/g, "/"), repoDir: hero.dir };
+	if (!hero.kindsDir || !existsSync(hero.kindsDir)) return kinds;
+	for (const file of readdirSync(hero.kindsDir).filter((name) => name.endsWith(".md")).sort()) {
+		const path = join(hero.kindsDir, file);
+		let doc;
+		try {
+			doc = { ...readKbDoc(readFileSync(path, "utf8"), path), path };
+		} catch {
+			continue;
 		}
+		const kind = docKind(doc, hero.id);
+		const name = String(doc.fm.name);
+		if (kind.owner !== CORE_OWNER || kind.name !== "kind" || name in kinds) continue;
+		const meta = (doc.fm.meta ?? {}) as { schema?: unknown; durable?: boolean };
+		kinds[name] = { ...meta, links: doc.fm.links ?? [], id: String(doc.fm.id), name, owner: hero.id!, file: relative(hero.dir, path).replace(/\\/g, "/"), repoDir: hero.dir };
 	}
 	return kinds;
 }
