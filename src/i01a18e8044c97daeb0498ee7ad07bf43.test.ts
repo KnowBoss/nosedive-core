@@ -89,12 +89,12 @@ test("leaves the repo's own kinds, and docs that already carry a canonical entry
 	assert.deepEqual(changed, []);
 });
 
-test("gives the docs of a name a worn cape declares that cape's entry, with the version its build recorded, and says when a version is not published", async () => {
+test("gives the docs of a name a worn cape declares that cape's entry, with the version its build recorded, and waits while a version is not published", async () => {
 	const dir = await tempBridge("canonical-kinds-cape");
 	const home = kbOf(dir);
 	const repo = await registerRepo(dir, "task-cape");
 	setCapes(dir, ["task-cape"]);
-	capeManifest(dir, {
+	const build = {
 		id: "build-1",
 		owner: OWNER,
 		shortName: "tasks",
@@ -108,18 +108,57 @@ test("gives the docs of a name a worn cape declares that cape's entry, with the 
 		needs: {},
 		version: "1",
 		builtAt: "2026-10-30T00:00:00.000Z",
-	});
+	};
+	capeManifest(dir, build);
 	const task = legacy(home, "task", "meta:\n  due: soon\n");
 	const epic = legacy(home, "epic");
 	const other = legacy(home, "wish");
 
-	const { said } = migrate(dir);
+	const before = [read(home, task), read(home, epic), read(home, other)];
+	const waiting = migrate(dir);
+	assert.equal(waiting.waiting, true, "epic's schema is not published");
+	assert.match(waiting.said.join("\n"), /waiting for the schema of tasks:epic to be pushed/);
+	assert.doesNotMatch(waiting.said.join("\n"), /tasks:task/);
+	assert.deepEqual([read(home, task), read(home, epic), read(home, other)], before, "not even task is written");
+	assert.equal(kindDocs(dir).length, 0, "nothing declared");
+
+	capeManifest(dir, { ...build, id: "build-1b", kinds: { ...build.kinds, epic: { schema: { type: "object" }, version: "b".repeat(40), published: true } }, builtAt: "2026-10-30T01:00:00.000Z" });
+	const { said, waiting: stillWaiting } = migrate(dir);
+	assert.equal(stillWaiting, false);
 	assert.deepEqual(fmOf(read(home, task)).scopes, [{ [OWNER]: { canonical: true, version: SCHEMA_COMMIT, schema: OBJECT_DIGEST } }]);
-	assert.deepEqual(fmOf(read(home, epic)).scopes, [{ [OWNER]: { canonical: true, version: "b".repeat(40), schema: OBJECT_DIGEST } }], "still written with the version it has");
+	assert.deepEqual(fmOf(read(home, epic)).scopes, [{ [OWNER]: { canonical: true, version: "b".repeat(40), schema: OBJECT_DIGEST } }]);
 	assert.equal(fmOf(read(home, other)).scopes, undefined, "a name no cape declares is the repo's");
 	assert.equal(kindDocs(dir).some((text) => /^name: task$/m.test(text) || /^name: epic$/m.test(text)), false, "no kind doc for a cape's name");
 	assert.equal(kindDocs(dir).some((text) => /^name: wish$/m.test(text)), true);
-	assert.match(said.join("\n"), /the schema of tasks:epic is not published, so its entries carry the unpublished version bbbbbbb/);
+	assert.match(said.join("\n"), /1 doc of task now name tasks/);
+});
+
+test("gives core's entry for a structural name even when a worn cape declares it, and says so", async () => {
+	const dir = await tempBridge("canonical-kinds-clash");
+	const home = kbOf(dir);
+	const repo = await registerRepo(dir, "clash-cape");
+	setCapes(dir, ["clash-cape"]);
+	capeManifest(dir, {
+		id: "build-3",
+		owner: OWNER,
+		shortName: "clash",
+		repo,
+		ref: "",
+		commit: SCHEMA_COMMIT,
+		core: core.id,
+		coreVersion: core.version,
+		actions: {},
+		kinds: { cape: { schema: { type: "object" }, version: SCHEMA_COMMIT, published: true } },
+		needs: {},
+		version: "1",
+		builtAt: "2026-10-30T00:00:00.000Z",
+	});
+	const doc = legacy(home, "cape");
+	const { said } = migrate(dir);
+	const kind = { ...(core.kinds.cape as object), name: "cape", owner: CORE, repoDir: core.repoDir };
+	assert.deepEqual(fmOf(read(home, doc)).scopes, [{ [CORE]: { canonical: true, version: versionOf(kind), schema: digestOf(kind) } }]);
+	assert.match(said.join("\n"), /clash declares cape, which is core's, so core's entry was given/);
+	assert.equal(kindDocs(dir).some((text) => /^name: cape$/m.test(text)), false);
 });
 
 test("waits, writing nothing, while a worn cape has no build here or a build that records no kinds, and runs once it has", async () => {
@@ -186,7 +225,13 @@ test("gives the docs of a kind core's code reads core's entry, and declares memo
 	const version = versionOf(kind);
 	assert.deepEqual(fmOf(read(home, fn)).scopes, [{ [CORE]: { canonical: true, ...(version ? { version } : {}), schema: digestOf(kind) } }]);
 	assert.equal(fmOf(read(home, memo)).scopes, undefined);
-	assert.equal(kindDocs(dir).filter((text) => /^name: memo$/m.test(text)).length, 1);
+	const minted = kindDocs(dir).filter((text) => /^name: memo$/m.test(text));
+	assert.equal(minted.length, 1);
+	const declared = core.kinds.memo as { schema: unknown; durable?: boolean };
+	assert.equal(declared.durable, true, "core's memo is durable");
+	assert.deepEqual(fmOf(minted[0]!).meta, { schema: declared.schema, durable: true }, "copied from core, not open");
+	assert.doesNotMatch(minted[0]!, /open schema/);
+	assert.match(said.join("\n"), /declared kind memo here, as core declares it, for 1 doc/);
 	assert.match(said.join("\n"), /1 doc of function now name core as its owner/);
 });
 

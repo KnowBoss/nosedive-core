@@ -90,7 +90,7 @@ export function digestOf(kind: KindMeta): string {
 }
 
 /** What a scope entry records of the kind it names: the published version, and the digest of the schema it was written against. */
-export function pinOf(kind: KindMeta, hero: Bridge): { version: string; schema: string } {
+export function pinOf(kind: KindMeta, hero: Pick<Bridge, "roots">): { version: string; schema: string } {
 	return { version: assertPublished(kind, hero), schema: digestOf(kind) };
 }
 
@@ -102,7 +102,7 @@ function hasHistory(dir: string | undefined): dir is string {
 }
 
 /** Refuses a kind whose schema commit is on neither its owner's origin trunk nor a work branch a feat names for that owner; returns the commit. */
-export function assertPublished(kind: KindMeta, hero: Bridge): string {
+export function assertPublished(kind: KindMeta, hero: Pick<Bridge, "roots">): string {
 	const version = versionOf(kind);
 	const where = kind.repoDir;
 	const refuse = () => new Error(`the schema of kind ${kind.name} is not on its owner's origin trunk or a feat's work branch: land or push it first`);
