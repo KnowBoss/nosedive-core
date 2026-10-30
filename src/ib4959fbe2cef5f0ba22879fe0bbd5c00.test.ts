@@ -10,7 +10,7 @@ import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a15baf13e27bd88dc880d4871f2210 as hydrateRepo } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
-import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir, kbOf } from "../test/harness.ts";
+import { CANONICAL, git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir, kbOf } from "../test/harness.ts";
 
 const ROOT = "01a14b36-0cfd-7521-ae18-bece3dfaa6cf";
 const STAMP = "01a14b36-0faa-71c7-bf35-9e1af7f29d0b";
@@ -26,14 +26,14 @@ function stampCapeRepo(): string {
 		const usage = { id: usageId(text, id), text };
 		const doc = { kind: "action" as const, name, gist: name, usages: [usage], top: true, text: "", body: "" };
 		return {
-			[`kb/${id}.md`]: `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${name}"\nmeta:\n  usages:\n    - ${text}\n---\n${codeSection(`\n# ${name}\n`, doc, `i${hex}`)}`,
+			[`kb/${id}.md`]: `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${name}"\nmeta:\n  usages:\n    - ${text}\n${CANONICAL}---\n${codeSection(`\n# ${name}\n`, doc, `i${hex}`)}`,
 			[`src/i${hex}.ts`]: `import { i${usage.id} } from "./i${usage.id}.ts";\n\nexport function i${hex}(call: any) {\n\tif (call.usage === "u${usage.id}") return i${usage.id}(call.gate);\n}\n`,
 			[`src/i${usage.id}.ts`]: `export function i${usage.id}(ctx: any) {\n${code}\n}\n`,
 		};
 	};
 	const files: Record<string, string> = {
 		".nosedive/config.yaml": `roots:\n  - kb/${ROOT}.md\n`,
-		[`kb/${ROOT}.md`]: `---\nkind: cape\nid: ${ROOT}\nname: stamp-cape\n---\n`,
+		[`kb/${ROOT}.md`]: `---\nkind: cape\nid: ${ROOT}\nname: stamp-cape\n${CANONICAL}---\n`,
 		...gate(STAMP, "stamp", "pass --stamp <quid> [--loud]", '\tctx.crud(ctx.doc.id, "gist", ctx.args.loud ? "STAMPED" : "stamped");\n\tctx.crud(ctx.doc.id, "section", { heading: "Stamp", text: `by ${ctx.doc.fm.kind}, with ${Object.keys(ctx.args).join(" and ")}` });\n\tctx.out("stamping");'),
 		...gate(REFUSE, "refuse", "pass --stamp <quid> [--refuse]", '\tif (ctx.args.refuse) throw new Error("asked to refuse");'),
 	};
@@ -51,7 +51,7 @@ async function stampBridge(label: string): Promise<{ bridge: string; memo: strin
 	await registerRepo(bridge, "stamp-cape", stampCapeRepo());
 	setCapes(bridge, ["stamp-cape"]);
 	ok(await run(["seed"], bridge));
-	const path = ok(await run(["crud", "memo", "a", "memo"], bridge));
+	const path = ok(await run(["crud", "core:memo", "a", "memo"], bridge));
 	const memo = idOf(path);
 	ok(await run(["crud", memo, "--links", "-"], bridge, `stamp-cape:${STAMP}:\n  rel: stamp.gate\nstamp-cape:${REFUSE}:\n  rel: stamp.gate\n`));
 	return { bridge, memo, path };
@@ -84,8 +84,8 @@ test("lists its gates' usages, and refuses argv none matches or a doc that links
 	assert.match(help, /\n {2}pass --stamp <quid> \[--loud\]\n {2}pass --stamp <quid> \[--refuse\]\n {2}pass --test <cape>$/);
 	assert.equal(ok(await run(["pass"], bridge)), help);
 	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n[^]*\n {2}pass --stamp[^]*\n {2}pass --test <cape>/);
-	const other = idOf(ok(await run(["crud", "memo", "other"], bridge)));
-	assert.match((await run(["pass", "--stamp", other], bridge)).err, /other-\w{6} links no stamp\.gate, nor does its kind memo/);
+	const other = idOf(ok(await run(["crud", "core:memo", "other"], bridge)));
+	assert.match((await run(["pass", "--stamp", other], bridge)).err, /other-\w{6} links no stamp\.gate, nor does its kind \S+:memo/);
 });
 
 test("a cape's root passes its kind's test gate, which runs its tests, once even when its root links it too", async () => {

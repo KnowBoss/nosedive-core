@@ -3,7 +3,7 @@ import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a13354
 import { i01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./i01a1335482437c9eb145885f65f12aa1.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
-import { i01a147171f057d019118aaa1f269f5fd as findKind } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { i01a147171f057d019118aaa1f269f5fd as findKind, kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i01a14b30eb0e72e28934c918000a26ac as loadCape } from "./i01a14b30eb0e72e28934c918000a26ac.ts";
 import { i01a14b30ecc07ea18999d6255d636e39 as crudEdit } from "./i01a14b30ecc07ea18999d6255d636e39.ts";
@@ -63,9 +63,9 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 
 	const edit = editKbDocs(ctx.cwd);
 	const doc = edit.doc(quid);
-	const kind = String(doc.fm.kind);
+	const { spelling: kind, kind: declared, identity } = kindOfDoc(doc, bridge, all);
 	const name = String(doc.fm.name);
-	const ids = [...new Set([...gateIds(findKind(kind, [doc.kbDir, bridge.kbDir], all)?.links, sect), ...gateIds(doc.fm.links, sect)])];
+	const ids = [...new Set([...gateIds(declared?.links, sect), ...gateIds(doc.fm.links, sect)])];
 	if (ids.length === 0) throw new Error(`${name} links no ${sect}.gate, nor does its kind ${kind}`);
 
 	const linked = ids.map((id) => {
@@ -74,7 +74,13 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 		return own;
 	});
 	const runs = linked.flatMap((own) => {
-		const usage = own.find((candidate) => matched.has(candidate) && (candidate.kind === undefined || candidate.kind === kind));
+		// A bare kind in a usage is its cape's own; any other spelling is read in this hero's terms.
+		const takes = (candidate: Usage) => {
+			if (candidate.kind === undefined) return true;
+			const wanted = candidate.kind.includes(":") ? findKind(candidate.kind, bridge, all) : (candidate.cape.kinds[candidate.kind] as { id?: string } | undefined);
+			return declared ? wanted?.id === declared.id : candidate.kind === identity.name;
+		};
+		const usage = own.find((candidate) => matched.has(candidate) && takes(candidate));
 		return usage ? [usage] : [];
 	});
 	if (runs.length === 0) {

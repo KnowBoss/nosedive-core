@@ -8,7 +8,7 @@ import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894
 import { i01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "./i01a138b2b8ed775297973c2aad478c8f.ts";
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
-import { i01a147171f057d019118aaa1f269f5fd as findKind } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 
 /** Returns the dropped docs' paths relative to the bridge. */
 export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], hard: boolean, capes: Cape[]): string[] {
@@ -63,7 +63,7 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	}
 
 	if (!hard) {
-		const durable = docs.filter(({ doc }) => findKind(String(doc.fm.kind), [doc.kbDir, bridge.kbDir], capes, bridge)?.durable === true);
+		const durable = docs.filter(({ doc }) => kindOfDoc(doc, bridge, capes).kind?.durable === true);
 		if (one && durable.length) throw new Error(`${durable[0]!.label} is durable: its file keeps it findable by id, so it was not dropped; --hard drops it anyway`);
 		if (durable.length) {
 			throw new Error(`${durable.length} of these are durable, so none was dropped; --hard drops them anyway:\n  ${durable.map(({ label }) => label).join("\n  ")}`);
