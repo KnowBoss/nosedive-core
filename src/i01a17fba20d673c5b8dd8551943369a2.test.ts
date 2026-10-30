@@ -7,7 +7,7 @@ import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c6
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a15baf13e27bd88dc880d4871f2210 as hydrateRepo } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
 import { i01a17fba20d673c5b8dd8551943369a2 as dehydrateRepo } from "./i01a17fba20d673c5b8dd8551943369a2.ts";
-import { git, gitRepo, kbOf, registerRepo, tempBridge } from "../test/harness.ts";
+import { git, gitRepo, registerRepo, tempBridge } from "../test/harness.ts";
 
 /** A hero repo with repo `hello` registered, its origin a bare repo of one commit on main. */
 async function hello(label: string) {
@@ -19,10 +19,10 @@ async function hello(label: string) {
 	const origin = join(gitRepo(`${label}-origin`), "hello.git");
 	git(["clone", "-q", "--bare", work, origin], work);
 	const id = await registerRepo(bridge, "hello", origin);
-	git(["add", kbOf(bridge)], bridge);
+	git(["add", ".nosedive/repos"], bridge);
 	git(["commit", "-qm", "hello"], bridge);
 	const hero = findBridge(bridge)!;
-	const doc = findKbDoc(hero.kbDir, id)!;
+	const doc = findKbDoc(hero.reposDir!, id)!;
 	const said: string[] = [];
 	const say = { out: (text: string) => void said.push(text), err: (text: string) => void said.push(`err: ${text}`) };
 	const checkout = join(bridge, "workspace", "hello");

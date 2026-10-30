@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
@@ -28,7 +29,7 @@ export function wornCapes(bridge: Bridge): { id: string; name: string; ref: stri
 		Object.entries((link ?? {}) as Record<string, { rel?: unknown; ref?: unknown } | null>).flatMap(([key, value]) => {
 			if (typeof value?.rel !== "string" || value.rel.split(".").at(-1) !== "cape") return [];
 			const id = QUID.exec(key)?.[1];
-			const repo = id ? [bridge.reposDir, ...bridge.roots.map((root) => root.dir)].flatMap((dir) => (dir ? [findKbDoc(dir, id)] : [])).find((found) => found?.fm.kind === "repo") : undefined;
+			const repo = id ? findKbDoc(bridge.reposDir ?? join(bridge.dir, ".nosedive", "repos"), id) : undefined;
 			if (!repo) throw new Error(`the base ${String(doc!.fm.name)} wears ${key}, which is no repo doc`);
 			return [{ id: id!, name: String(repo.fm.name), ref: typeof value.ref === "string" ? value.ref : "" }];
 		}),

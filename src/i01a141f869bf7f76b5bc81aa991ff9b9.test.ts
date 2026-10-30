@@ -54,9 +54,9 @@ test("refuses a .cape link to a doc that is no repo, and reads only the selected
 	await registerRepo(bridge, "greet-cape", greetCapeRepo());
 	setCapes(bridge, ["greet-cape"]);
 	const at = findBridge(bridge)!;
-	const memo = idOf(ok(await run(["crud", "memo", "Not a repo"], bridge)));
+	const memo = idOf(ok(await run(["crud", "core:memo", "Not a repo"], bridge)));
 	const root = at.roots[0]!.path;
-	writeFileSync(root, readFileSync(root, "utf8").replace(/kb\/[0-9a-f-]{36}\.md:\n {6}rel: \.cape/, `kb/${memo}.md:\n      rel: .cape`));
+	writeFileSync(root, readFileSync(root, "utf8").replace(/\.nosedive\/repos\/[0-9a-f-]{36}\.md:\n {6}rel: \.cape/, `kb/${memo}.md:\n      rel: .cape`));
 	assert.throws(() => configuredCapes(findBridge(bridge)!, core), new RegExp(`wears kb/${memo}\\.md, which is no repo doc`));
 	assert.deepEqual(configuredCapes({ ...at, base: undefined }, core), [], "no base selected, no capes");
 });

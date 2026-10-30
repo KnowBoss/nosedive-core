@@ -1,6 +1,6 @@
 // find-repo-doc
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -21,6 +21,18 @@ test("refuses an unknown repo, and one with no origin", async () => {
 	const dir = await tempBridge("find-repo-doc-refuse");
 	assert.throws(() => findRepoDoc(findBridge(dir)!, "nope"), /no repo named nope/);
 	const id = mintUuid();
-	writeFileSync(join(kbOf(dir), `${id}.md`), `---\nkind: repo\nid: ${id}\nname: other\nmeta:\n  remotes:\n    cloud: https://example.com/other.git\n---\n`);
+	mkdirSync(join(dir, ".nosedive", "repos"), { recursive: true });
+	writeFileSync(join(dir, ".nosedive", "repos", `${id}.md`), `---\nkind: repo\nid: ${id}\nname: other\nmeta:\n  remotes:\n    cloud: https://example.com/other.git\n---\n`);
 	assert.throws(() => findRepoDoc(findBridge(dir)!, "other"), /repo other \(\S+\) has no meta\.remotes\.origin to clone from/);
+});
+
+test("registered repos are identified by place, ignoring root kind and root-kb decoys", async () => {
+	const dir = await tempBridge("find-repo-doc-place");
+	const id = await registerRepo(dir, "registered", "../origin");
+	const path = join(dir, ".nosedive", "repos", `${id}.md`);
+	writeFileSync(path, readFileSync(path, "utf8").replace("kind: repo", "kind: idea"));
+	assert.equal(findRepoDoc(findBridge(dir)!, "registered").id, id);
+	const decoy = mintUuid();
+	writeFileSync(join(kbOf(dir), `${decoy}.md`), `---\nkind: repo\nid: ${decoy}\nname: decoy\nmeta:\n  remotes:\n    origin: ../decoy\n---\n`);
+	assert.throws(() => findRepoDoc(findBridge(dir)!, "decoy"), /no repo named decoy/);
 });
