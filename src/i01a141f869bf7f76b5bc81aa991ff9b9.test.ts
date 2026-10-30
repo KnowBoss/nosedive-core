@@ -49,6 +49,16 @@ test("pass --attach-cape builds a registered cape and links it from the base, --
 	assert.match((await run(["pass", "--detach-cape", id], bridge)).err, /the base does not wear greet-cape/);
 });
 
+test("pass --attach-cape takes whatever name the hero gave the repo, and refuses a repo that is no cape", async () => {
+	const bridge = await tempBridge("configured-capes-local-name");
+	const id = await registerRepo(bridge, "tools-from-acme", greetCapeRepo({ name: "greeter" }));
+	const plain = await registerRepo(bridge, "not-a-cape", greetCapeRepo({ plain: true }));
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "register"], bridge);
+	assert.match(ok(await run(["pass", "--attach-cape", id], bridge)), /attached tools-from-acme \S+ \([0-9a-f]{7}\)/);
+	assert.match((await run(["pass", "--attach-cape", plain], bridge)).err, /not-a-cape is not a cape: it has no root/);
+});
+
 test("refuses a .cape link to a doc that is no repo, and reads only the selected base's", async () => {
 	const bridge = await tempBridge("configured-capes-bad");
 	await registerRepo(bridge, "greet-cape", greetCapeRepo());
