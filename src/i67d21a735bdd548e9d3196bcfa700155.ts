@@ -124,7 +124,11 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		ctx.out(`rendered the tree of ${String(doc.fm.name)}`);
 	}
 
-	if (noCapes) return;
+	// A migration that waited for capes to build runs now that they have, so it needs no second seed.
+	const migrateAgain = () => {
+		for (const name of runMigrations(dir, ctx)) ctx.out(`migrated ${repo}: ${name}`);
+	};
+	if (noCapes) return migrateAgain();
 	const core = ctx.capes[0]!;
 	const bridgeAt = findBridge(dir)!;
 	const failed: string[] = [];
@@ -137,6 +141,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 			failed.push(`${cape.spec}: ${err instanceof Error ? err.message : String(err)}${lastBuilt(bridgeAt.dir, cape.name, cape.repo?.id, core.id)}`);
 		}
 	}
+	migrateAgain();
 	if (failed.length > 0) throw new Error(`some capes are not usable:\n${failed.map((failure) => `- ${failure}`).join("\n")}`);
 }
 

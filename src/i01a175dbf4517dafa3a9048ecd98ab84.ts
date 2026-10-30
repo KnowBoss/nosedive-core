@@ -9,7 +9,7 @@ import { i01a18e8044c97daeb0498ee7ad07bf43 as canonicalKinds } from "./i01a18e80
 /** What a migration may ask of core: the capes it is running with, and a way to say something. */
 export type MigrationCtx = Pick<Ctx, "capes" | "out">;
 
-export type Migration = { id: string; name: string; run: (dir: string, ctx: MigrationCtx) => string[] };
+export type Migration = { id: string; name: string; run: (dir: string, ctx: MigrationCtx) => string[] | undefined };
 
 /** The chain, in order: each migration's doc names the one before it in meta.after, which the tests hold this to. */
 export const MIGRATIONS: Migration[] = [
@@ -30,13 +30,21 @@ export function i01a175dbf4517dafa3a9048ecd98ab84(dir: string, ctx: MigrationCtx
 	for (const id of ran) if (!chain.some((each) => each.id === id)) throw newerCore(configPath, id);
 
 	const pending = chain.filter((each) => !ran.includes(each.id));
-	if (pending.length === 0 && typeof last === "string") {
+	const listAlone = () => {
 		listMigrations(configPath, ran);
 		commitFiles(dir, [configPath], `migrate: ${dirName(dir)} lists its migrations`);
-	}
+	};
+	if (pending.length === 0 && typeof last === "string") listAlone();
 	const changed: string[] = [];
+	let first = true;
 	for (const migration of pending) {
 		const files = migration.run(dir, ctx);
+		if (!files) {
+			// A migration that waits is not recorded, and the ones after it wait with it.
+			if (first && typeof last === "string") listAlone();
+			break;
+		}
+		first = false;
 		ran.push(migration.id);
 		// The list is rewritten from what the migration left, which may have rewritten the config itself.
 		listMigrations(configPath, ran);

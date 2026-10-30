@@ -20,11 +20,18 @@ const MANAGED = ["kind", "repo"];
 type Doc = ReturnType<typeof listKbDocs>[number];
 type Owner = { id: string; name: string; kinds: Record<string, unknown>; repoDir?: string; repoDocId?: string };
 
-export function i01a18e8044c97daeb0498ee7ad07bf43(dir: string, ctx: MigrationCtx): string[] {
+/** Returns undefined, having said why, while a worn cape is not built: what it declares is not known, so nothing is written. */
+export function i01a18e8044c97daeb0498ee7ad07bf43(dir: string, ctx: MigrationCtx): string[] | undefined {
 	const hero = readRepoConfig(dir);
 	if (!hero?.id) return [];
 	const core = ctx.capes[0]!;
 	const changed = new Set<string>();
+
+	const worn = wornKinds(hero, ctx);
+	if (worn.unbuilt.length > 0) {
+		ctx.out(`canonical-kinds: waiting for ${worn.unbuilt.join(", ")} to build, since what ${worn.unbuilt.length === 1 ? "it declares" : "they declare"} is not known yet`);
+		return undefined;
+	}
 
 	const docs = [...new Set(hero.roots.map((root) => root.dir))]
 		.filter((root) => existsSync(root))
@@ -55,8 +62,6 @@ export function i01a18e8044c97daeb0498ee7ad07bf43(dir: string, ctx: MigrationCtx
 		used.set(name, [...(used.get(name) ?? []), doc]);
 	}
 
-	const worn = wornKinds(hero, ctx);
-	const minted: string[] = [];
 	for (const [name, named] of used) {
 		const capes = worn.owners.filter((owner) => name in owner.kinds);
 		const structural = STRUCTURAL.includes(name) && core.kinds[name] !== undefined;
@@ -75,11 +80,7 @@ export function i01a18e8044c97daeb0498ee7ad07bf43(dir: string, ctx: MigrationCtx
 		}
 		if (capes.length > 1) ctx.out(`canonical-kinds: ${name} is declared by more than one cape (${capes.map((each) => each.name).join(", ")}), so it was not given to either`);
 		changed.add(mintKind(hero, name, named));
-		minted.push(name);
 		ctx.out(`canonical-kinds: declared kind ${name} here, open, for ${named.length} doc${named.length === 1 ? "" : "s"}: it needs a definition`);
-	}
-	if (minted.length > 0 && worn.unbuilt.length > 0) {
-		ctx.out(`canonical-kinds: ${worn.unbuilt.join(", ")} ${worn.unbuilt.length === 1 ? "has" : "have"} no build here, so a kind ${worn.unbuilt.length === 1 ? "it" : "they"} declare may be among those declared above`);
 	}
 	return [...changed];
 }

@@ -13,7 +13,7 @@ import { versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a18e8044c97daeb0498ee7ad07bf43 as canonicalKinds } from "./i01a18e8044c97daeb0498ee7ad07bf43.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
-import { CORE, git, gitRepo, kbOf, ok, registerRepo, run, setCapes, tempBridge } from "../test/harness.ts";
+import { CANONICAL, CORE, git, gitRepo, greetCapeRepo, kbOf, ok, registerRepo, run, setCapes, tempBridge } from "../test/harness.ts";
 
 const core: Cape = await sourceCape();
 const OWNER = "01a18e8a-0000-7000-8000-000000000001";
@@ -21,9 +21,10 @@ const SCHEMA_COMMIT = "a".repeat(40);
 const QUID = MIGRATIONS.at(-1)!.id;
 
 /** Runs the migration with core, collecting what it says. */
-function migrate(dir: string): { changed: string[]; said: string[] } {
+function migrate(dir: string): { changed: string[]; waiting: boolean; said: string[] } {
 	const said: string[] = [];
-	return { changed: canonicalKinds(dir, { capes: [core], out: (text) => said.push(text) }), said };
+	const changed = canonicalKinds(dir, { capes: [core], out: (text) => said.push(text) });
+	return { changed: changed ?? [], waiting: changed === undefined, said };
 }
 
 /** Writes a doc as a legacy repo would have it: a kind and meta, no scopes unless given. */
@@ -90,8 +91,7 @@ test("gives the docs of a name a worn cape declares that cape's entry, with the 
 	const dir = await tempBridge("canonical-kinds-cape");
 	const home = kbOf(dir);
 	const repo = await registerRepo(dir, "task-cape");
-	await registerRepo(dir, "unbuilt-cape");
-	setCapes(dir, ["task-cape", "unbuilt-cape"]);
+	setCapes(dir, ["task-cape"]);
 	capeManifest(dir, {
 		id: "build-1",
 		owner: OWNER,
@@ -118,7 +118,60 @@ test("gives the docs of a name a worn cape declares that cape's entry, with the 
 	assert.equal(kindDocs(dir).some((text) => /^name: task$/m.test(text) || /^name: epic$/m.test(text)), false, "no kind doc for a cape's name");
 	assert.equal(kindDocs(dir).some((text) => /^name: wish$/m.test(text)), true);
 	assert.match(said.join("\n"), /the schema of tasks:epic is not published, so its entries carry the unpublished version bbbbbbb/);
-	assert.match(said.join("\n"), /unbuilt-cape has no build here/);
+});
+
+test("waits, writing nothing, while a worn cape has no build here or a build that records no kinds, and runs once it has", async () => {
+	const dir = await tempBridge("canonical-kinds-waits");
+	const home = kbOf(dir);
+	const repo = await registerRepo(dir, "late-cape");
+	setCapes(dir, ["late-cape"]);
+	const gizmo = legacy(home, "gizmo");
+	const feat = legacy(home, "feat");
+	const before = [read(home, gizmo), read(home, feat)];
+	const build = { id: "build-2", repo, ref: "", commit: SCHEMA_COMMIT, core: core.id, coreVersion: core.version, actions: {}, needs: {}, version: "1", builtAt: "2026-10-30T00:00:00.000Z" };
+
+	const unbuilt = migrate(dir);
+	assert.equal(unbuilt.waiting, true);
+	assert.match(unbuilt.said.join("\n"), /waiting for late-cape to build/);
+	capeManifest(dir, build);
+	assert.equal(migrate(dir).waiting, true, "a build from before kinds are recorded does not do");
+	assert.deepEqual([read(home, gizmo), read(home, feat)], before);
+	assert.equal(kindDocs(dir).length, 0, "nothing declared");
+
+	capeManifest(dir, { ...build, owner: OWNER, kinds: { gizmo: { schema: { type: "object" }, version: SCHEMA_COMMIT, published: true } } });
+	assert.equal(migrate(dir).waiting, false);
+	assert.deepEqual(fmOf(read(home, gizmo)).scopes, [{ [OWNER]: { canonical: true, version: SCHEMA_COMMIT } }]);
+	assert.equal(kindDocs(dir).filter((text) => /^name: feat$/m.test(text)).length, 1);
+});
+
+test("seed leaves it unrecorded until the capes it needs are built, then runs it in the same seed with the cape's entries", async () => {
+	const dir = await tempBridge("canonical-kinds-seed-waits");
+	const home = kbOf(dir);
+	const repo = greetCapeRepo();
+	const owner = readRepoConfig(repo)!.id!;
+	writeFileSync(join(repo, "kb", `${mintUuid()}.md`), `---\nkind: kind\nid: ${mintUuid()}\nname: gizmo\ngist: "A gizmo"\nmeta:\n  schema:\n    type: object\n    additionalProperties: true\n${CANONICAL}---\n\n# Gizmo\n`);
+	git(["add", "-A"], repo);
+	git(["commit", "-qm", "a gizmo kind"], repo);
+	await registerRepo(dir, "greet-cape", repo);
+	setCapes(dir, ["greet-cape"]);
+	const gizmo = legacy(home, "gizmo");
+	const config = join(dir, ".nosedive", "config.yaml");
+	writeFileSync(config, readFileSync(config, "utf8").split("\n").filter((line) => !line.includes(QUID)).join("\n"));
+	git(["add", "-A"], dir);
+	git(["commit", "-qm", "forgot"], dir);
+
+	const waiting = migrate(dir);
+	assert.equal(waiting.waiting, true);
+	assert.doesNotMatch(readFileSync(config, "utf8"), new RegExp(QUID));
+	assert.equal(fmOf(read(home, gizmo)).scopes, undefined);
+
+	const out = ok(await run(["seed"], dir));
+	assert.ok(out.indexOf("built cape greet-cape") !== -1 && out.indexOf("built cape greet-cape") < out.indexOf("migrated "), out);
+	assert.match(out, /migrated .+: canonical-kinds/);
+	assert.equal(fmOf(read(home, gizmo)).scopes?.[0]?.[owner]?.canonical, true);
+	assert.equal(kindDocs(dir).some((text) => /^name: gizmo$/m.test(text)), false);
+	assert.match(readFileSync(config, "utf8"), new RegExp(QUID));
+	assert.equal(git(["log", "--format=%s"], dir).split("\n").filter((subject) => subject === "migrate: canonical-kinds").length, 1);
 });
 
 test("gives the docs of a kind core's code reads core's entry, and declares memo in the repo like any other name", async () => {
