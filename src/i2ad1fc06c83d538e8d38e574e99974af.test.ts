@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { git, ok, run, tempBridge, kbOf } from "../test/harness.ts";
+import { declareKinds, git, ok, run, tempBridge, kbOf } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
 test("CRUD enforces reference kinds on create and edit, and batch uses final target kinds atomically", async () => {
 	const bridge = await tempBridge("crud-reference-kind");
+	await declareKinds(bridge, "goal");
 	ok(await run(["crud", "core:kind", "inquiry", "--name", "inquiry", "--meta", "-"], bridge, "schema: {type: object, additionalProperties: true}\n"));
 	ok(await run(["crud", "core:kind", "resolution", "--name", "resolution", "--meta", "-"], bridge,
 		"schema:\n  type: object\n  additionalProperties: false\n  required: [question]\n  properties:\n    question: {type: string, kind: inquiry}\n"));
@@ -34,6 +35,7 @@ test("CRUD enforces reference kinds on create and edit, and batch uses final tar
 
 test("applies every edit in order and commits once, with text inline", async () => {
 	const bridge = await tempBridge("crud-batch");
+	await declareKinds(bridge, "goal");
 	const a = ok(await run(["crud", "goal", "a"], bridge));
 	const b = ok(await run(["crud", "goal", "b"], bridge));
 	const head = git(["rev-parse", "HEAD"], bridge);
@@ -72,6 +74,7 @@ test("applies every edit in order and commits once, with text inline", async () 
 
 test("writes nothing when any edit is refused, naming the item", async () => {
 	const bridge = await tempBridge("crud-batch-refused");
+	await declareKinds(bridge, "goal");
 	const a = ok(await run(["crud", "goal", "a"], bridge));
 	const before = readFileSync(join(bridge, a), "utf8");
 	const head = git(["rev-parse", "HEAD"], bridge);
@@ -92,6 +95,7 @@ test("writes nothing when any edit is refused, naming the item", async () => {
 
 test("checks a doc's meta once, against its final kind, so kind and meta change together", async () => {
 	const bridge = await tempBridge("crud-batch-kinds");
+	await declareKinds(bridge, "goal");
 	for (const [name, answer] of [["question", ""], ["decision", "\n    answer: { type: string }"]]) {
 		const schema = `schema:\n  type: object\n  additionalProperties: false\n  required: [options${answer ? ", answer" : ""}]\n  properties:\n    options: { type: array }${answer}\n`;
 		ok(await run(["crud", "core:kind", name!, "--name", name!, "--meta", "-"], bridge, schema));

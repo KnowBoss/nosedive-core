@@ -11,25 +11,27 @@ import { sourceCape } from "../scripts/source-cape.mjs";
 import { CORE, git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
 const core: Cape = await sourceCape();
+/** The config lines that list every migration core has. */
+const LISTED = MIGRATIONS.map((migration) => `  - ${migration.id}\n`).join("");
 
 /** The id and roots a repo's config lists. */
 function configOf(dir: string): { id: string; roots: string[]; text: string } {
 	const text = readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8");
-	return { id: /^id: (\S+)$/m.exec(text)![1]!, roots: [...text.matchAll(/^ {2}- (\S+)$/gm)].map((match) => match[1]!), text };
+	return { id: /^id: (\S+)$/m.exec(text)![1]!, roots: [.../^roots:\n((?: {2}- \S+\n)+)/m.exec(text)![1]!.matchAll(/^ {2}- (\S+)$/gm)].map((match) => match[1]!), text };
 }
 
-test("makes a git repo a nosedive repo, its config naming its id and one root of kind root, in one commit", async () => {
+test("makes a git repo a nosedive repo, its config naming its id and one root of kind base, in one commit", async () => {
 	const dir = gitRepo("seed");
 	const repo = basename(dir);
 	assert.equal(ok(await run(["seed"], dir)), `seeded ${repo}`);
 	const { id, roots, text } = configOf(dir);
 	const root = roots[0]!.replace(/^kb\/|\.md$/g, "");
-	assert.equal(text, `id: ${id}\nlast-migration: ${MIGRATIONS.at(-1)!.id}\nroots:\n  - kb/${root}.md\n`, "already in today's shape, and no workspace unless asked");
+	assert.equal(text, `id: ${id}\nmigrations:\n${LISTED}roots:\n  - kb/${root}.md\n`, "already in today's shape, and no workspace unless asked");
 	assert.equal(id, root, "the primary root's id is the repo's");
 	assert.equal(readFileSync(join(dir, "README.md"), "utf8"), `# [${repo}](kb/${root}.md)\n`, "a README linking the primary root");
-	// Its kind is core's, which it says in a canonical scope, naming the version of core's root kind.
-	const version = versionOf({ ...(core.kinds.root as object), name: "root", owner: CORE, repoDir: core.repoDir });
-	assert.equal(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), `---\nkind: root\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\nscopes:\n  - ${CORE}:\n      canonical: true\n      version: ${version}\n---\n\n# ${repo}\n`, "named after the repo");
+	// Its kind is core's, which it says in a canonical scope, naming the version of core's base kind.
+	const version = versionOf({ ...(core.kinds.base as object), name: "base", owner: CORE, repoDir: core.repoDir });
+	assert.equal(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), `---\nkind: base\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\nscopes:\n  - ${CORE}:\n      canonical: true\n      version: ${version}\n---\n\n# ${repo}\n`, "named after the repo");
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "cache/\ncapes/\nlocal/\n");
 	assert.equal(existsSync(join(dir, ".gitignore")), false, "no workspace and no cape root, so no lockfile line");
 	assert.equal(existsSync(join(dir, "workspace")), false);
@@ -41,7 +43,7 @@ test("--workspace makes it able to do work, and a cape root keeps its lockfile c
 	const hero = gitRepo("seed-workspace");
 	ok(await run(["seed", "--workspace"], hero));
 	const { id, roots, text } = configOf(hero);
-	assert.equal(text, `id: ${id}\nlast-migration: ${MIGRATIONS.at(-1)!.id}\nworkspace: ./workspace\nroots:\n  - ${roots[0]}\n`);
+	assert.equal(text, `id: ${id}\nmigrations:\n${LISTED}workspace: ./workspace\nroots:\n  - ${roots[0]}\n`);
 	assert.equal(readFileSync(join(hero, ".gitignore"), "utf8"), "!package-lock.json\n", "the repo's own .gitignore is the user's, but for its lockfile");
 	const later = gitRepo("seed-workspace-later");
 	ok(await run(["seed"], later));
@@ -150,8 +152,8 @@ test("migrates an older config first, its backlog becoming its one root, and say
 	git(["add", "-A"], dir);
 	git(["commit", "-qm", "older"], dir);
 	assert.match(ok(await run(["seed", "--no-capes"], dir)), new RegExp(`^migrated ${basename(dir)}: baseline$`, "m"));
-	assert.equal(readFileSync(config, "utf8"), `id: ${root}\nroots:\n  - kb/${root}.md\nlast-migration: ${MIGRATIONS.at(-1)!.id}\n`);
-	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), /\nkind: root\n/);
+	assert.equal(readFileSync(config, "utf8"), `id: ${root}\nroots:\n  - kb/${root}.md\nmigrations:\n${LISTED}`);
+	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), /\nkind: base\n/);
 	assert.match(git(["log", "--format=%s"], dir), /\nmigrate: baseline\n/);
 	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], dir)), /migrated/, "once");
 });

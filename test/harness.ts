@@ -224,3 +224,8 @@ export function lock(dir: string): void {
 	const npm = spawnSync("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: dir, encoding: "utf8", shell: process.platform === "win32" });
 	assert.equal(npm.status, 0, npm.stderr);
 }
+
+/** Declares open kinds in a hero, as its own, so crud can write docs of them. */
+export async function declareKinds(hero: string, ...names: string[]): Promise<void> {
+	for (const name of names) ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], hero, "schema:\n  type: object\n  additionalProperties: true\n"));
+}

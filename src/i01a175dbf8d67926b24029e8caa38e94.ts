@@ -5,7 +5,7 @@ import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 
-/** Kinds whose root becomes a plain root; any other is kept. */
+/** Kinds whose root becomes a base; any other is kept. */
 const PLAIN = ["memo", "base"];
 
 export function i01a175dbf8d67926b24029e8caa38e94(dir: string): string[] {
@@ -22,7 +22,7 @@ export function i01a175dbf8d67926b24029e8caa38e94(dir: string): string[] {
 	const rootDoc = findKbDoc(kbDir, root);
 	if (!rootDoc) throw new Error(`the root ${root} is not in ${kbDir}`);
 	if (PLAIN.includes(String(rootDoc.fm.kind))) {
-		rootDoc.yaml.set("kind", "root");
+		rootDoc.yaml.set("kind", "base");
 		rootDoc.yaml.delete("meta");
 		writeKbDoc(rootDoc.path, rootDoc.yaml, rootDoc.body);
 		changed.push(rootDoc.path);

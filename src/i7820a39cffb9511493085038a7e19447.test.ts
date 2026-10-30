@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { ok, run, tempBridge } from "../test/harness.ts";
+import { declareKinds, ok, run, tempBridge } from "../test/harness.ts";
 
 const REPO_A = "01a12c5f-ae52-71b4-a9d8-9fbc485580d2";
 const REPO_B = "01a12b6e-7152-7704-890d-4e398742c50f";
 
 test("adds, merges onto and removes scope entries", async () => {
 	const bridge = await tempBridge("crud-scopes");
+	await declareKinds(bridge, "feat");
 	const path = ok(await run(["crud", "feat", "scoped"], bridge));
 	const id = path.replace(/^.*\/|\.md$/g, "");
 

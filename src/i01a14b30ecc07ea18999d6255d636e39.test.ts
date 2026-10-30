@@ -6,10 +6,11 @@ import { test } from "node:test";
 import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i01a14b30ecc07ea18999d6255d636e39 as crudEdit } from "./i01a14b30ecc07ea18999d6255d636e39.ts";
-import { ok, run, tempBridge } from "../test/harness.ts";
+import { declareKinds, ok, run, tempBridge } from "../test/harness.ts";
 
 test("applies an edit named as its flag, with its value inline, and refuses an unknown one or a bad quid", async () => {
 	const bridge = await tempBridge("crud-edit");
+	await declareKinds(bridge, "goal");
 	const path = ok(await run(["crud", "goal", "a"], bridge));
 	const id = path.replace(/^.*\/|\.md$/g, "");
 	const ctx = { cwd: bridge, capes: [], out: () => {}, err: () => {} } as unknown as Ctx;

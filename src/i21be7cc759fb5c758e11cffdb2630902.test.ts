@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { ok, run, tempBridge } from "../test/harness.ts";
+import { declareKinds, ok, run, tempBridge } from "../test/harness.ts";
 
 test("adds and relabels links, keeping their order", async () => {
 	const bridge = await tempBridge("crud-links");
+	await declareKinds(bridge, "feat");
 	const path = ok(await run(["crud", "feat", "linked"], bridge));
 	const id = path.replace(/^.*\/|\.md$/g, "");
 

@@ -51,7 +51,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 	const repo = basename(dir);
 	const configPath = join(dir, ".nosedive", "config.yaml");
 	// A repo it knows is brought to today's shape before anything else reads it.
-	for (const name of existsSync(configPath) ? runMigrations(dir) : []) ctx.out(`migrated ${repo}: ${name}`);
+	for (const name of existsSync(configPath) ? runMigrations(dir, ctx) : []) ctx.out(`migrated ${repo}: ${name}`);
 	if (!readRepoConfig(dir)) {
 		// A repo is what its config enables: its id, its first root, and a workspace when asked for.
 		// The root's kind is one of core's, which the root says in a canonical scope.
@@ -62,7 +62,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		const scopes = [{ [CORE_OWNER]: { canonical: true, ...(version ? { version } : {}) } }];
 		const root = mintKbDoc(join(dir, "kb"), { kind: rootKind, name: repo, gist: `What ${repo} holds`, title: repo, scopes });
 		// The primary root is the one whose id is the repo's.
-		const config = { id: root.id, "last-migration": MIGRATIONS.at(-1)!.id, ...(workspace ? { workspace: "./workspace" } : {}), roots: [`kb/${root.id}.md`] };
+		const config = { id: root.id, migrations: MIGRATIONS.map((migration) => migration.id), ...(workspace ? { workspace: "./workspace" } : {}), roots: [`kb/${root.id}.md`] };
 		writeFileSync(configPath, new Document(config).toString({ lineWidth: 0 }));
 		changed.push(root.path, configPath);
 	} else {

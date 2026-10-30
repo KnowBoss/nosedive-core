@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { git, ok, run, tempBridge, kbOf } from "../test/harness.ts";
+import { declareKinds, git, ok, run, tempBridge, kbOf } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
 test("drops docs that mention each other together, in one commit", async () => {
 	const bridge = await tempBridge("crud-drop-list");
+	await declareKinds(bridge, "goal");
 	const a = ok(await run(["crud", "goal", "a"], bridge));
 	const b = ok(await run(["crud", "goal", "b"], bridge));
 	ok(await run(["crud", idOf(b), "--links", "-"], bridge, `kb/${idOf(a)}.md:\n  rel: parent.feat\n`));
@@ -23,6 +24,7 @@ test("drops docs that mention each other together, in one commit", async () => {
 
 test("refuses while a doc outside the list links in, or one is durable, and drops nothing", async () => {
 	const bridge = await tempBridge("crud-drop-list-refused");
+	await declareKinds(bridge, "goal");
 	const a = idOf(ok(await run(["crud", "goal", "a"], bridge)));
 	const note = idOf(ok(await run(["crud", "core:memo", "note"], bridge)));
 	const outside = ok(await run(["crud", "goal", "outside"], bridge));
@@ -42,12 +44,14 @@ test("refuses while a doc outside the list links in, or one is durable, and drop
 
 test("refuses a line that is not a quid", async () => {
 	const bridge = await tempBridge("crud-drop-list-bad");
+	await declareKinds(bridge, "goal");
 	const result = await run(["crud", "--drop-list", "-"], bridge, "not-a-quid\n");
 	assert.match(result.err, /--drop-list takes one quid per line, not: not-a-quid/);
 });
 
 test("ignores mentions in docs git does not track", async () => {
 	const bridge = await tempBridge("crud-drop-list-untracked");
+	await declareKinds(bridge, "goal");
 	const a = idOf(ok(await run(["crud", "goal", "a"], bridge)));
 	writeFileSync(join(kbOf(bridge), "01a14a48-61cd-7c88-a0e1-b700d01901ed.md"), `---\nkind: memo\nid: 01a14a48-61cd-7c88-a0e1-b700d01901ed\nname: copy\n---\n\nSee ${a}.\n`);
 	ok(await run(["crud", "--drop-list", "-"], bridge, `${a}\n`));

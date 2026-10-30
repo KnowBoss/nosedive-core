@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { git, ok, run, tempBridge } from "../test/harness.ts";
+import { declareKinds, git, ok, run, tempBridge } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
 test("moves a doc to its new parent, unlinking the old one on both sides, in one commit", async () => {
 	const bridge = await tempBridge("crud-parent");
+	await declareKinds(bridge, "goal");
 	const [a, b, c] = [ok(await run(["crud", "goal", "a"], bridge)), ok(await run(["crud", "goal", "b"], bridge)), ok(await run(["crud", "goal", "c"], bridge))];
 	ok(await run(["crud", idOf(c), "--parent", idOf(a)], bridge));
 	assert.match(readFileSync(join(bridge, c), "utf8"), new RegExp(`links:\n {2}- kb/${idOf(a)}\\.md:\n {6}rel: parent\\.feat\n`));
@@ -28,6 +29,7 @@ test("moves a doc to its new parent, unlinking the old one on both sides, in one
 
 test("refuses the doc itself, or a doc under it, as its parent", async () => {
 	const bridge = await tempBridge("crud-parent-refused");
+	await declareKinds(bridge, "goal");
 	const a = idOf(ok(await run(["crud", "goal", "a"], bridge)));
 	const b = idOf(ok(await run(["crud", "goal", "b"], bridge)));
 	const c = idOf(ok(await run(["crud", "goal", "c"], bridge)));

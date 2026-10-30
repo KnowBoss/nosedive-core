@@ -9,12 +9,15 @@ import { git, gitRepo } from "../test/harness.ts";
 
 const A = "01a175e0-0000-7000-8000-00000000000a";
 const B = "01a175e0-0000-7000-8000-00000000000b";
+const NEWER = "01a175e0-0000-7000-8000-0000000000ff";
+const ctx = { capes: [], out: () => {} };
 
-test("runs the migrations after last-migration, each that changes something committed alone, then records the last", () => {
-	const dir = gitRepo("run-migrations");
+/** A committed repo with a config, and a chain of two migrations of which `ran` records which ran: the first writes a file, the second nothing. */
+function setup(label: string, config: string) {
+	const dir = gitRepo(label);
 	mkdirSync(join(dir, ".nosedive"));
-	const config = join(dir, ".nosedive", "config.yaml");
-	writeFileSync(config, "id: x\n");
+	const configPath = join(dir, ".nosedive", "config.yaml");
+	writeFileSync(configPath, config);
 	git(["add", "-A"], dir);
 	git(["commit", "-qm", "start"], dir);
 	const ran: string[] = [];
@@ -22,17 +25,56 @@ test("runs the migrations after last-migration, each that changes something comm
 		{ id: A, name: "first", run: (at: string) => (ran.push("first"), writeFileSync(join(at, "a.txt"), "a\n"), [join(at, "a.txt")]) },
 		{ id: B, name: "second", run: () => (ran.push("second"), []) },
 	];
-	assert.deepEqual(runMigrations(dir, chain), ["first"], "only those that changed something");
+	return { dir, configPath, ran, chain };
+}
+
+test("runs the migrations the list lacks, each committed alone with its quid appended, whether or not it changed anything", () => {
+	const { dir, configPath, ran, chain } = setup("run-migrations", "id: x\n");
+	assert.deepEqual(runMigrations(dir, ctx, chain), ["first"], "only those that changed something");
 	assert.deepEqual(ran, ["first", "second"]);
-	assert.match(readFileSync(config, "utf8"), new RegExp(`^last-migration: ${B}$`, "m"));
-	assert.deepEqual(git(["log", "--format=%s"], dir).split("\n").slice(0, 2), [`migrate: ${dir.split(/[\\/]/).at(-1)} at second`, "migrate: first"]);
+	assert.equal(readFileSync(configPath, "utf8"), `id: x\nmigrations:\n  - ${A}\n  - ${B}\n`);
+	assert.deepEqual(git(["log", "--format=%s"], dir).split("\n").slice(0, 3), ["migrate: second", "migrate: first", "start"]);
+	assert.deepEqual(git(["show", "--name-only", "--format=", "HEAD~1"], dir).split("\n").sort(), [".nosedive/config.yaml", "a.txt"]);
+	assert.deepEqual(git(["show", "--name-only", "--format=", "HEAD"], dir).split("\n"), [".nosedive/config.yaml"]);
 	assert.equal(git(["status", "--porcelain"], dir), "");
 	ran.length = 0;
-	assert.deepEqual(runMigrations(dir, chain), []);
-	assert.deepEqual(ran, [], "nothing after the last");
-	writeFileSync(config, "last-migration: 01a175e0-0000-7000-8000-0000000000ff\n");
-	assert.throws(() => runMigrations(dir, chain), /was migrated by a newer core, to 01a175e0-0000-7000-8000-0000000000ff/);
+	assert.deepEqual(runMigrations(dir, ctx, chain), []);
+	assert.deepEqual(ran, [], "nothing the list lacks");
 });
+
+test("reads last-migration as having run that migration and every one before it, and swaps it for the list in the first commit", () => {
+	const { dir, configPath, ran, chain } = setup("run-migrations-legacy", `id: x\nlast-migration: ${A}\n`);
+	assert.deepEqual(runMigrations(dir, ctx, chain), []);
+	assert.deepEqual(ran, ["second"], "the first had run");
+	assert.equal(readFileSync(configPath, "utf8"), `id: x\nmigrations:\n  - ${A}\n  - ${B}\n`);
+	assert.deepEqual(git(["log", "--format=%s"], dir).split("\n").slice(0, 2), ["migrate: second", "start"]);
+
+	const alone = setup("run-migrations-legacy-alone", `id: x\nlast-migration: ${B}\n`);
+	assert.deepEqual(runMigrations(alone.dir, ctx, alone.chain), []);
+	assert.deepEqual(alone.ran, []);
+	assert.equal(readFileSync(alone.configPath, "utf8"), `id: x\nmigrations:\n  - ${A}\n  - ${B}\n`);
+	assert.match(git(["log", "--format=%s", "-1"], alone.dir), /^migrate: .+ lists its migrations$/);
+});
+
+test("runs a migration again once its quid is removed from the list", () => {
+	const { dir, configPath, ran, chain } = setup("run-migrations-again", "id: x\n");
+	runMigrations(dir, ctx, chain);
+	ran.length = 0;
+	writeFileSync(configPath, `id: x\nmigrations:\n  - ${A}\n`);
+	git(["commit", "-qam", "forget the second"], dir);
+	assert.deepEqual(runMigrations(dir, ctx, chain), []);
+	assert.deepEqual(ran, ["second"]);
+	assert.equal(readFileSync(configPath, "utf8"), `id: x\nmigrations:\n  - ${A}\n  - ${B}\n`);
+});
+
+test("refuses a quid core does not have, in the list or as last-migration, naming it", () => {
+	const listed = setup("run-migrations-newer", `id: x\nmigrations:\n  - ${A}\n  - ${NEWER}\n`);
+	assert.throws(() => runMigrations(listed.dir, ctx, listed.chain), new RegExp(`was migrated by a newer core, to ${NEWER}`));
+	assert.deepEqual(listed.ran, []);
+	const legacy = setup("run-migrations-newer-legacy", `last-migration: ${NEWER}\n`);
+	assert.throws(() => runMigrations(legacy.dir, ctx, legacy.chain), new RegExp(`was migrated by a newer core, to ${NEWER}`));
+});
+
 
 test("the chain in code is the chain the migration docs make: each names the one before it in meta.after", () => {
 	const kb = join(import.meta.dirname, "..", "kb");
