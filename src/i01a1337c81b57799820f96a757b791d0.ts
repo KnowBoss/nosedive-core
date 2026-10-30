@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Cape, CapeDoc } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "./i01a1335488937f1c8c3983dd2950028e.ts";
@@ -52,7 +53,10 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	if (root?.kind !== "cape") throw new Error(`${repo.name} is not a cape: ${root ? `its root is a ${root.kind}` : "it has no root"}`);
 	const problems = checkCapeSource(dir);
 	if (problems.length > 0) throw new Error(`${repo.name} at ${commit.slice(0, 7)} does not check out:\n  ${problems.join("\n  ")}`);
-	const source = describeCapeSource(dir);
+	// Its kinds are recorded with their versions, so a hero wearing it can name them in its docs.
+	const source = describeCapeSource(dir, false, true);
+	const owner = readRepoConfig(dir)?.id;
+	const shortName = String(root.fm.name);
 
 	// Each cape it imports is built first, at the ref this bridge uses for it.
 	const sources = new Map<string, Source>();
@@ -102,14 +106,14 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	const version = workspace ? "working tree" : `${date.getUTCFullYear()}.${date.getUTCMonth() + 1}.${date.getUTCDate()}-${millis}`;
 
 	installCapePackages(dir);
-	await bundleCape(dir, source, { id, name: repo.name, commit, version, core: core.id, needs }, [...sources.values()], outfile);
+	await bundleCape(dir, source, { id, owner, shortName, name: repo.name, commit, version, core: core.id, needs }, [...sources.values()], outfile);
 
 	const actions = Object.fromEntries(
 		Object.values(source.docs)
 			.filter((doc) => doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? ""))
 			.map((doc) => [doc.name, doc.gist]),
 	);
-	const build = { id, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString(), ...(workspace ? { source: dir } : {}) };
+	const build = { id, owner, shortName, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString(), ...(workspace ? { source: dir } : {}) };
 	capeManifest(bridge.dir, build);
 	return { ...build, fresh: true };
 }

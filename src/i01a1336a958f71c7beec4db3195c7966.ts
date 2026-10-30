@@ -40,7 +40,14 @@ export type CapeDoc = {
 
 export type Cape = {
 	id: string;
+	/** The seeded id of the repo it is built from, which owns its kinds. */
+	owner?: string;
+	/** Its repo's name in a hero's repo docs: its long name. */
 	name: string;
+	/** Its cape root doc's name: its short name. */
+	shortName?: string;
+	/** Where its source is checked out, when it is run from source. */
+	repoDir?: string;
 	commit: string;
 	version: string;
 	docs: Record<string, CapeDoc>;
@@ -174,7 +181,7 @@ async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 	const core = ctx.capes[0]!;
 	const groups: [string, [string, string][]][] = [];
 	const coreRows = Object.values(core.docs).flatMap((doc): [string, string][] => (doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") ? [[doc.name, doc.gist]] : []));
-	groups.push([`${core.name} ${core.version}${more ? `\n  ${core.commit.slice(0, 12)}, id ${core.id}` : ""}`, coreRows]);
+	groups.push([`${core.shortName ?? core.name} ${core.version}${more ? `\n  ${core.commit.slice(0, 12)}, id ${core.id}` : ""}`, coreRows]);
 	const bridge = findBridge(ctx.cwd);
 	// The hero's own commands, read from its docs: listing them needs no build.
 	const root = bridge && findRoot(bridge.dir, "cape");
@@ -189,7 +196,7 @@ async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 		const rows = Object.entries(cape.build?.actions ?? {}).filter(([name]) => !coreRows.some(([taken]) => taken === name));
 		const build = cape.build;
 		const from = build ? (build.source ?? (build.ref || "trunk")) : "";
-		const header = build ? `${cape.name} ${build.version}${more ? `\n  ${from} at ${build.commit.slice(0, 12)}, repo ${cape.repo?.id ?? "unregistered"}` : ""}` : cape.name;
+		const header = build ? `${build.shortName ?? cape.name} ${build.version}${more ? `\n  ${from} at ${build.commit.slice(0, 12)}, repo ${cape.repo?.id ?? "unregistered"}` : ""}` : cape.name;
 		groups.push([header, build ? rows : [["", "not built: run `nosedive seed`"]]]);
 	}
 	const width = Math.max(0, ...groups.flatMap(([, rows]) => rows.map(([name]) => name.length)));

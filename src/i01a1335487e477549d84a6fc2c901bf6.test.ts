@@ -1,12 +1,12 @@
 // describe-cape-source
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { repoDir } from "../scripts/source-cape.mjs";
-import { tempDir } from "../test/harness.ts";
+import { CANONICAL, git, gitRepo, ok, run, tempDir } from "../test/harness.ts";
 
 const SCAF = "01a13354-7f5f-7c45-a3fb-2ac0e3a7678e";
 
@@ -29,10 +29,10 @@ test("an action under another action is not top-level", () => {
 	mkdirSync(join(dir, "kb"));
 	const parent = "01a1335b-f253-7b80-ab64-d2f9a03c9634";
 	const child = "01a1335b-f30a-7dd2-a1d4-b675fd419238";
-	writeFileSync(join(dir, "kb", `${parent}.md`), `---\nkind: action\nid: ${parent}\nname: tool\n---\n`);
+	writeFileSync(join(dir, "kb", `${parent}.md`), `---\nkind: action\nid: ${parent}\nname: tool\n${CANONICAL}---\n`);
 	writeFileSync(
 		join(dir, "kb", `${child}.md`),
-		`---\nkind: action\nid: ${child}\nname: sub.tool\nlinks:\n  - kb/${parent}.md:\n      rel: parent.feat\n---\n`,
+		`---\nkind: action\nid: ${child}\nname: sub.tool\n${CANONICAL}links:\n  - kb/${parent}.md:\n      rel: parent.feat\n---\n`,
 	);
 	const { docs } = describeCapeSource(dir);
 	assert.deepEqual([docs[parent]!.top, docs[child]!.top], [true, false]);
@@ -43,7 +43,7 @@ test("reads the kb its config names, and only code and kind docs whole", () => {
 	mkdirSync(join(dir, ".nosedive"));
 	mkdirSync(join(dir, "notes"));
 	writeFileSync(join(dir, ".nosedive", "config.yaml"), "roots:\n  - notes/01a180ad-db95-70d2-b34d-add0b8f7ed41.md\n");
-	writeFileSync(join(dir, "notes", `${SCAF}.md`), `---\nkind: action\nid: ${SCAF}\nname: scaf\nmeta:\n  usages:\n    - scaf\n---\n`);
+	writeFileSync(join(dir, "notes", `${SCAF}.md`), `---\nkind: action\nid: ${SCAF}\nname: scaf\nmeta:\n  usages:\n    - scaf\n${CANONICAL}---\n`);
 	writeFileSync(join(dir, "notes", "memo.md"), "---\nkind: memo\nid: m\n---\n\nkind: action\n");
 	const { docs, entries } = describeCapeSource(dir);
 	assert.deepEqual(Object.keys(docs), [SCAF]);
@@ -55,8 +55,45 @@ test("reads the kinds a repo keeps in .nosedive/kinds/ as well as its kb's", () 
 	mkdirSync(join(dir, ".nosedive", "kinds"), { recursive: true });
 	mkdirSync(join(dir, "kb"));
 	writeFileSync(join(dir, ".nosedive", "kinds", "01a175e2-0000-7000-8000-000000000001.md"), "---\nkind: kind\nid: 01a175e2-0000-7000-8000-000000000001\nname: idea\nmeta:\n  durable: false\n---\n");
-	writeFileSync(join(dir, "kb", "01a175e2-0000-7000-8000-000000000002.md"), "---\nkind: kind\nid: 01a175e2-0000-7000-8000-000000000002\nname: goal\n---\n");
+	writeFileSync(join(dir, "kb", "01a175e2-0000-7000-8000-000000000002.md"), `---\nkind: kind\nid: 01a175e2-0000-7000-8000-000000000002\nname: goal\n${CANONICAL}---\n`);
 	const { kinds } = describeCapeSource(dir);
 	assert.deepEqual(Object.keys(kinds).sort(), ["goal", "idea"]);
 	assert.equal((kinds.idea as { durable?: boolean }).durable, false);
+});
+
+test("counts a doc as an action only when its kind is core's: a canonical scope says so, and a repo's own kind of that name is another", async () => {
+	const dir = gitRepo("describe-identity");
+	ok(await run(["seed"], dir));
+	const own = "01a18e62-0000-7000-8000-0000000000f1";
+	const canonical = "01a18e62-0000-7000-8000-0000000000f2";
+	const kb = join(dir, "kb");
+	writeFileSync(join(kb, `${own}.md`), `---\nkind: action\nid: ${own}\nname: own\nmeta:\n  usages:\n    - own\n---\n`);
+	writeFileSync(join(kb, `${canonical}.md`), `---\nkind: action\nid: ${canonical}\nname: canon\nmeta:\n  usages:\n    - canon\n${CANONICAL}---\n`);
+	assert.deepEqual(Object.keys(describeCapeSource(dir).docs), [canonical]);
+});
+
+test("records each kind's version, the last commit that changed its schema and not its prose, when asked", async () => {
+	const dir = gitRepo("describe-version");
+	ok(await run(["seed"], dir));
+	ok(await run(["crud", "core:kind", "An", "idea", "--name", "idea", "--meta", "-"], dir, "schema:\n  type: object\n  additionalProperties: true\n"));
+	const versionOfIdea = () => (describeCapeSource(dir, false, true).kinds.idea as { version?: string }).version;
+	const created = git(["rev-parse", "HEAD"], dir);
+	assert.equal(versionOfIdea(), created);
+	assert.equal((describeCapeSource(dir).kinds.idea as { version?: string }).version, undefined, "not unless asked");
+	const published = () => (describeCapeSource(dir, false, true).kinds.idea as { published?: boolean }).published;
+	assert.equal(published(), false, "no origin holds it");
+	const origin = tempDir("describe-version-origin");
+	git(["init", "-q", "--bare", "-b", "main"], origin);
+	git(["remote", "add", "origin", origin], dir);
+	git(["push", "-q", "origin", "main"], dir);
+	assert.equal(published(), true, "recorded with it, whether it is on the trunk");
+	const id = (describeCapeSource(dir).kinds.idea as { id: string }).id;
+	ok(await run(["crud", id, "--body", "-"], dir, "Prose.\n"));
+	ok(await run(["crud", id, "--gist", "Another gist"], dir));
+	assert.equal(versionOfIdea(), created, "prose and gists are not the schema");
+	ok(await run(["crud", id, "--meta", "-"], dir, "schema:\n  additionalProperties: false\n"));
+	assert.equal(versionOfIdea(), git(["rev-parse", "HEAD"], dir));
+	const file = join(dir, ".nosedive", "kinds", `${id}.md`);
+	writeFileSync(file, readFileSync(file, "utf8").replace("additionalProperties: false", "additionalProperties: true"));
+	assert.equal(versionOfIdea(), undefined, "a schema that is not committed has no version");
 });

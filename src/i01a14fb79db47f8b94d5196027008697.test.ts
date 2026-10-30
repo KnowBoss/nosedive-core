@@ -4,23 +4,23 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
-import { lock, ok, run, shoutPackage, tempBridge, kbOf } from "../test/harness.ts";
+import { CANONICAL, lock, ok, run, shoutPackage, tempBridge, kbOf } from "../test/harness.ts";
 
 const HELLO = "01a14fba-1f85-72f5-8685-94c90e206721";
 const READY = "01a14fba-1f86-7d2a-9f27-269a3819ca27";
 const LATER = "01a14fec-1d7e-77ca-8f8a-d55300d0f7b2";
 const implOf = (id: string, usage: string) => join("src", `i${usageId(usage, id)}.ts`);
 
-/** A base with a command, `hello <who>`, and a gate, `pass --ready <memo>`, scaffolded and written, none of it committed. */
+/** A base with a command, `hello <who>`, and a gate, `pass --ready <core:memo>`, scaffolded and written, none of it committed. */
 async function helloBase(label: string): Promise<string> {
 	const bridge = await tempBridge(label, ["--root-kind", "cape"]);
 	const doc = (id: string, name: string, gist: string, usage: string) =>
-		writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${gist}"\nmeta:\n  usages:\n    - ${usage}\n---\n`);
+		writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${gist}"\nmeta:\n  usages:\n    - ${usage}\n${CANONICAL}---\n`);
 	doc(HELLO, "hello", "Says hello", "hello <who>");
-	doc(READY, "ready-memo", "A memo is ready", "pass --ready <memo>");
+	doc(READY, "ready-memo", "A memo is ready", "pass --ready <core:memo>");
 	ok(await run(["scaf"], bridge));
 	hello(bridge, "hello");
-	writeFileSync(join(bridge, implOf(READY, "pass --ready <memo>")), `export async function i${usageId("pass --ready <memo>", READY)}(ctx: any) {\n\tctx.out(\`\${ctx.doc.fm.name} is ready\`);\n}\n`);
+	writeFileSync(join(bridge, implOf(READY, "pass --ready <core:memo>")), `export async function i${usageId("pass --ready <core:memo>", READY)}(ctx: any) {\n\tctx.out(\`\${ctx.doc.fm.name} is ready\`);\n}\n`);
 	return bridge;
 }
 
@@ -42,10 +42,10 @@ test("runs a base's own commands, built from its working tree, lists them under 
 
 test("passes a doc through the base's own gates, which are no commands", async () => {
 	const bridge = await helloBase("base-ready");
-	const memo = ok(await run(["crud", "memo", "a", "memo"], bridge)).replace(/^.*\/|\.md$/g, "");
+	const memo = ok(await run(["crud", "core:memo", "a", "memo"], bridge)).replace(/^.*\/|\.md$/g, "");
 	ok(await run(["crud", memo, "--links", "-"], bridge, `kb/${READY}.md:\n  rel: ready.gate\n`));
 	assert.match(ok(await run(["pass", "--ready", memo], bridge)), /^a-memo-\w{6} is ready\ngate ready-memo: passed$/);
-	assert.match((await run(["ready-memo"], bridge)).err, /ready-memo is a gate: `nosedive pass --ready <memo>`/);
+	assert.match((await run(["ready-memo"], bridge)).err, /ready-memo is a gate: `nosedive pass --ready <core:memo>`/);
 });
 
 test("refuses a base whose code does not check out, and builds nothing for one without code", async () => {
@@ -65,7 +65,7 @@ test("reads only the docs its src/ names, so a doc with no code yet is no part o
 	ok(await run(["hello", "ann"], bridge));
 	const builds = () => readdirSync(join(bridge, ".nosedive", "capes")).filter((file) => file.startsWith("base-"));
 	const before = builds();
-	writeFileSync(join(kbOf(bridge), `${LATER}.md`), `---\nkind: action\nid: ${LATER}\nname: later\ngist: "Not written yet"\nmeta:\n  usages:\n    - later\n---\n`);
+	writeFileSync(join(kbOf(bridge), `${LATER}.md`), `---\nkind: action\nid: ${LATER}\nname: later\ngist: "Not written yet"\nmeta:\n  usages:\n    - later\n${CANONICAL}---\n`);
 	assert.equal(ok(await run(["hello", "ann"], bridge)), "hello ann");
 	assert.deepEqual(builds(), before, "the base was not rebuilt");
 	assert.doesNotMatch(ok(await run(["help"], bridge)), /later/);

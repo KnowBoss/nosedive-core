@@ -10,6 +10,8 @@ import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "../src/i01a
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "../src/i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "../src/i01a1335488937f1c8c3983dd2950028e.ts";
 import { i01a133588c7971b5b116d9c8c1706e04 as capeIndex } from "../src/i01a133588c7971b5b116d9c8c1706e04.ts";
+import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "../src/i01a13a6aba3a763595bd67a4ee4d47bf.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "../src/i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { repoDir, repoId } from "./source-cape.mjs";
 
 const dev = process.argv.includes("--dev");
@@ -36,7 +38,10 @@ const millis = seconds * 1000 + (Number.parseInt(head.slice(0, 3), 16) % 1000);
 const version = `${date.getUTCFullYear()}.${date.getUTCMonth() + 1}.${date.getUTCDate()}-${millis}${dirty ? "-dev" : ""}`;
 const { name } = JSON.parse(readFileSync(join(repoDir, "package.json"), "utf8"));
 
-const source = describeCapeSource(repoDir);
+// The kinds it declares are recorded with the version of each, so a hero that wears this core can name it in its docs.
+const source = describeCapeSource(repoDir, false, true);
+const owner = readRepoConfig(repoDir)?.id;
+const shortName = String(findRoot(repoDir)?.fm.name ?? name);
 const { names, entries } = capeIndex(source, id);
 const buildDir = join(repoDir, "build");
 const toEntry = (file) => `./${relative(buildDir, file).replace(/\\/g, "/")}`;
@@ -45,7 +50,9 @@ const entryText = [
 	...Object.values(entries).map((entry) => `import { ${entry.name} } from ${JSON.stringify(toEntry(entry.file))};`),
 	"",
 	`export const id = ${JSON.stringify(id)};`,
+	`export const owner = ${JSON.stringify(owner)};`,
 	`export const name = ${JSON.stringify(name)};`,
+	`export const shortName = ${JSON.stringify(shortName)};`,
 	`export const commit = ${JSON.stringify(commit)};`,
 	`export const version = ${JSON.stringify(version)};`,
 	`export const docs: Cape["docs"] = ${JSON.stringify(source.docs)};`,
@@ -57,7 +64,7 @@ const entryText = [
 	"};",
 	"",
 	"export async function main(argv = process.argv.slice(2)): Promise<void> {",
-	"\tprocess.exitCode = await launch(argv, consoleCtx([{ id, name, commit, version, docs, index, kinds, url }]));",
+	"\tprocess.exitCode = await launch(argv, consoleCtx([{ id, owner, name, shortName, commit, version, docs, index, kinds, url }]));",
 	"}",
 	"",
 	// A cape repo's own tests import core's functions by these names; a built cape reads them from the index instead.
@@ -67,7 +74,7 @@ const entryText = [
 const typesText = [
 	'import type { Cape } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";',
 	'export type * from "../src/i01a1336a958f71c7beec4db3195c7966.ts";',
-	"export declare const id: string, name: string, commit: string, version: string;",
+	"export declare const id: string, owner: string, name: string, shortName: string, commit: string, version: string;",
 	'export declare const docs: Cape["docs"];',
 	'export declare const index: Cape["index"];',
 	'export declare const kinds: Cape["kinds"];',

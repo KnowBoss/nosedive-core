@@ -9,7 +9,7 @@ import { greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } f
 
 test("lists core's top-level actions, never internal functions", async () => {
 	const out = ok(await run([], tempDir("launch-help")));
-	assert.match(out, /^Usage: nosedive \[--base <base>\] <action> \[<args>\]\n\nnosedive-core \S+\n {2}crud {2}Reads, mints and edits kb docs\n {2}mint {2}Prints new uuid v7 ids/);
+	assert.match(out, /^Usage: nosedive \[--base <base>\] <action> \[<args>\]\n\ncore \S+\n {2}crud {2}Reads, mints and edits kb docs\n {2}mint {2}Prints new uuid v7 ids/);
 	assert.match(out, /\n {2}scaf {2}Writes the files/);
 	assert.match(out, /\n {2}seed {2}Makes the current git repo a bridge/);
 	assert.doesNotMatch(out, /match-usage|launch/);
@@ -27,6 +27,15 @@ test("lists the actions of the capes config names under each cape, once built, f
 	assert.doesNotMatch(help, /not built/);
 });
 
+test("heads a cape in help by its short name, the name of its root doc, not its repo's", async () => {
+	const bridge = await tempBridge("launch-help-short");
+	await registerRepo(bridge, "greet-cape", greetCapeRepo({ name: "greet" }));
+	setCapes(bridge, ["greet-cape"]);
+	ok(await run(["seed"], bridge));
+	assert.match(ok(await run(["help"], bridge)), /\n\ngreet \S+\n {2}greet {2}Greets\n/);
+	assert.doesNotMatch(ok(await run(["help"], bridge)), /\n\ngreet-cape/);
+});
+
 test("--help lists an action's usages and names --help --more, which adds its ## Usage section", async () => {
 	const dir = tempDir("launch-action-help");
 	const help = ok(await run(["scaf", "--help"], dir));
@@ -39,11 +48,11 @@ test("--base selects one of the hero's roots by directory, name or quid, else a 
 	try {
 		assert.match((await run(["--base", "nope", "help"], bridge)).err, /--base names one of the hero's roots, by quid, name or directory, or a directory in the hero or its workspace, and nope is none/);
 		assert.match((await run(["--base", "..", "help"], bridge)).err, /and \.\. is none/, "a directory outside the hero");
-		assert.match(ok(await run(["--base", "kb", "crud", "memo", "Home"], bridge)), /^kb\//);
+		assert.match(ok(await run(["--base", "kb", "crud", "core:memo", "Home"], bridge)), /^kb\//);
 		const home = findBridge(bridge)!;
 		assert.equal(home.baseDir, home.kbDir);
 		mkdirSync(join(bridge, "notes"));
-		assert.match(ok(await run(["--base", "notes", "crud", "memo", "Apart"], bridge)), /^notes\/[0-9a-f-]{36}\.md$/);
+		assert.match(ok(await run(["--base", "notes", "crud", "core:memo", "Apart"], bridge)), /^notes\/[0-9a-f-]{36}\.md$/);
 		assert.equal(process.env.NOSEDIVE_BASE, undefined, "--base holds for one command line");
 		process.env.NOSEDIVE_BASE = join(bridge, "notes");
 		const plain = findBridge(bridge)!;

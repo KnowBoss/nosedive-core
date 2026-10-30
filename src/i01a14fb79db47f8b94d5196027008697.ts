@@ -42,7 +42,7 @@ export async function i01a14fb79db47f8b94d5196027008697(bridge: Bridge, core: Ca
 		const problems = checkCapeSource(bridge.dir);
 		if (problems.length > 0) throw new Error(`${name}'s own actions do not check out:\n  ${problems.join("\n  ")}`);
 		installCapePackages(bridge.dir);
-		await bundleCape(bridge.dir, source, { id, name, commit: "", version: "working tree", core: core.id, needs: {} }, [{ specifier: "nosedive-core", capeId: core.id, ids: Object.keys(core.docs) }], outfile);
+		await bundleCape(bridge.dir, source, { id, owner: bridge.id, shortName: name, name, commit: "", version: "working tree", core: core.id, needs: {} }, [{ specifier: "nosedive-core", capeId: core.id, ids: Object.keys(core.docs) }], outfile);
 		// Only the newest build of a base is kept.
 		for (const file of readdirSync(capes)) if (file.startsWith("base-") && file !== `base-${id}.js`) rmSync(join(capes, file), { recursive: true, force: true });
 	}

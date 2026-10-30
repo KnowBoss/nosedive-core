@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { gitRepo, ok, run } from "../test/harness.ts";
+import { CANONICAL, gitRepo, ok, run } from "../test/harness.ts";
 
 const ACTION = "01a1335b-f253-7b80-ab64-d2f9a03c9634";
 const HELPER = "01a1335b-f30a-7dd2-a1d4-b675fd419238";
@@ -13,9 +13,9 @@ async function capeRepo(): Promise<string> {
 	ok(await run(["seed", "--root-kind", "cape"], dir));
 	writeFileSync(
 		join(dir, "kb", `${ACTION}.md`),
-		`---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n---\n`,
+		`---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${CANONICAL}---\n`,
 	);
-	writeFileSync(join(dir, "kb", `${HELPER}.md`), `---\nkind: function\nid: ${HELPER}\nname: shout\ngist: "Shouts"\n---\n`);
+	writeFileSync(join(dir, "kb", `${HELPER}.md`), `---\nkind: function\nid: ${HELPER}\nname: shout\ngist: "Shouts"\n${CANONICAL}---\n`);
 	return dir;
 }
 
@@ -43,7 +43,7 @@ test("a gate's usage gets an impl taking the pass's GateCtx, routed from call.ga
 	const dir = await capeRepo();
 	writeFileSync(
 		join(dir, "kb", `${ACTION}.md`),
-		`---\nkind: action\nid: ${ACTION}\nname: ready\ngist: "Readies"\nmeta:\n  usages:\n    - pass --ready <device>\n---\n`,
+		`---\nkind: action\nid: ${ACTION}\nname: ready\ngist: "Readies"\nmeta:\n  usages:\n    - pass --ready <device>\n${CANONICAL}---\n`,
 	);
 	const out = ok(await run(["scaf", ACTION], dir));
 	const impl = /created src\/(i[0-9a-f]{32})\.ts/g;
@@ -70,7 +70,7 @@ test("one action only, and lists what it cannot fix", async () => {
 test("runs in a cape outside core, whose code imports core's types by name", async () => {
 	const dir = gitRepo("scaf-base");
 	ok(await run(["seed", "--root-kind", "cape"], dir));
-	writeFileSync(join(dir, "kb", `${ACTION}.md`), `---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n---\n`);
+	writeFileSync(join(dir, "kb", `${ACTION}.md`), `---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${CANONICAL}---\n`);
 	assert.match(ok(await run(["scaf", ACTION], dir)), /created src\/i01a1335bf2537b80ab64d2f9a03c9634\.ts/);
 	assert.match(readFileSync(join(dir, "src", "i01a1335bf2537b80ab64d2f9a03c9634.ts"), "utf8"), /from "nosedive-core"/);
 });

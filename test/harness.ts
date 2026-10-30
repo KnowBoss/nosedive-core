@@ -60,7 +60,11 @@ export function gitRepo(label: string): string {
 	return dir;
 }
 
-export const GREET = "01a1337c-830d-7ef7-b5b2-ab0bc3a666e9";
+/** Core's seeded id, which a cape's docs name in a canonical scope to be core's kinds. */
+export const CORE = "01a1336b-c0b8-7cde-b7c6-285196062297";
+export const CANONICAL = `scopes:\n  - ${CORE}:\n      canonical: true\n`;
+
+export const GREET ="01a1337c-830d-7ef7-b5b2-ab0bc3a666e9";
 const NAMESPACED_UUID = "01a13354-8014-7d06-8652-8aee80f8ee34";
 
 export const CAPE_TESTS_PASS = "01a138b2-b8f3-7d32-82d2-274fae0f5007";
@@ -72,7 +76,7 @@ function asCape(name: string, files: Record<string, string>, options: Fixture): 
 	if (options.plain) return;
 	const root = mintUuid();
 	const gate = options.gated ? `links:\n  - nosedive-core:${CAPE_TESTS_PASS}:\n      rel: test.gate\n` : "";
-	const doc = `---\nkind: cape\nid: ${root}\nname: ${name}\n${gate}---\n`;
+	const doc = `---\nkind: cape\nid: ${root}\nname: ${name}\n${CANONICAL}${gate}---\n`;
 	files[".nosedive/config.yaml"] = `id: ${mintUuid()}\nroots:\n  - kb/${root}.md\n`;
 	files[`kb/${root}.md`] = doc;
 }
@@ -90,7 +94,7 @@ export function greetCapeRepo(options: Fixture & { link?: boolean; importing?: s
 	const links = options.link === false ? "" : `links:\n  - nosedive-core:${options.importing ?? NAMESPACED_UUID}:\n      rel: uses.action\n`;
 	const doc = { kind: "action" as const, name: "greet", gist: "Greets", usages: [{ id: usage, text: "greet <who>" }], top: true, text: "", body: "" };
 	const files: Record<string, string> = {
-		[`kb/${GREET}.md`]: `---\nkind: action\nid: ${GREET}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${links}---\n${codeSection("\n# Greet\n", doc, `i${hex}`)}`,
+		[`kb/${GREET}.md`]: `---\nkind: action\nid: ${GREET}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${CANONICAL}${links}---\n${codeSection("\n# Greet\n", doc, `i${hex}`)}`,
 		[`src/i${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function i${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(String(call.args.who), call.ctx);\n}\n`,
 		[`src/i${usage}.ts`]: `import { i${imported} as namespacedUuid } from "nosedive-core";\n\nexport async function i${usage}(who: string, ctx: { out(text: string): void }) {\n\tctx.out(\`hello \${who} \${namespacedUuid(who, "${GREET}")}\`);\n}\n`,
 		[`src/i${usage}.test.ts`]: [
@@ -130,7 +134,7 @@ export function waveCapeRepo(options: Fixture = {}): string {
 	const greet = `i${GREET.replace(/-/g, "")}`;
 	const doc = { kind: "action" as const, name: "wave", gist: "Waves", usages: [{ id: usage, text: "wave <who>" }], top: true, text: "", body: "" };
 	const files: Record<string, string> = {
-		[`kb/${WAVE}.md`]: `---\nkind: action\nid: ${WAVE}\nname: wave\ngist: "Waves"\nmeta:\n  usages:\n    - wave <who>\nlinks:\n  - greet-cape:${GREET}:\n      rel: uses.action\n---\n${codeSection("\n# Wave\n", doc, `i${hex}`)}`,
+		[`kb/${WAVE}.md`]: `---\nkind: action\nid: ${WAVE}\nname: wave\ngist: "Waves"\nmeta:\n  usages:\n    - wave <who>\n${CANONICAL}links:\n  - greet-cape:${GREET}:\n      rel: uses.action\n---\n${codeSection("\n# Wave\n", doc, `i${hex}`)}`,
 		[`src/i${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function i${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(call);\n}\n`,
 		[`src/i${usage}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { ${greet} as greet } from "greet-cape";\n\nexport async function i${usage}(call: ActionCall) {\n\tawait greet({ ...call, usage: "u${greetUsage}" });\n\tcall.ctx.out("and waves");\n}\n`,
 		[`src/i${usage}.test.ts`]: [
@@ -165,7 +169,8 @@ export function kbOf(dir: string): string {
 export async function registerRepo(bridge: string, name: string, path?: string): Promise<string> {
 	const id = mintUuid();
 	const meta = path === undefined ? "" : `meta:\n  remotes:\n    origin: ${JSON.stringify(path)}\n`;
-	writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: repo\nid: ${id}\nname: ${name}\n${meta}---\n`);
+	mkdirSync(join(bridge, ".nosedive", "repos"), { recursive: true });
+	writeFileSync(join(bridge, ".nosedive", "repos", `${id}.md`), `---\nkind: repo\nid: ${id}\nname: ${name}\n${meta}---\n`);
 	return id;
 }
 

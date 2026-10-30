@@ -3,6 +3,10 @@ import { join } from "node:path";
 
 export type CapeBuild = {
 	id: string;
+	/** The seeded id of the repo it was built from. */
+	owner?: string;
+	/** Its cape root doc's name. */
+	shortName?: string;
 	repo: string;
 	ref: string;
 	commit: string;
@@ -13,7 +17,7 @@ export type CapeBuild = {
 	coreVersion: string;
 	/** The top-level user actions it provides: name to gist. */
 	actions: Record<string, string>;
-	/** The kinds it declares: name to declaration (schema, durable, links); missing from builds older than kinds. */
+	/** The kinds it declares: name to declaration (schema, durable, links, version); missing from builds older than kinds. */
 	kinds?: Record<string, unknown>;
 	/** The capes it imports, by repo name: their ids. */
 	needs: Record<string, string>;

@@ -11,7 +11,7 @@ const TEXT = new Set([".html", ".css", ".svg", ".md", ".txt"]);
 const REQUIRE = 'import { createRequire as __nosediveRequire } from "node:module"; const require = __nosediveRequire(import.meta.url);';
 
 /** What a bundle exports besides its docs, kinds and index. */
-export type BundleExports = { id: string; name: string; commit: string; version: string; core: string; needs: Record<string, string> };
+export type BundleExports = { id: string; owner?: string; name: string; shortName?: string; commit: string; version: string; core: string; needs: Record<string, string> };
 /** A bare specifier the source imports from: core, or a cape, by its build id, with the doc ids it may take. */
 export type BundleSource = { specifier: string; capeId: string; ids: Iterable<string> };
 

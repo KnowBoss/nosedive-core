@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1337c81b57799820f96a757b791d0 as buildCape } from "./i01a1337c81b57799820f96a757b791d0.ts";
+import { i01a147171f057d019118aaa1f269f5fd as findKind, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
@@ -118,4 +120,24 @@ test("builds a cape whole: the packages its lockfile pins, installed in its clon
 	const clone = join(dir, ".nosedive", "capes", "src", findRepoDoc(findBridge(dir)!, "greet-cape").id);
 	assert.equal(existsSync(join(clone, "node_modules", ".nosedive-lockfile")), true);
 	assert.equal(git(["status", "--porcelain"], clone), "", "node_modules stays out of the clone's git");
+});
+
+test("records its owner, its short name and the kinds it declares with their versions, which a hero that wears it can name", async () => {
+	const repo = greetCapeRepo({ name: "greet" });
+	const KIND = "01a18e62-0000-7000-8000-0000000000a9";
+	mkdirSync(join(repo, ".nosedive", "kinds"), { recursive: true });
+	writeFileSync(join(repo, ".nosedive", "kinds", `${KIND}.md`), `---\nkind: kind\nid: ${KIND}\nname: tag\nmeta:\n  schema:\n    type: object\n    additionalProperties: true\n---\n`);
+	git(["add", "-A"], repo);
+	git(["commit", "-qm", "a kind"], repo);
+	const { dir, built } = await build(repo);
+	const cape = await built();
+	assert.equal(cape.owner, readRepoConfig(repo)!.id);
+	assert.equal(cape.shortName, "greet");
+	const head = git(["rev-parse", "HEAD"], repo);
+	assert.deepEqual({ ...(cape.kinds!.tag as object) }, { schema: { type: "object", additionalProperties: true }, links: [], id: KIND, file: `.nosedive/kinds/${KIND}.md`, version: head, published: true });
+
+	setCapes(dir, ["greet-cape"]);
+	const hero = findBridge(dir)!;
+	for (const spelling of ["greet:tag", "greet-cape:tag", `${cape.owner}:tag`]) assert.equal(findKind(spelling, hero, [core])?.version, head, spelling);
+	assert.equal(versionOf(findKind("greet:tag", hero, [core])!), head);
 });
