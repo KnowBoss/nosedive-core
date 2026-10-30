@@ -5,16 +5,17 @@ import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "./i01a1335480c776
 
 export function i01a141f869c07c4da8288927a559c8ae(
 	kbDir: string,
-	doc: { kind: string; gist: string; id?: string; name?: string; meta?: Record<string, unknown>; title?: string },
+	doc: { kind: string; gist: string; id?: string; name?: string; meta?: Record<string, unknown>; title?: string; scopes?: Record<string, unknown>[] },
 ): { id: string; name: string; path: string } {
 	const id = doc.id ?? mintUuid();
 	const name = doc.name ?? slugName(doc.gist, id);
 	const path = join(kbDir, `${id}.md`);
 	if (existsSync(path)) throw new Error(`${path} already exists`);
+	const scopes = doc.scopes?.length ? stringify({ scopes: doc.scopes }, { lineWidth: 0 }) : "";
 	const meta = doc.meta && Object.keys(doc.meta).length > 0 ? stringify({ meta: doc.meta }, { lineWidth: 0 }) : "";
 	mkdirSync(kbDir, { recursive: true });
 	// A JSON string is a valid YAML scalar, whatever the gist holds.
-	writeFileSync(path, `---\nkind: ${doc.kind}\nid: ${id}\nname: ${name}\ngist: ${JSON.stringify(doc.gist)}\n${meta}---\n\n# ${doc.title ?? (doc.name ? titleOf(doc.name) : doc.gist)}\n`);
+	writeFileSync(path, `---\nkind: ${doc.kind}\nid: ${id}\nname: ${name}\ngist: ${JSON.stringify(doc.gist)}\n${meta}${scopes}---\n\n# ${doc.title ?? (doc.name ? titleOf(doc.name) : doc.gist)}\n`);
 	return { id, name, path };
 }
 

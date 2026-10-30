@@ -25,7 +25,7 @@ test("refuses while anything links to it, naming each link, and edits nothing", 
 	ok(await run(["crud", idOf(child), "--links", "-"], bridge, `kb/${id}.md:\n  rel: parent.feat\n`));
 	const there = ok(await run(["--base", "workspace/other/kb", "crud", "goal", "elsewhere"], (checkedOut(bridge, "other"), bridge)));
 	ok(await run(["crud", idOf(there), "--links", "-"], bridge, `kb/${id}.md:\n  rel: uses.goal\n`));
-	const note = ok(await run(["crud", "memo", "a", "note"], bridge));
+	const note = ok(await run(["crud", "core:memo", "a", "note"], bridge));
 	ok(await run(["crud", idOf(note), "--body", "-"], bridge, `See [the parent](${id}.md).\n`));
 
 	const head = git(["rev-parse", "HEAD"], bridge);
@@ -47,7 +47,7 @@ test("refuses a root its config lists", async () => {
 
 test("keeps a durable doc unless --hard", async () => {
 	const bridge = await tempBridge("crud-drop-durable");
-	const path = ok(await run(["crud", "memo", "a", "note"], bridge));
+	const path = ok(await run(["crud", "core:memo", "a", "note"], bridge));
 	const refused = await run(["crud", "--drop", idOf(path)], bridge);
 	assert.equal(refused.code, 1);
 	assert.match(refused.err, /memo a-note-\w{6} is durable: its file keeps it findable by id, so it was not dropped; --hard drops it anyway/);

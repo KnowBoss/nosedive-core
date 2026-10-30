@@ -9,8 +9,8 @@ const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
 test("CRUD enforces reference kinds on create and edit, and batch uses final target kinds atomically", async () => {
 	const bridge = await tempBridge("crud-reference-kind");
-	ok(await run(["crud", "kind", "inquiry", "--name", "inquiry", "--meta", "-"], bridge, "schema: {type: object, additionalProperties: true}\n"));
-	ok(await run(["crud", "kind", "resolution", "--name", "resolution", "--meta", "-"], bridge,
+	ok(await run(["crud", "core:kind", "inquiry", "--name", "inquiry", "--meta", "-"], bridge, "schema: {type: object, additionalProperties: true}\n"));
+	ok(await run(["crud", "core:kind", "resolution", "--name", "resolution", "--meta", "-"], bridge,
 		"schema:\n  type: object\n  additionalProperties: false\n  required: [question]\n  properties:\n    question: {type: string, kind: inquiry}\n"));
 	const q = idOf(ok(await run(["crud", "inquiry", "which"], bridge)));
 	const meta = `question: ${q}\n`;
@@ -94,7 +94,7 @@ test("checks a doc's meta once, against its final kind, so kind and meta change 
 	const bridge = await tempBridge("crud-batch-kinds");
 	for (const [name, answer] of [["question", ""], ["decision", "\n    answer: { type: string }"]]) {
 		const schema = `schema:\n  type: object\n  additionalProperties: false\n  required: [options${answer ? ", answer" : ""}]\n  properties:\n    options: { type: array }${answer}\n`;
-		ok(await run(["crud", "kind", name!, "--name", name!, "--meta", "-"], bridge, schema));
+		ok(await run(["crud", "core:kind", name!, "--name", name!, "--meta", "-"], bridge, schema));
 	}
 	const q = idOf(ok(await run(["crud", "question", "which", "--meta", "-"], bridge, "options: [a, b]\n")));
 	const out = await run(["crud", "--batch", "-"], bridge, `- quid: ${q}\n  kind: decision\n- quid: ${q}\n  meta: { answer: a }\n`);

@@ -4,7 +4,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
 import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
-import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
+import { versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+// @ts-expect-error the shared loader is plain JavaScript
+import { sourceCape } from "../scripts/source-cape.mjs";
+import { CORE, git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
+
+const core: Cape = await sourceCape();
 
 /** The id and roots a repo's config lists. */
 function configOf(dir: string): { id: string; roots: string[]; text: string } {
@@ -21,7 +27,9 @@ test("makes a git repo a nosedive repo, its config naming its id and one root of
 	assert.equal(text, `id: ${id}\nlast-migration: ${MIGRATIONS.at(-1)!.id}\nroots:\n  - kb/${root}.md\n`, "already in today's shape, and no workspace unless asked");
 	assert.equal(id, root, "the primary root's id is the repo's");
 	assert.equal(readFileSync(join(dir, "README.md"), "utf8"), `# [${repo}](kb/${root}.md)\n`, "a README linking the primary root");
-	assert.equal(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), `---\nkind: root\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\n---\n\n# ${repo}\n`, "named after the repo");
+	// Its kind is core's, which it says in a canonical scope, naming the version of core's root kind.
+	const version = versionOf({ ...(core.kinds.root as object), name: "root", owner: CORE, repoDir: core.repoDir });
+	assert.equal(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), `---\nkind: root\nid: ${root}\nname: ${repo}\ngist: "What ${repo} holds"\nscopes:\n  - ${CORE}:\n      canonical: true\n      version: ${version}\n---\n\n# ${repo}\n`, "named after the repo");
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "cache/\ncapes/\nlocal/\n");
 	assert.equal(existsSync(join(dir, ".gitignore")), false, "no workspace and no cape root, so no lockfile line");
 	assert.equal(existsSync(join(dir, "workspace")), false);
@@ -167,7 +175,7 @@ test("a workspace ignores itself, and moves when its path changes", async () => 
 test("renders each root's tree from its feat links, and leaves it once rendered", async () => {
 	const dir = await tempBridge("seed-tree");
 	const root = configOf(dir).roots[0]!.replace(/^kb\/|\.md$/g, "");
-	const memo = ok(await run(["crud", "memo", "free", "level"], dir)).replace(/^.*\/|\.md$/g, "");
+	const memo = ok(await run(["crud", "core:memo", "free", "level"], dir)).replace(/^.*\/|\.md$/g, "");
 	ok(await run(["crud", root, "--links", "-"], dir, `kb/${memo}.md:\n  rel: levels.feat\n`));
 	assert.match(ok(await run(["seed", "--no-capes"], dir)), /rendered the tree of /);
 	assert.ok(readFileSync(join(dir, "kb", `${root}.md`), "utf8").endsWith(`\n## Levels\n\n- [free level](${memo}.md): free level\n`));

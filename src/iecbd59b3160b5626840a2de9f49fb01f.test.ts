@@ -7,7 +7,7 @@ import { ok, run, tempBridge } from "../test/harness.ts";
 
 test("replaces everything under the title, from stdin or a file, as text", async () => {
 	const bridge = await tempBridge("crud-body");
-	const path = ok(await run(["crud", "memo", "a", "note"], bridge));
+	const path = ok(await run(["crud", "core:memo", "a", "note"], bridge));
 	const id = path.replace(/^.*\/|\.md$/g, "");
 	const front = readFileSync(join(bridge, path), "utf8").split("\n# ")[0];
 
@@ -24,7 +24,7 @@ test("replaces everything under the title, from stdin or a file, as text", async
 
 test("refuses a doc with no title", async () => {
 	const bridge = await tempBridge("crud-body-untitled");
-	const path = ok(await run(["crud", "memo", "untitled"], bridge));
+	const path = ok(await run(["crud", "core:memo", "untitled"], bridge));
 	const id = path.replace(/^.*\/|\.md$/g, "");
 	const text = readFileSync(join(bridge, path), "utf8");
 	writeFileSync(join(bridge, path), text.replace("# untitled\n", "Loose text.\n"));

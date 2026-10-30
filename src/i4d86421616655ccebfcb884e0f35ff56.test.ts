@@ -24,7 +24,7 @@ test("drops docs that mention each other together, in one commit", async () => {
 test("refuses while a doc outside the list links in, or one is durable, and drops nothing", async () => {
 	const bridge = await tempBridge("crud-drop-list-refused");
 	const a = idOf(ok(await run(["crud", "goal", "a"], bridge)));
-	const note = idOf(ok(await run(["crud", "memo", "note"], bridge)));
+	const note = idOf(ok(await run(["crud", "core:memo", "note"], bridge)));
 	const outside = ok(await run(["crud", "goal", "outside"], bridge));
 	ok(await run(["crud", idOf(outside), "--links", "-"], bridge, `kb/${a}.md:\n  rel: uses.goal\n`));
 	const head = git(["rev-parse", "HEAD"], bridge);

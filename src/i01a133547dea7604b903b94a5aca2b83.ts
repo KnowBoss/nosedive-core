@@ -2,6 +2,7 @@ import type { ActionCall, Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335487317576a0afd03506ef5555 as readSource } from "./i01a1335487317576a0afd03506ef5555.ts";
 import { i01a1471723807d6e8ef228ad9472fff7 as readText } from "./i01a1471723807d6e8ef228ad9472fff7.ts";
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs, type KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
+import { i5d22a1166ca0519c8dcb58f8989f3ac0 } from "./i5d22a1166ca0519c8dcb58f8989f3ac0.ts";
 import { if4a09298430355a2a473394fbb5103f2 } from "./if4a09298430355a2a473394fbb5103f2.ts";
 import { i6c9390d5a8e5583881960839391345db } from "./i6c9390d5a8e5583881960839391345db.ts";
 import { i3ac641d4a9d757a48df1f1de031be120 } from "./i3ac641d4a9d757a48df1f1de031be120.ts";
@@ -25,6 +26,8 @@ const SLUG = /^[a-z0-9][a-z0-9.-]*$/;
 export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promise<void> {
 	const { args, ctx } = call;
 	switch (call.usage) {
+		case "u5d22a1166ca0519c8dcb58f8989f3ac0": // crud
+			return i5d22a1166ca0519c8dcb58f8989f3ac0(ctx);
 		case "uf4a09298430355a2a473394fbb5103f2": // crud <quid>
 			return if4a09298430355a2a473394fbb5103f2(quid(args.quid), ctx);
 		case "u6c9390d5a8e5583881960839391345db": // crud <kind> <gist>... [--name <name>] [--meta <source>]

@@ -13,9 +13,9 @@ const UNTRACKED = "01a14ab4-ce62-7712-b43f-3045d0a1fa4d";
 
 test("commits each repo's changed docs once, and skips a doc that ends unchanged", async () => {
 	const bridge = await tempBridge("edit-docs");
-	const a = ok(await run(["crud", "memo", "a"], bridge));
-	const b = ok(await run(["crud", "memo", "b"], bridge));
-	const c = ok(await run(["crud", "memo", "c"], bridge));
+	const a = ok(await run(["crud", "core:memo", "a"], bridge));
+	const b = ok(await run(["crud", "core:memo", "b"], bridge));
+	const c = ok(await run(["crud", "core:memo", "c"], bridge));
 	const repo = checkedOut(bridge, "other");
 	const inRepo = `kb/${WORKSPACE_DOC}.md`;
 	writeFileSync(join(repo, inRepo), `---\nkind: memo\nid: ${WORKSPACE_DOC}\nname: far\n---\n`);

@@ -5,7 +5,7 @@ import { ok, run, tempBridge, tempDir } from "../test/harness.ts";
 
 test("prints a doc from the bridge's kb", async () => {
 	const bridge = await tempBridge("crud-read");
-	const path = ok(await run(["crud", "memo", "read", "me"], bridge));
+	const path = ok(await run(["crud", "core:memo", "read", "me"], bridge));
 	const id = path.replace(/^.*\/|\.md$/g, "");
 	const text = ok(await run(["crud", id], bridge));
 	assert.match(text, new RegExp(`^---\\nkind: memo\\nid: ${id}\\n`));
