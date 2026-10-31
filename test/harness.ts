@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { parseDocument } from "yaml";
@@ -160,9 +160,14 @@ export function waveCapeRepo(options: Fixture = {}): string {
 	return dir;
 }
 
-/** The directory a repo keeps its docs in, as its config names it: a hero's bridge, any other repo's kb. */
+/** The primary root's directory, as the repo config names it. */
 export function kbOf(dir: string): string {
 	return readRepoConfig(dir)?.kbDir ?? join(dir, "kb");
+}
+
+/** A doc's repo-relative path under the configured primary root. */
+export function kbPath(dir: string, id: string): string {
+	return relative(dir, join(kbOf(dir), `${id}.md`)).replace(/\\/g, "/");
 }
 
 /** Registers a repo doc named `name` in a bridge, cloned from `path` when given; returns its id. */
@@ -205,17 +210,10 @@ export function checkedOut(bridge: string, name: string): string {
 	return dir;
 }
 
-/** An existing kb-based hero, enabled for work after its first seed, for fixtures that name kb paths. New heroes are covered by seed's tests. */
+/** A hero seeded as a user seeds one, left exactly as seed made it. */
 export async function tempBridge(label: string, seed: string[] = []): Promise<string> {
 	const dir = gitRepo(label);
 	ok(await run(["seed", "--workspace", ...seed], dir));
-	// Model an existing kb-based hero without adding a second setup commit or changing config key order.
-	renameSync(join(dir, "home"), join(dir, "kb"));
-	for (const path of [join(dir, ".nosedive", "config.yaml"), join(dir, "README.md")]) {
-		writeFileSync(path, readFileSync(path, "utf8").replaceAll("home/", "kb/"));
-	}
-	git(["add", "-A"], dir);
-	git(["commit", "--amend", "--no-edit", "-q"], dir);
 	return dir;
 }
 

@@ -1,11 +1,11 @@
 // launch
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, dirname } from "node:path";
 import { test } from "node:test";
 import { consoleCtx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
+import { greetCapeRepo, kbOf, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
 test("lists core's top-level actions, never internal functions", async () => {
 	const out = ok(await run([], tempDir("launch-help")));
@@ -48,7 +48,8 @@ test("--base selects one of the hero's roots by directory, name or quid, else a 
 	try {
 		assert.match((await run(["--base", "nope", "help"], bridge)).err, /--base names one of the hero's roots, by quid, name or directory, or a directory in the hero or its workspace, and nope is none/);
 		assert.match((await run(["--base", "..", "help"], bridge)).err, /and \.\. is none/, "a directory outside the hero");
-		assert.match(ok(await run(["--base", "kb", "crud", "core:memo", "Home"], bridge)), /^kb\//);
+		const path = ok(await run(["--base", relative(bridge, kbOf(bridge)), "crud", "core:memo", "Home"], bridge));
+		assert.equal(dirname(join(bridge, path)), kbOf(bridge));
 		const home = findBridge(bridge)!;
 		assert.equal(home.baseDir, home.kbDir);
 		mkdirSync(join(bridge, "notes"));

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { i01a133588bcc7f8bae725ff70d8f6800 as updateKbDocField } from "./i01a133588bcc7f8bae725ff70d8f6800.ts";
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
-import { checkedOut, git, ok, run, tempBridge, tempDir, kbOf } from "../test/harness.ts";
+import { checkedOut, git, ok, run, tempBridge, tempDir, kbOf, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 const WORKSPACE_DOC = "01a14ab4-cb92-7dba-bd33-79535603579d";
@@ -42,7 +42,7 @@ test("refuses a doc git does not track, before anything is written", async () =>
 	const path = join(kbOf(bridge), `${UNTRACKED}.md`);
 	const text = `---\nkind: memo\nid: ${UNTRACKED}\nname: local\n---\n`;
 	writeFileSync(path, text);
-	appendFileSync(join(bridge, ".git", "info", "exclude"), `kb/${UNTRACKED}.md\n`);
+	appendFileSync(join(bridge, ".git", "info", "exclude"), `${kbPath(bridge, UNTRACKED)}\n`);
 	assert.throws(() => editKbDocs(bridge, "test").doc(UNTRACKED), new RegExp(`${UNTRACKED} is not tracked by git in .+, so crud does not edit it`));
 
 	const result = await run(["crud", UNTRACKED, "--gist", "changed"], bridge);

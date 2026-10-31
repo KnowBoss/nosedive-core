@@ -8,7 +8,7 @@ import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c6
 import { i01a147171f057d019118aaa1f269f5fd as findKind, digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
-import { checkedOut, git, gitRepo, ok, run, tempBridge, tempDir } from "../test/harness.ts";
+import { checkedOut, git, gitRepo, kbOf, ok, run, tempBridge, tempDir } from "../test/harness.ts";
 
 const core: Cape = await sourceCape();
 
@@ -65,8 +65,8 @@ const CLOSED = "schema:\n  type: object\n  additionalProperties: false\n  proper
 
 /** Commits a doc written by hand into a repo, as a person might. */
 function commitDoc(repo: string, id: string, frontmatter: string): string {
-	const path = join(repo, "kb", `${id}.md`);
-	mkdirSync(join(repo, "kb"), { recursive: true });
+	const path = join(kbOf(repo), `${id}.md`);
+	mkdirSync(kbOf(repo), { recursive: true });
 	writeFileSync(path, `---\nkind: idea\nid: ${id}\nname: x\n${frontmatter}---\n\n# X\n`);
 	git(["add", "-A"], repo);
 	git(["commit", "-qm", "a doc"], repo);

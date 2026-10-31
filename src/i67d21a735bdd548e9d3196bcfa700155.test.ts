@@ -8,7 +8,7 @@ import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
-import { CORE, git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
+import { CORE, git, gitRepo, greetCapeRepo, kbOf, kbPath, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
 const core: Cape = await sourceCape();
 /** The config lines that list every migration core has. */
@@ -45,13 +45,18 @@ test("--workspace makes it able to do work, and a cape root keeps its lockfile c
 	const hero = gitRepo("seed-workspace");
 	ok(await run(["seed", "--workspace"], hero));
 	const { id, roots, text } = configOf(hero);
-	assert.deepEqual(roots, [`home/${id}.md`]);
+	assert.deepEqual(roots, [`self/${id}.md`]);
+	assert.match(readFileSync(join(hero, roots[0]!), "utf8"), /^---\nkind: hero\n/);
 	assert.equal(existsSync(join(hero, "kb")), false);
-	assert.equal(readFileSync(join(hero, "README.md"), "utf8"), `# [${basename(hero)}](home/${id}.md)\n`);
+	assert.equal(readFileSync(join(hero, "README.md"), "utf8"), `# [${basename(hero)}](self/${id}.md)\n`);
 	const cape = gitRepo("seed-cape-beside-hero");
 	ok(await run(["seed", "--root-kind", "cape"], cape));
 	assert.deepEqual(configOf(cape).roots, [`kb/${configOf(cape).id}.md`]);
-	assert.equal(existsSync(join(cape, "home")), false);
+	assert.equal(existsSync(join(cape, "self")), false);
+	const capeWithWorkspace = gitRepo("seed-cape-workspace");
+	ok(await run(["seed", "--root-kind", "cape", "--workspace"], capeWithWorkspace));
+	assert.deepEqual(configOf(capeWithWorkspace).roots, [`kb/${configOf(capeWithWorkspace).id}.md`]);
+	assert.match(readFileSync(join(capeWithWorkspace, configOf(capeWithWorkspace).roots[0]!), "utf8"), /^---\nkind: cape\n/);
 	assert.equal(text, `id: ${id}\nmigrations:\n${LISTED}workspace: ./workspace\nroots:\n  - ${roots[0]}\n`);
 	assert.equal(readFileSync(join(hero, ".gitignore"), "utf8"), "!package-lock.json\n", "the repo's own .gitignore is the user's, but for its lockfile");
 	const later = gitRepo("seed-workspace-later");
@@ -59,8 +64,13 @@ test("--workspace makes it able to do work, and a cape root keeps its lockfile c
 	const previousRoots = configOf(later).roots;
 	ok(await run(["seed", "--workspace"], later));
 	assert.deepEqual(configOf(later).roots, previousRoots, "adding a workspace preserves the configured roots");
+	assert.match(readFileSync(join(later, previousRoots[0]!), "utf8"), /^---\nkind: hero\n/, "a previously recorded no-op migration retries on workspace promotion");
 	assert.match(configOf(later).text, /^workspace: \.\/workspace$/m, "added to a repo that lacked one");
 	assert.equal(existsSync(join(later, "workspace", ".gitignore")), true);
+	const laterCape = gitRepo("seed-cape-workspace-later");
+	ok(await run(["seed", "--root-kind", "cape"], laterCape));
+	ok(await run(["seed", "--workspace"], laterCape));
+	assert.match(readFileSync(join(laterCape, configOf(laterCape).roots[0]!), "utf8"), /^---\nkind: cape\n/, "a cape stays a cape when work is enabled");
 });
 
 test("leaves an existing repo's config alone, and says it is seeded", async () => {
@@ -79,7 +89,7 @@ test("a new hero mints, reads, edits and renders its home docs through the confi
 	ok(await run(["seed", "--workspace"], hero));
 	const { id, roots } = configOf(hero);
 	const path = ok(await run(["crud", "core:memo", "A home doc", "--name", "home-note"], hero));
-	assert.match(path, /^home\/[0-9a-f-]{36}\.md$/);
+	assert.match(path, /^self\/[0-9a-f-]{36}\.md$/);
 	const note = basename(path, ".md");
 	assert.match(ok(await run(["crud", note], hero)), /name: home-note/);
 	ok(await run(["crud", note, "--title", "Edited home note"], hero));
@@ -203,11 +213,11 @@ test("a workspace ignores itself, and moves when its path changes", async () => 
 
 test("renders each root's tree from its feat links, and leaves it once rendered", async () => {
 	const dir = await tempBridge("seed-tree");
-	const root = configOf(dir).roots[0]!.replace(/^kb\/|\.md$/g, "");
+	const root = configOf(dir).id;
 	const memo = ok(await run(["crud", "core:memo", "free", "level"], dir)).replace(/^.*\/|\.md$/g, "");
-	ok(await run(["crud", root, "--links", "-"], dir, `kb/${memo}.md:\n  rel: levels.feat\n`));
+	ok(await run(["crud", root, "--links", "-"], dir, `${kbPath(dir, memo)}:\n  rel: levels.feat\n`));
 	assert.match(ok(await run(["seed", "--no-capes"], dir)), /rendered the tree of /);
-	assert.ok(readFileSync(join(dir, "kb", `${root}.md`), "utf8").endsWith(`\n## Levels\n\n- [free level](${memo}.md): free level\n`));
+	assert.ok(readFileSync(join(kbOf(dir), `${root}.md`), "utf8").endsWith(`\n## Levels\n\n- [free level](${memo}.md): free level\n`));
 	assert.equal(git(["log", "-1", "--format=%s"], dir), `seed: ${basename(dir)} tree rendered`);
 	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], dir)), /rendered/);
 });

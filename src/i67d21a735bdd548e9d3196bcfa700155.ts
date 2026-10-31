@@ -61,7 +61,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		const pin = pinOf(kind, { roots: [] });
 		mkdirSync(join(dir, ".nosedive"), { recursive: true });
 		const scopes = [{ [CORE_OWNER]: { canonical: true, ...pin } }];
-		const home = workspace ? "home" : "kb";
+		const home = workspace && rootKind !== "cape" ? "self" : "kb";
 		const root = mintKbDoc(join(dir, home), { kind: rootKind, name: repo, gist: `What ${repo} holds`, title: repo, scopes });
 		// The primary root is the one whose id is the repo's.
 		const config = { id: root.id, migrations: MIGRATIONS.map((migration) => migration.id), ...(workspace ? { workspace: "./workspace" } : {}), roots: [`${home}/${root.id}.md`] };
@@ -72,7 +72,13 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		if (config.errors.length > 0) throw new Error(`${configPath}: ${config.errors[0]!.message}`);
 		const before = config.toString({ lineWidth: 0 });
 		// --workspace adds a workspace a repo lacks.
-		if (workspace && config.has("roots") && !config.has("workspace")) config.set("workspace", "./workspace");
+		if (workspace && config.has("roots") && !config.has("workspace")) {
+			config.set("workspace", "./workspace");
+			// A data repo may already have recorded this migration as a no-op before it could do work.
+			const heroSelf = MIGRATIONS.find((migration) => migration.name === "hero-self")!;
+			const listed = (config.toJS() as { migrations?: string[] }).migrations ?? [];
+			config.set("migrations", listed.filter((id) => id !== heroSelf.id));
+		}
 		if (config.toString({ lineWidth: 0 }) !== before) {
 			writeFileSync(configPath, config.toString({ lineWidth: 0 }));
 			changed.push(configPath);

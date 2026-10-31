@@ -13,7 +13,7 @@ import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import type { MigrationCtx } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 
 /** The kinds core's code reads, which a doc of core's is given an entry for; core's other kinds, `memo` among them, are any repo's to declare. */
-const STRUCTURAL = ["action", "function", "cape", "migration", "base"];
+const STRUCTURAL = ["action", "function", "cape", "migration", "base", "hero"];
 /** Core's by place: these live in `.nosedive/`, wherever a legacy doc of them was left. */
 const MANAGED = ["kind", "repo"];
 

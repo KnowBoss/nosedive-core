@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { declareKinds, git, ok, run, tempBridge, kbOf } from "../test/harness.ts";
+import { declareKinds, git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
@@ -65,11 +65,11 @@ test("applies every edit in order and commits once, with text inline", async () 
 	assert.deepEqual(ok(await run(["crud", "--batch", "-"], bridge, batch)).split("\n").sort(), [a, b].sort());
 	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "crud: title, body, section, replace, gist, parent, meta");
 	assert.match(readFileSync(join(bridge, a), "utf8"), /\n---\n\n# Alpha\n\nA path: D:\\new\\dir\n\nDone\.\n\n## Open\n\nNothing yet\.\n$/);
-	assert.match(readFileSync(join(bridge, a), "utf8"), new RegExp(`- kb/${idOf(b)}\\.md:\n {6}rel: child\\.feat\n`));
+	assert.match(readFileSync(join(bridge, a), "utf8"), new RegExp(`- ${kbPath(bridge, idOf(b))}:\n {6}rel: child\\.feat\n`));
 	const second = readFileSync(join(bridge, b), "utf8");
 	assert.match(second, /\ngist: "second"\n/);
 	assert.match(second, /\nmeta:\n {2}size: 2\n/);
-	assert.match(second, new RegExp(`- kb/${idOf(a)}\\.md:\n {6}rel: parent\\.feat\n`));
+	assert.match(second, new RegExp(`- ${kbPath(bridge, idOf(a))}:\n {6}rel: parent\\.feat\n`));
 });
 
 test("writes nothing when any edit is refused, naming the item", async () => {

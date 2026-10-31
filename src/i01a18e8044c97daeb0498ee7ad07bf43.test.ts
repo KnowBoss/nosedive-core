@@ -20,7 +20,7 @@ const core: Cape = await sourceCape();
 const OWNER = "01a18e8a-0000-7000-8000-000000000001";
 const SCHEMA_COMMIT = "a".repeat(40);
 const OBJECT_DIGEST = schemaDigest({ type: "object" });
-const QUID = MIGRATIONS.at(-1)!.id;
+const QUID = MIGRATIONS.find((migration) => migration.name === "canonical-kinds")!.id;
 
 /** Runs the migration with core, collecting what it says. */
 function migrate(dir: string): { changed: string[]; waiting: boolean; said: string[] } {

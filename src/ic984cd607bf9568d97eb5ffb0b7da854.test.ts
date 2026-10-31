@@ -5,7 +5,7 @@ import { basename, join, relative, sep } from "node:path";
 import { test } from "node:test";
 import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "./i01a1335480c776ba8945020d0af333eb.ts";
 import { parse, stringify } from "yaml";
-import { CANONICAL, CORE, checkedOut, gitRepo, kbOf, ok, run, tempBridge, tempDir } from "../test/harness.ts";
+import { CANONICAL, CORE, checkedOut, gitRepo, kbOf, kbPath, ok, run, tempBridge, tempDir } from "../test/harness.ts";
 
 const ACTION = "01a1335b-f253-7b80-ab64-d2f9a03c9634";
 const HELPER = "01a1335b-f30a-7dd2-a1d4-b675fd419238";
@@ -14,10 +14,10 @@ async function capeRepo(): Promise<string> {
 	const dir = gitRepo("scaf");
 	ok(await run(["seed", "--root-kind", "cape"], dir));
 	writeFileSync(
-		join(dir, "kb", `${ACTION}.md`),
+		join(kbOf(dir), `${ACTION}.md`),
 		`---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${CANONICAL}---\n`,
 	);
-	writeFileSync(join(dir, "kb", `${HELPER}.md`), `---\nkind: function\nid: ${HELPER}\nname: shout\ngist: "Shouts"\n${CANONICAL}---\n`);
+	writeFileSync(join(kbOf(dir), `${HELPER}.md`), `---\nkind: function\nid: ${HELPER}\nname: shout\ngist: "Shouts"\n${CANONICAL}---\n`);
 	return dir;
 }
 
@@ -27,7 +27,7 @@ test("writes every missing file, then nothing on a second run", async () => {
 	const lines = out.split("\n").map((line) => line.trim());
 	assert.equal(lines[0], `${basename(dir)}:`);
 	const created = lines.filter((line) => line.startsWith("created ")).map((line) => line.slice(8));
-	assert.deepEqual(lines.filter((line) => line.startsWith("updated ")).sort(), [`updated kb/${ACTION}.md`, `updated kb/${HELPER}.md`]);
+	assert.deepEqual(lines.filter((line) => line.startsWith("updated ")).sort(), [`updated ${kbPath(dir, ACTION)}`, `updated ${kbPath(dir, HELPER)}`]);
 	const docs = [ACTION, HELPER].map((id) => `src/i${id.replace(/-/g, "")}.ts`);
 	const usage = created.find((file) => /^src\/i[0-9a-f]{32}\.ts$/.test(file) && !docs.includes(file))!;
 	const hex = usage.slice(5, 37);
@@ -45,7 +45,7 @@ test("writes every missing file, then nothing on a second run", async () => {
 test("a gate's usage gets an impl taking the pass's GateCtx, routed from call.gate, and no test", async () => {
 	const dir = await capeRepo();
 	writeFileSync(
-		join(dir, "kb", `${ACTION}.md`),
+		join(kbOf(dir), `${ACTION}.md`),
 		`---\nkind: action\nid: ${ACTION}\nname: ready\ngist: "Readies"\nmeta:\n  usages:\n    - pass --ready <device>\n${CANONICAL}---\n`,
 	);
 	const out = ok(await run(["scaf", ACTION], dir));
@@ -73,7 +73,7 @@ test("one action only, and lists what it cannot fix", async () => {
 test("runs in a cape outside core, whose code imports core's types by name", async () => {
 	const dir = gitRepo("scaf-base");
 	ok(await run(["seed", "--root-kind", "cape"], dir));
-	writeFileSync(join(dir, "kb", `${ACTION}.md`), `---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${CANONICAL}---\n`);
+	writeFileSync(join(kbOf(dir), `${ACTION}.md`), `---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${CANONICAL}---\n`);
 	assert.match(ok(await run(["scaf", ACTION], dir)), /created src\/i01a1335bf2537b80ab64d2f9a03c9634\.ts/);
 	assert.match(readFileSync(join(dir, "src", "i01a1335bf2537b80ab64d2f9a03c9634.ts"), "utf8"), /from "nosedive-core"/);
 });
@@ -95,7 +95,7 @@ function seededCape(dir: string, name: string): void {
 	mkdirSync(join(dir, ".nosedive"), { recursive: true });
 	mkdirSync(join(dir, "kb"), { recursive: true });
 	writeFileSync(join(dir, ".nosedive", "config.yaml"), `id: ${root}\nroots:\n  - kb/${root}.md\n`);
-	writeFileSync(join(dir, "kb", `${root}.md`), `---\nkind: cape\nid: ${root}\nname: ${name}\n${CANONICAL}---\n`);
+	writeFileSync(join(kbOf(dir), `${root}.md`), `---\nkind: cape\nid: ${root}\nname: ${name}\n${CANONICAL}---\n`);
 }
 
 /** The lines a walk printed under each repo's name. */
@@ -114,10 +114,10 @@ async function walkFixture() {
 	const ids = { hero: mintUuid(), local: mintUuid(), checkout: mintUuid(), plain: mintUuid(), ignored: mintUuid() };
 	actionDoc(kbOf(hero), ids.hero, "hero-cmd");
 	seededCape(join(hero, "capes", "local"), "local");
-	actionDoc(join(hero, "capes", "local", "kb"), ids.local, "local-cmd");
+	actionDoc(kbOf(join(hero, "capes", "local")), ids.local, "local-cmd");
 	const checkout = checkedOut(hero, "wscape");
 	seededCape(checkout, "wscape");
-	actionDoc(join(checkout, "kb"), ids.checkout, "checkout-cmd");
+	actionDoc(kbOf(checkout), ids.checkout, "checkout-cmd");
 	// A checkout that was never seeded.
 	const plain = checkedOut(hero, "plain");
 	actionDoc(join(plain, "kb"), ids.plain, "plain-cmd");
@@ -180,7 +180,7 @@ test("reports an action in a seeded repo that is neither a cape nor a hero, and 
 	const id = mintUuid();
 	actionDoc(kbOf(repo), id, "stray");
 	const out = ok(await run(["scaf"], repo));
-	assert.match(out, new RegExp(`^skipped:\n {2}kb/${id}\\.md: ${basename(repo)} is neither a cape nor a hero repo$`));
+	assert.match(out, new RegExp(`^skipped:\n {2}${kbPath(repo, id)}: ${basename(repo)} is neither a cape nor a hero repo$`));
 	assert.ok(!existsSync(join(repo, "src")));
 
 	const bare = await run(["scaf"], gitRepo("scaf-bare"));
@@ -216,17 +216,17 @@ test("reports a doc it cannot read, or one in an unseeded repo that looks like a
 	writeFileSync(join(kbOf(hero), `${broken}.md`), `---\nkind: action\nid: ${broken}\nname: [oops\n---\n`);
 	const twinned = checkedOut(hero, "twinned");
 	seededCape(twinned, "twinned");
-	actionDoc(join(twinned, "kb"), mintUuid(), "fine-cmd");
-	writeFileSync(join(twinned, "kb", `${twin}.md`), `---\nkind: action\nid: ${twin}\nname: twin\nscopes:\n  - ${CORE}:\n      canonical: true\n  - ${mintUuid()}:\n      canonical: true\n---\n`);
+	actionDoc(kbOf(twinned), mintUuid(), "fine-cmd");
+	writeFileSync(join(kbOf(twinned), `${twin}.md`), `---\nkind: action\nid: ${twin}\nname: twin\nscopes:\n  - ${CORE}:\n      canonical: true\n  - ${mintUuid()}:\n      canonical: true\n---\n`);
 	const plain = checkedOut(hero, "plain");
 	writeFileSync(join(plain, "kb", `${bare}.md`), `---\nkind: action\nid: ${bare}\nname: bare\n---\n`);
 
 	const found = groups(ok(await run(["--base", hero, "scaf"], hero)));
 	const lines = found[basename(hero)]!;
 	assert.ok(lines.includes(`created ${entryFile(good)}`), "the readable doc is still scaffolded");
-	assert.ok(lines.some((line) => line.startsWith(`error kb/${broken}.md: `)));
+	assert.ok(lines.some((line) => line.startsWith(`error ${kbPath(hero, broken)}: `)));
 	const twinLines = found["workspace/twinned"]!;
-	assert.ok(twinLines.some((line) => line.startsWith(`error kb/${twin}.md: `) && line.includes("more than one canonical scope")));
+	assert.ok(twinLines.some((line) => line.startsWith(`error ${kbPath(twinned, twin)}: `) && line.includes("more than one canonical scope")));
 	assert.ok(twinLines.some((line) => line.startsWith("error: ") && line.includes("more than one canonical scope")), "a repo that cannot be read whole is reported, and the walk goes on");
 	assert.deepEqual(found.skipped, [`workspace/plain/kb/${bare}.md: in no seeded repo`]);
 
@@ -250,10 +250,10 @@ test("names repos by their path from the hero, so two of one name differ", async
 	const hero = await tempBridge("scaf-names");
 	const local = join(hero, "capes", "foo");
 	seededCape(local, "foo");
-	actionDoc(join(local, "kb"), mintUuid(), "local-foo");
+	actionDoc(kbOf(local), mintUuid(), "local-foo");
 	const checkout = checkedOut(hero, "foo");
 	seededCape(checkout, "foo");
-	actionDoc(join(checkout, "kb"), mintUuid(), "checkout-foo");
+	actionDoc(kbOf(checkout), mintUuid(), "checkout-foo");
 	assert.deepEqual(Object.keys(groups(ok(await run(["--base", hero, "scaf"], hero)))).sort(), ["capes/foo", "workspace/foo"]);
 });
 
@@ -279,7 +279,7 @@ test("NOSEDIVE_HERO=<checkout> scaffolds that checkout as the hero", async () =>
 	const checkout = checkedOut(hero, "envcape");
 	seededCape(checkout, "envcape");
 	const id = mintUuid();
-	actionDoc(join(checkout, "kb"), id, "env-cmd");
+	actionDoc(kbOf(checkout), id, "env-cmd");
 	assert.match((await run(["scaf"], checkout)).err, /a checkout is never a hero/);
 	process.env.NOSEDIVE_HERO = checkout;
 	try {

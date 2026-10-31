@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { holderToken, subjectLine } from "./i01a19005c109715583553072f4e38dc4.ts";
-import { git, ok, run, tempBridge } from "../test/harness.ts";
+import { git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 const subject = (dir: string) => git(["log", "-1", "--format=%s"], dir);
@@ -66,10 +66,10 @@ test("a batch names its edits, once each in order, and a drop is a drop", async 
 /** Writes dive `n` of the feat `featId`, held by `diver`, and has the feat link it as dives.feat when `linked`. */
 async function dive(bridge: string, feat: string, n: number, meta: { diver: string; outcome?: string; linked?: boolean }) {
 	const id = `01a19005-0000-7000-8000-00000000000${n}`;
-	writeFileSync(join(bridge, "kb", `${id}.md`), `---\nkind: dive\nid: ${id}\nname: ideas.00000${n}\nmeta:\n  feat: ${idOf(feat)}\n  diver: ${meta.diver}\n${meta.outcome ? `  outcome: ${meta.outcome}\n` : ""}---\n\n# A dive\n`);
+	writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: dive\nid: ${id}\nname: ideas.00000${n}\nmeta:\n  feat: ${idOf(feat)}\n  diver: ${meta.diver}\n${meta.outcome ? `  outcome: ${meta.outcome}\n` : ""}---\n\n# A dive\n`);
 	git(["add", "-A"], bridge);
 	git(["commit", "-qm", "a dive"], bridge);
-	if (meta.linked !== false) ok(await run(["crud", idOf(feat), "--links", "-"], bridge, `kb/${id}.md: {rel: dives.feat}\n`));
+	if (meta.linked !== false) ok(await run(["crud", idOf(feat), "--links", "-"], bridge, `${kbPath(bridge, id)}: {rel: dives.feat}\n`));
 }
 
 test("the feat of the dive this worktree holds wins, for a mint too; an over dive holds nothing", async () => {

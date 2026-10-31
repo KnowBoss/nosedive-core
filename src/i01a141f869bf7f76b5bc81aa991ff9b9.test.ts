@@ -7,7 +7,7 @@ import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 import { readFileSync, writeFileSync } from "node:fs";
-import { git, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge } from "../test/harness.ts";
+import { git, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
@@ -66,7 +66,7 @@ test("refuses a .cape link to a doc that is no repo, and reads only the selected
 	const at = findBridge(bridge)!;
 	const memo = idOf(ok(await run(["crud", "core:memo", "Not a repo"], bridge)));
 	const root = at.roots[0]!.path;
-	writeFileSync(root, readFileSync(root, "utf8").replace(/\.nosedive\/repos\/[0-9a-f-]{36}\.md:\n {6}rel: \.cape/, `kb/${memo}.md:\n      rel: .cape`));
-	assert.throws(() => configuredCapes(findBridge(bridge)!, core), new RegExp(`wears kb/${memo}\\.md, which is no repo doc`));
+	writeFileSync(root, readFileSync(root, "utf8").replace(/\.nosedive\/repos\/[0-9a-f-]{36}\.md:\n {6}rel: \.cape/, `${kbPath(bridge, memo)}:\n      rel: .cape`));
+	assert.throws(() => configuredCapes(findBridge(bridge)!, core), new RegExp(`wears ${kbPath(bridge, memo)}, which is no repo doc`));
 	assert.deepEqual(configuredCapes({ ...at, base: undefined }, core), [], "no base selected, no capes");
 });

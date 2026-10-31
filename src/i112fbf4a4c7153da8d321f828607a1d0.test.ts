@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { declareKinds, git, ok, run, tempBridge } from "../test/harness.ts";
+import { declareKinds, git, ok, run, tempBridge, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
@@ -12,16 +12,16 @@ test("moves a doc to its new parent, unlinking the old one on both sides, in one
 	await declareKinds(bridge, "goal");
 	const [a, b, c] = [ok(await run(["crud", "goal", "a"], bridge)), ok(await run(["crud", "goal", "b"], bridge)), ok(await run(["crud", "goal", "c"], bridge))];
 	ok(await run(["crud", idOf(c), "--parent", idOf(a)], bridge));
-	assert.match(readFileSync(join(bridge, c), "utf8"), new RegExp(`links:\n {2}- kb/${idOf(a)}\\.md:\n {6}rel: parent\\.feat\n`));
-	assert.match(readFileSync(join(bridge, a), "utf8"), new RegExp(`links:\n {2}- kb/${idOf(c)}\\.md:\n {6}rel: child\\.feat\n`));
+	assert.match(readFileSync(join(bridge, c), "utf8"), new RegExp(`links:\n {2}- ${kbPath(bridge, idOf(a))}:\n {6}rel: parent\\.feat\n`));
+	assert.match(readFileSync(join(bridge, a), "utf8"), new RegExp(`links:\n {2}- ${kbPath(bridge, idOf(c))}:\n {6}rel: child\\.feat\n`));
 	const head = git(["rev-parse", "HEAD"], bridge);
 
 	assert.deepEqual(ok(await run(["crud", idOf(c), "--parent", idOf(b)], bridge)).split("\n").sort(), [a, b, c].sort());
 	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "crud: parent");
 	assert.doesNotMatch(readFileSync(join(bridge, a), "utf8"), /links/);
 	assert.doesNotMatch(readFileSync(join(bridge, c), "utf8"), new RegExp(idOf(a)));
-	assert.match(readFileSync(join(bridge, c), "utf8"), new RegExp(`- kb/${idOf(b)}\\.md:\n {6}rel: parent\\.feat\n`));
-	assert.match(readFileSync(join(bridge, b), "utf8"), new RegExp(`- kb/${idOf(c)}\\.md:\n {6}rel: child\\.feat\n`));
+	assert.match(readFileSync(join(bridge, c), "utf8"), new RegExp(`- ${kbPath(bridge, idOf(b))}:\n {6}rel: parent\\.feat\n`));
+	assert.match(readFileSync(join(bridge, b), "utf8"), new RegExp(`- ${kbPath(bridge, idOf(c))}:\n {6}rel: child\\.feat\n`));
 
 	ok(await run(["crud", idOf(c), "--parent", idOf(b)], bridge));
 	assert.equal(git(["rev-list", "--count", `${head}..HEAD`], bridge), "1", "an unchanged parent commits nothing");

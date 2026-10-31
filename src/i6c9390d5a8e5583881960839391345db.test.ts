@@ -1,7 +1,7 @@
 // crud <kind> <gist>... [--name <name>] [--meta <source>]
 import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
@@ -9,7 +9,7 @@ import { i01a147171f057d019118aaa1f269f5fd as findKind, digestOf, versionOf } fr
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
-import { CORE, checkedOut, declareKinds, git, gitRepo, ok, run, tempBridge, tempDir } from "../test/harness.ts";
+import { CORE, checkedOut, declareKinds, git, gitRepo, kbOf, ok, run, tempBridge, tempDir } from "../test/harness.ts";
 
 const core: Cape = await sourceCape();
 
@@ -147,7 +147,7 @@ test("keeps core's kinds and repos in .nosedive/, whatever the base, and mints a
 	assert.match(kind, /^\.nosedive\/kinds\/[0-9a-f-]{36}\.md$/, "a kind is shared by every root");
 	const idea = await run(["crud", "idea", "fly"], bridge);
 	assert.equal(idea.err, "", "a kind in .nosedive/ is declared");
-	assert.match(idea.out, /^kb\/[0-9a-f-]{36}\.md$/);
+	assert.equal(dirname(join(bridge, idea.out)), kbOf(bridge));
 	const repo = ok(await run(["crud", "core:repo", "A", "repo", "--name", "far", "--meta", "-"], bridge, `remotes:\n  origin: ${JSON.stringify(gitRepo("crud-mint-into-far"))}\n`));
 	assert.match(repo, /^\.nosedive\/repos\/[0-9a-f-]{36}\.md$/);
 
@@ -158,7 +158,7 @@ test("keeps core's kinds and repos in .nosedive/, whatever the base, and mints a
 	writeFileSync(config, `${readFileSync(config, "utf8")}  - clients/acme/${acme}.md\n`);
 	git(["add", "-A"], bridge);
 	git(["commit", "-qm", "a second root"], bridge);
-	assert.match(ok(await run(["crud", "core:memo", "where"], bridge)), /^kb\//, "the home base by default");
+	assert.equal(dirname(join(bridge, ok(await run(["crud", "core:memo", "where"], bridge)))), kbOf(bridge), "the home base by default");
 	const there = ok(await run(["--base", "acme", "crud", "core:memo", "here"], bridge));
 	assert.match(there, /^clients\/acme\/[0-9a-f-]{36}\.md$/, "a root is named by its name");
 	ok(await run(["crud", there.replace(/^.*\/|\.md$/g, ""), "--gist", "found"], bridge));

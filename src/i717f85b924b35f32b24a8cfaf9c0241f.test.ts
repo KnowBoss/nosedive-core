@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { declareKinds, checkedOut, git, ok, run, tempBridge, tempDir } from "../test/harness.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
+import { declareKinds, checkedOut, git, ok, run, tempBridge, tempDir, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
@@ -24,7 +25,7 @@ test("refuses while anything links to it, naming each link, and edits nothing", 
 	await declareKinds(bridge, "goal");
 	const id = idOf(ok(await run(["crud", "goal", "parent"], bridge)));
 	const child = ok(await run(["crud", "goal", "child"], bridge));
-	ok(await run(["crud", idOf(child), "--links", "-"], bridge, `kb/${id}.md:\n  rel: parent.feat\n`));
+	ok(await run(["crud", idOf(child), "--links", "-"], bridge, `${kbPath(bridge, id)}:\n  rel: parent.feat\n`));
 	checkedOut(bridge, "other");
 	// The checkout is no seeded repo, so the doc names the hero's kind, which must be published.
 	const origin = tempDir("crud-drop-linked-origin");
@@ -32,7 +33,7 @@ test("refuses while anything links to it, naming each link, and edits nothing", 
 	git(["remote", "add", "origin", origin], bridge);
 	git(["push", "-q", "origin", "main"], bridge);
 	const there = ok(await run(["--base", "workspace/other/kb", "crud", "goal", "elsewhere"], bridge));
-	ok(await run(["crud", idOf(there), "--links", "-"], bridge, `kb/${id}.md:\n  rel: uses.goal\n`));
+	ok(await run(["crud", idOf(there), "--links", "-"], bridge, `${kbPath(bridge, id)}:\n  rel: uses.goal\n`));
 	const note = ok(await run(["crud", "core:memo", "a", "note"], bridge));
 	ok(await run(["crud", idOf(note), "--body", "-"], bridge, `See [the parent](${id}.md).\n`));
 
@@ -49,7 +50,7 @@ test("refuses while anything links to it, naming each link, and edits nothing", 
 test("refuses a root its config lists", async () => {
 	const bridge = await tempBridge("crud-drop-root");
 	await declareKinds(bridge, "goal");
-	const root = /kb\/(\S+)\.md/.exec(git(["show", "HEAD:.nosedive/config.yaml"], bridge))![1]!;
+	const root = readRepoConfig(bridge)!.root!;
 	const refused = await run(["crud", "--drop", root, "--hard"], bridge);
 	assert.match(refused.err, /\.nosedive\/config\.yaml lists it among its roots/);
 });

@@ -5,6 +5,7 @@ import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { i01a175dbf8d67926b24029e8caa38e94 as baseline } from "./i01a175dbf8d67926b24029e8caa38e94.ts";
 import { i01a18e8044c97daeb0498ee7ad07bf43 as canonicalKinds } from "./i01a18e8044c97daeb0498ee7ad07bf43.ts";
+import { i01a1928d0d6873538e60181957211490 as heroSelf } from "./i01a1928d0d6873538e60181957211490.ts";
 
 /** What a migration may ask of core: the capes it is running with, and a way to say something. */
 export type MigrationCtx = Pick<Ctx, "capes" | "out">;
@@ -15,6 +16,7 @@ export type Migration = { id: string; name: string; run: (dir: string, ctx: Migr
 export const MIGRATIONS: Migration[] = [
 	{ id: "01a175db-f8d6-7926-b240-29e8caa38e94", name: "baseline", run: baseline },
 	{ id: "01a18e80-44c9-7dae-b049-8ee7ad07bf43", name: "canonical-kinds", run: canonicalKinds },
+	{ id: "01a1928d-0d68-7353-8e60-181957211490", name: "hero-self", run: heroSelf },
 ];
 
 export function i01a175dbf4517dafa3a9048ecd98ab84(dir: string, ctx: MigrationCtx, chain = MIGRATIONS): string[] {

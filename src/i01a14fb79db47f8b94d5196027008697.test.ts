@@ -4,7 +4,7 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
-import { CANONICAL, lock, ok, run, shoutPackage, tempBridge, kbOf } from "../test/harness.ts";
+import { CANONICAL, lock, ok, run, shoutPackage, tempBridge, kbOf, kbPath } from "../test/harness.ts";
 
 const HELLO = "01a14fba-1f85-72f5-8685-94c90e206721";
 const READY = "01a14fba-1f86-7d2a-9f27-269a3819ca27";
@@ -43,7 +43,7 @@ test("runs a base's own commands, built from its working tree, lists them under 
 test("passes a doc through the base's own gates, which are no commands", async () => {
 	const bridge = await helloBase("base-ready");
 	const memo = ok(await run(["crud", "core:memo", "a", "memo"], bridge)).replace(/^.*\/|\.md$/g, "");
-	ok(await run(["crud", memo, "--links", "-"], bridge, `kb/${READY}.md:\n  rel: ready.gate\n`));
+	ok(await run(["crud", memo, "--links", "-"], bridge, `${kbPath(bridge, READY)}:\n  rel: ready.gate\n`));
 	assert.match(ok(await run(["pass", "--ready", memo], bridge)), /^a-memo-\w{6} is ready\ngate ready-memo: passed$/);
 	assert.match((await run(["ready-memo"], bridge)).err, /ready-memo is a gate: `nosedive pass --ready <core:memo>`/);
 });
