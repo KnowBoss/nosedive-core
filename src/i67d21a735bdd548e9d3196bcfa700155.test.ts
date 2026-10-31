@@ -36,7 +36,8 @@ test("makes a git repo a nosedive repo, its config naming its id and one root of
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "cache/\ncapes/\nlocal/\n");
 	assert.equal(existsSync(join(dir, ".gitignore")), false, "no workspace and no cape root, so no lockfile line");
 	assert.equal(existsSync(join(dir, "workspace")), false);
-	assert.equal(git(["log", "--format=%s"], dir), `seed: ${repo} set up`);
+	assert.equal(git(["log", "--format=%s"], dir), `seed: ${repo} set up`, "the subject is unchanged by feats");
+	assert.equal(git(["log", "--format=%(trailers:only,unfold)"], dir).trim(), "Co-Authored-By: nosedive source <noreply@nosedive.dev>", "and ends with nosedive's co-author, once");
 	assert.equal(git(["status", "--porcelain"], dir), "");
 });
 

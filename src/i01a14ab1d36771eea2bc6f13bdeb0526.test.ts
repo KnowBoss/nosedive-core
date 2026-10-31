@@ -23,7 +23,7 @@ test("commits each repo's changed docs once, and skips a doc that ends unchanged
 	git(["commit", "-qm", "doc"], repo);
 	const bridgeHead = git(["rev-parse", "HEAD"], bridge);
 
-	const edit = editKbDocs(bridge);
+	const edit = editKbDocs(bridge, "test");
 	assert.equal(edit.doc(idOf(a)), edit.doc(idOf(a)), "a doc is found once");
 	updateKbDocField(edit, idOf(a), "gist", () => "first");
 	updateKbDocField(edit, idOf(b), "gist", () => "second");
@@ -31,9 +31,9 @@ test("commits each repo's changed docs once, and skips a doc that ends unchanged
 	updateKbDocField(edit, WORKSPACE_DOC, "gist", () => "far away");
 	assert.deepEqual(edit.commit().sort(), [a, b, c, `workspace/other/${inRepo}`].sort());
 
-	assert.equal(git(["log", "--format=%s", `${bridgeHead}..HEAD`], bridge), "crud: updated 2 docs");
+	assert.equal(git(["log", "--format=%s", `${bridgeHead}..HEAD`], bridge), "crud: edit");
 	assert.equal(git(["show", "--name-only", "--format=", "HEAD"], bridge).split("\n").sort().join("\n"), [a, b].sort().join("\n"));
-	assert.equal(git(["log", "-1", "--format=%s"], repo), `crud(${WORKSPACE_DOC}): updated memo far`);
+	assert.equal(git(["log", "-1", "--format=%s"], repo), "crud: edit");
 	assert.match(readFileSync(join(repo, inRepo), "utf8"), /\ngist: far away\n/);
 });
 
@@ -43,7 +43,7 @@ test("refuses a doc git does not track, before anything is written", async () =>
 	const text = `---\nkind: memo\nid: ${UNTRACKED}\nname: local\n---\n`;
 	writeFileSync(path, text);
 	appendFileSync(join(bridge, ".git", "info", "exclude"), `kb/${UNTRACKED}.md\n`);
-	assert.throws(() => editKbDocs(bridge).doc(UNTRACKED), new RegExp(`${UNTRACKED} is not tracked by git in .+, so crud does not edit it`));
+	assert.throws(() => editKbDocs(bridge, "test").doc(UNTRACKED), new RegExp(`${UNTRACKED} is not tracked by git in .+, so crud does not edit it`));
 
 	const result = await run(["crud", UNTRACKED, "--gist", "changed"], bridge);
 	assert.equal(result.code, 1);
@@ -53,9 +53,9 @@ test("refuses a doc git does not track, before anything is written", async () =>
 });
 
 test("refuses outside a bridge and for a missing doc", async () => {
-	assert.throws(() => editKbDocs(tempDir("edit-none")), /not in a bridge/);
+	assert.throws(() => editKbDocs(tempDir("edit-none"), "test"), /not in a bridge/);
 	const bridge = await tempBridge("edit-missing");
-	assert.throws(() => editKbDocs(bridge).doc(UNTRACKED), new RegExp(`no doc ${UNTRACKED} in the bridge or its workspace`));
+	assert.throws(() => editKbDocs(bridge, "test").doc(UNTRACKED), new RegExp(`no doc ${UNTRACKED} in the bridge or its workspace`));
 });
 
 test("writes an edited doc in KINGSMETAL order, links last", async () => {
@@ -67,7 +67,7 @@ test("writes an edited doc in KINGSMETAL order, links last", async () => {
 	writeFileSync(path, `---\nlinks:\n  - kb/x.md:\n      rel: parent.feat\nextra: 1\nmeta:\n  z: 1\n  y: 2\ngist: a\nname: n\nid: ${idOf(a)}\nkind: memo\n---\n${body}`);
 	git(["commit", "-qam", "misordered"], bridge);
 
-	const edit = editKbDocs(bridge);
+	const edit = editKbDocs(bridge, "test");
 	updateKbDocField(edit, idOf(a), "gist", () => "edited");
 	edit.commit();
 
@@ -86,7 +86,7 @@ test("writes a doc whose only change is its key order", async () => {
 	git(["commit", "-qam", "misordered"], bridge);
 	const before = git(["rev-parse", "HEAD"], bridge);
 
-	const edit = editKbDocs(bridge);
+	const edit = editKbDocs(bridge, "test");
 	updateKbDocField(edit, idOf(a), "gist", (gist) => gist);
 	assert.deepEqual(edit.commit(), [a]);
 

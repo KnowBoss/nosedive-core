@@ -32,7 +32,7 @@ export function i01a175dbf4517dafa3a9048ecd98ab84(dir: string, ctx: MigrationCtx
 	const pending = chain.filter((each) => !ran.includes(each.id));
 	const listAlone = () => {
 		listMigrations(configPath, ran);
-		commitFiles(dir, [configPath], `migrate: ${dirName(dir)} lists its migrations`);
+		commitFiles(dir, [configPath], `migrate: ${dirName(dir)} lists its migrations`, ctx.capes[0]!.version);
 	};
 	if (pending.length === 0 && typeof last === "string") listAlone();
 	const changed: string[] = [];
@@ -48,7 +48,7 @@ export function i01a175dbf4517dafa3a9048ecd98ab84(dir: string, ctx: MigrationCtx
 		ran.push(migration.id);
 		// The list is rewritten from what the migration left, which may have rewritten the config itself.
 		listMigrations(configPath, ran);
-		commitFiles(dir, [...new Set([...files, configPath])], `migrate: ${migration.name}`);
+		commitFiles(dir, [...new Set([...files, configPath])], `migrate: ${migration.name}`, ctx.capes[0]!.version);
 		if (files.length > 0) changed.push(migration.name);
 	}
 	return changed;

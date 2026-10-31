@@ -19,7 +19,7 @@ test("drops docs that mention each other together, in one commit", async () => {
 	writeFileSync(join(bridge, "drop.txt"), `${idOf(a)}\n\n${idOf(b).toUpperCase()}\n`);
 	assert.equal(ok(await run(["crud", "--drop-list", "drop.txt"], bridge)), `${a}\n${b}`);
 	assert.equal(existsSync(join(bridge, a)) || existsSync(join(bridge, b)), false);
-	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: dropped 2 docs");
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: drop");
 });
 
 test("refuses while a doc outside the list links in, or one is durable, and drops nothing", async () => {

@@ -11,6 +11,7 @@ import { i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798
 import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7e8097e19d599ba39bcc.ts";
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
 import { i01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "./i01a13354850c7ba3ba5b8ac41a7b6b11.ts";
+import { i01a19005c109715583553072f4e38dc4 as commitSubject } from "./i01a19005c109715583553072f4e38dc4.ts";
 
 const KIND_OF_KINDS = "01a138b2-b8e9-7f63-9068-f1439b9cb8c9";
 const REPO_KIND = "01a138b2-b8eb-79e8-9d77-6e8379ec18e3";
@@ -36,7 +37,7 @@ export async function i6c9390d5a8e5583881960839391345db(
 	const scopes = kind.owner !== holder ? [{ [kind.owner]: { canonical: true, ...pinOf(kind, bridge) } }] : undefined;
 	const minted = mintKbDoc(kbDir, { kind: kind.name, gist: doc.gist, name: doc.name, meta: meta as Record<string, unknown>, scopes });
 	// git finds the repo holding the doc from its directory, a checkout's included.
-	commitFiles(kbDir, [minted.path], `crud(${minted.id}): created ${doc.kind} ${minted.name}`);
+	commitFiles(kbDir, [minted.path], commitSubject(bridge, "crud", doc.kind), ctx.capes[0]!.version);
 	ctx.out(relative(bridge.dir, minted.path).replace(/\\/g, "/"));
 }
 

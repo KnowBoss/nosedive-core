@@ -16,17 +16,17 @@ test("sets, then removes, one field, which later updates in the same edit see", 
 	git(["add", path], bridge);
 	git(["commit", "-qm", "doc"], bridge);
 
-	const edit = editKbDocs(bridge);
+	const edit = editKbDocs(bridge, "test");
 	updateKbDocField(edit, ID, "owner", () => "dan");
 	updateKbDocField(edit, ID, "owner", (owner) => `${String(owner)} and sam`);
 	assert.equal(readFileSync(join(bridge, path), "utf8"), `---\nkind: memo\nid: ${ID}\nname: fielded\n---\n`, "nothing is written before the commit");
 	assert.deepEqual(edit.commit(), [path]);
 	assert.match(readFileSync(join(bridge, path), "utf8"), /\nowner: dan and sam\n---/);
 
-	const removal = editKbDocs(bridge);
+	const removal = editKbDocs(bridge, "test");
 	updateKbDocField(removal, ID, "owner", () => undefined);
 	removal.commit();
 	assert.doesNotMatch(readFileSync(join(bridge, path), "utf8"), /owner/);
-	assert.equal(git(["log", "-1", "--format=%s"], bridge), `crud(${ID}): updated memo fielded`);
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: edit");
 	assert.equal(git(["rev-list", "--count", "HEAD"], bridge), "4");
 });

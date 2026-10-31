@@ -13,13 +13,13 @@ test("sets the updated body under the same frontmatter; a throwing update change
 	const id = path.replace(/^.*\/|\.md$/g, "");
 	const before = readFileSync(join(bridge, path), "utf8");
 
-	const edit = editKbDocs(bridge);
+	const edit = editKbDocs(bridge, "test");
 	updateKbDocBody(edit, id, (body) => `${body}\nAdded.\n`);
 	edit.commit();
 	assert.equal(readFileSync(join(bridge, path), "utf8"), `${before}\nAdded.\n`);
-	assert.equal(git(["log", "-1", "--format=%s"], bridge), `crud(${id}): updated memo a-note-${id.slice(-6)}`);
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: edit");
 
-	const refused = editKbDocs(bridge);
+	const refused = editKbDocs(bridge, "test");
 	assert.throws(() => updateKbDocBody(refused, id, () => {
 		throw new Error("refused");
 	}), /refused/);

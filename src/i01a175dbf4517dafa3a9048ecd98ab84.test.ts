@@ -10,7 +10,7 @@ import { git, gitRepo } from "../test/harness.ts";
 const A = "01a175e0-0000-7000-8000-00000000000a";
 const B = "01a175e0-0000-7000-8000-00000000000b";
 const NEWER = "01a175e0-0000-7000-8000-0000000000ff";
-const ctx = { capes: [], out: () => {} };
+const ctx = { capes: [{ version: "9.9.9" }] as never[], out: () => {} };
 
 /** A committed repo with a config, and a chain of two migrations of which `ran` records which ran: the first writes a file, the second nothing. */
 function setup(label: string, config: string) {
@@ -34,6 +34,9 @@ test("runs the migrations the list lacks, each committed alone with its quid app
 	assert.deepEqual(ran, ["first", "second"]);
 	assert.equal(readFileSync(configPath, "utf8"), `id: x\nmigrations:\n  - ${A}\n  - ${B}\n`);
 	assert.deepEqual(git(["log", "--format=%s"], dir).split("\n").slice(0, 3), ["migrate: second", "migrate: first", "start"]);
+	for (const rev of ["HEAD", "HEAD~1"]) {
+		assert.equal(git(["log", "-1", "--format=%(trailers:only,unfold)", rev], dir), "Co-Authored-By: nosedive 9.9.9 <noreply@nosedive.dev>", "each migration's commit says nosedive made it, once");
+	}
 	assert.deepEqual(git(["show", "--name-only", "--format=", "HEAD~1"], dir).split("\n").sort(), [".nosedive/config.yaml", "a.txt"]);
 	assert.deepEqual(git(["show", "--name-only", "--format=", "HEAD"], dir).split("\n"), [".nosedive/config.yaml"]);
 	assert.equal(git(["status", "--porcelain"], dir), "");

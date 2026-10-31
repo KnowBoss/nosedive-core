@@ -24,7 +24,7 @@ test("merge-patches meta from stdin or a file, changing only that field, and com
 
 	const after = readFileSync(join(bridge, path), "utf8");
 	assert.equal(after, before.replace("---\n\n#", "meta:\n  owner: dan\n---\n\n#"));
-	assert.equal(git(["log", "-1", "--format=%s"], bridge), `crud(${id}): updated memo metered-${id.slice(-6)}`);
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: meta");
 });
 
 test("removes meta when the patch empties it", async () => {
@@ -58,7 +58,7 @@ test("refuses meta its kind's schema forbids, and edits docs in workspace repos"
 	const thereId = there.replace(/^.*\/|\.md$/g, "");
 	assert.equal(ok(await run(["crud", thereId, "--meta", "-"], bridge, "a: 1\n")), there);
 	assert.match(readFileSync(join(bridge, there), "utf8"), /\nmeta:\n {2}a: 1\n/);
-	assert.match(git(["log", "-1", "--format=%s"], repo), /^crud\(\S+\): updated memo /);
+	assert.equal(git(["log", "-1", "--format=%s"], repo), "crud: meta");
 });
 
 const CLOSED = "schema:\n  type: object\n  additionalProperties: false\n  properties:\n    owner: {type: string}\n";
@@ -124,7 +124,7 @@ test("a doc in a seeded workspace repo has its kind and meta read in that repo's
 	assert.match((await run(["crud", id, "--meta", "-"], bridge, "owner: dan\n")).err, /meta does not fit kind thing:\n {2}meta must NOT have additional properties/);
 	ok(await run(["crud", id, "--meta", "-"], bridge, "a: x\n"));
 	assert.match(readFileSync(path, "utf8"), /\nmeta:\n {2}a: x\n/);
-	assert.match(git(["log", "-1", "--format=%s"], checkout), /^crud\(\S+\): updated thing x$/);
+	assert.equal(git(["log", "-1", "--format=%s"], checkout), "crud: meta");
 	// A doc of an idea is the hero's kind to the hero, but the checkout does not declare it.
 	const other = "01a18e62-0000-7000-8000-0000000000e4";
 	const idea = commitDoc(checkout, other, "");

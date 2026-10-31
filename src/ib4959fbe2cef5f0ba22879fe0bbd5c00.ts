@@ -61,7 +61,7 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 	const quid = String(first[1][key]).toLowerCase();
 	if (!QUID.test(quid)) throw new Error(`not a quid: ${quid}`);
 
-	const edit = editKbDocs(ctx.cwd);
+	const edit = editKbDocs(ctx.cwd, core.version);
 	const doc = edit.doc(quid);
 	const { spelling: kind, kind: declared, identity } = kindOfDoc(doc, bridge, all);
 	const name = String(doc.fm.name);
@@ -111,7 +111,7 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 		}
 		ctx.out(`gate ${usage.doc.name}: passed`);
 	}
-	const written = edit.commit(`pass(${name}): ${sect}`);
+	const written = edit.commit({ action: "pass", what: sect });
 	if (written.length > 0) ctx.out(written.join("\n"));
 }
 

@@ -16,7 +16,7 @@ test("replaces the one place its text occurs, newlines and backslashes kept, eac
 	writeFileSync(join(bridge, "new.txt"), "D:\\new\\dir\n\nin two paragraphs.\n");
 	ok(await run(["crud", id, "--replace", "old.txt", "new.txt"], bridge));
 	assert.equal(readFileSync(join(bridge, path), "utf8"), `${front}\n# a note\n\nKeep this.\n\nA path: D:\\new\\dir\n\nin two paragraphs.\n\nKeep that.\n`);
-	assert.equal(git(["log", "-1", "--format=%s"], bridge), `crud(${id}): updated memo a-note-${id.slice(-6)}`);
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: replace");
 
 	writeFileSync(join(bridge, "empty.txt"), "");
 	ok(await run(["crud", id, "--replace", "-", "empty.txt"], bridge, "A path: "));

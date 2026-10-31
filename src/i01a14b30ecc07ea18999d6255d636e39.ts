@@ -39,6 +39,7 @@ export function i01a14b30ecc07ea18999d6255d636e39(edit: KbEdit, quid: unknown, k
 	const apply = EDITS[key];
 	if (!apply) throw new Error(`no crud edit ${key}: the edits are ${Object.keys(EDITS).join(", ")}`);
 	apply(edit, quidOf(quid, "quid"), value, ctx);
+	edit.edits.push(key);
 }
 
 function quidOf(value: unknown, what: string): string {

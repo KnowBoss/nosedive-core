@@ -63,7 +63,7 @@ test("applies every edit in order and commits once, with text inline", async () 
 	].join("\n");
 
 	assert.deepEqual(ok(await run(["crud", "--batch", "-"], bridge, batch)).split("\n").sort(), [a, b].sort());
-	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "crud: updated 2 docs");
+	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "crud: title, body, section, replace, gist, parent, meta");
 	assert.match(readFileSync(join(bridge, a), "utf8"), /\n---\n\n# Alpha\n\nA path: D:\\new\\dir\n\nDone\.\n\n## Open\n\nNothing yet\.\n$/);
 	assert.match(readFileSync(join(bridge, a), "utf8"), new RegExp(`- kb/${idOf(b)}\\.md:\n {6}rel: child\\.feat\n`));
 	const second = readFileSync(join(bridge, b), "utf8");

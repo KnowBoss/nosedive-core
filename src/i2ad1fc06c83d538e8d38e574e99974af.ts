@@ -8,7 +8,7 @@ import { i01a14b30ecc07ea18999d6255d636e39 as crudEdit } from "./i01a14b30ecc07e
 export async function i2ad1fc06c83d538e8d38e574e99974af(source: string, ctx: Ctx): Promise<void> {
 	const items = await readSource(source, ctx);
 	if (!Array.isArray(items) || items.length === 0) throw new Error("--batch takes a list of edits");
-	const edit = editKbDocs(ctx.cwd);
+	const edit = editKbDocs(ctx.cwd, ctx.capes[0]!.version);
 	// A doc's meta is checked once, against its final kind, so kind and meta can change together.
 	edit.unchecked = new Set();
 	items.forEach((item, index) => {

@@ -15,7 +15,7 @@ test("applies an edit named as its flag, with its value inline, and refuses an u
 	const id = path.replace(/^.*\/|\.md$/g, "");
 	const ctx = { cwd: bridge, capes: [], out: () => {}, err: () => {} } as unknown as Ctx;
 
-	const edit = editKbDocs(bridge);
+	const edit = editKbDocs(bridge, "test");
 	crudEdit(edit, id.toUpperCase(), "gist", "changed", ctx);
 	crudEdit(edit, id, "section", { heading: "Open", text: "Nothing." }, ctx);
 	assert.throws(() => crudEdit(edit, id, "size", 2, ctx), /no crud edit size: the edits are meta, scopes, links, parent, title, body, section, replace, gist, name, kind/);

@@ -12,7 +12,7 @@ test("replaces the title, keeping everything under it, and commits", async () =>
 	ok(await run(["crud", id, "--body", "-"], bridge, "Kept.\n"));
 	assert.equal(ok(await run(["crud", id, "--title", "A better title"], bridge)), path);
 	assert.match(readFileSync(join(bridge, path), "utf8"), /---\n\n# A better title\n\nKept\.\n$/);
-	assert.equal(git(["log", "-1", "--format=%s"], bridge), `crud(${id}): updated memo a-note-${id.slice(-6)}`);
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: title");
 });
 
 test("adds a title to a doc that has none, above what it holds", async () => {

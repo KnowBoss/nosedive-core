@@ -17,7 +17,7 @@ test("moves a doc to its new parent, unlinking the old one on both sides, in one
 	const head = git(["rev-parse", "HEAD"], bridge);
 
 	assert.deepEqual(ok(await run(["crud", idOf(c), "--parent", idOf(b)], bridge)).split("\n").sort(), [a, b, c].sort());
-	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "crud: updated 3 docs");
+	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "crud: parent");
 	assert.doesNotMatch(readFileSync(join(bridge, a), "utf8"), /links/);
 	assert.doesNotMatch(readFileSync(join(bridge, c), "utf8"), new RegExp(idOf(a)));
 	assert.match(readFileSync(join(bridge, c), "utf8"), new RegExp(`- kb/${idOf(b)}\\.md:\n {6}rel: parent\\.feat\n`));

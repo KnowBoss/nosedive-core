@@ -6,6 +6,7 @@ import type { KbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge, type Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
+import { i01a19005c109715583553072f4e38dc4 as commitSubject } from "./i01a19005c109715583553072f4e38dc4.ts";
 
 export type EditedDoc = KbDoc & { id: string; path: string; text: string; repoDir: string; kbDir: string };
 
@@ -15,19 +16,24 @@ export type KbEdit = {
 	doc(id: string): EditedDoc;
 	/** Marks a doc to be written. */
 	change(doc: EditedDoc): void;
-	/** Writes the changed docs, commits each repo's (as `message` when given), and returns their paths relative to the bridge. */
-	commit(message?: string): string[];
+	/** The crud edits applied, by name, in order; they name the commit's `what` unless it is given one. */
+	edits: string[];
+	/** Writes the changed docs, commits each repo's (as `subject` when given: `crud <edits>` by default), and returns their paths relative to the bridge. */
+	commit(subject?: { action: string; what: string }): string[];
 	/** When set, kind and meta edits leave their schema check to the caller, collecting the docs here. */
 	unchecked?: Set<EditedDoc>;
 };
 
-export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string): KbEdit {
+/** `version` is the core's, named in the co-author trailer of its commits. */
+export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string): KbEdit {
 	const bridge = findBridge(cwd);
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");
 	const docs = new Map<string, EditedDoc>();
 	const changed = new Set<EditedDoc>();
+	const edits: string[] = [];
 	return {
 		bridge,
+		edits,
 		doc(id) {
 			const known = docs.get(id);
 			if (known) return known;
@@ -54,11 +60,8 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string): KbEdit {
 			}
 			for (const [repoDir, written] of byRepo) {
 				for (const { doc } of written) writeKbDoc(doc.path, doc.yaml, doc.body);
-				const [only] = written;
-				const message =
-					given ??
-					(written.length === 1 ? `crud(${only!.doc.id}): updated ${String(only!.doc.fm.kind)} ${String(only!.doc.fm.name)}` : `crud: updated ${written.length} docs`);
-				commitFiles(repoDir, written.map(({ doc }) => doc.path), message);
+				const { action, what } = given ?? { action: "crud", what: [...new Set(edits)].join(", ") || "edit" };
+				commitFiles(repoDir, written.map(({ doc }) => doc.path), commitSubject(bridge, action, what, written.map(({ doc }) => doc.id)), version);
 			}
 			return [...changed].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));
 		},

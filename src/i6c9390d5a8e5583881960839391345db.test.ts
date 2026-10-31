@@ -25,7 +25,7 @@ test("mints a doc named from its gist, and commits it", async () => {
 		`---\nkind: memo\nid: ${id}\nname: hello-capes-world-${id.slice(-6)}\ngist: "Hello, capes world!"\nscopes:\n  - ${CORE}:\n      canonical: true\n      version: ${memo}\n      schema: ${digestOf(kind)}\n---\n\n# Hello, capes world!\n`,
 	);
 	assert.match(memo!, /^[0-9a-f]{40}$/);
-	assert.equal(git(["log", "-1", "--format=%s"], bridge), `crud(${id}): created core:memo hello-capes-world-${id.slice(-6)}`);
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: core:memo");
 	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
 
@@ -83,7 +83,7 @@ test("--base writes into a workspace checkout, at any directory of it, and commi
 	const repo = checkedOut(bridge, "other");
 	const path = ok(await run(["--base", "workspace/other", "crud", "core:memo", "over", "there"], bridge));
 	assert.match(path, /^workspace\/other\/[0-9a-f-]{36}\.md$/);
-	assert.match(git(["log", "-1", "--format=%s"], repo), /^crud\(\S+\): created core:memo over-there-/);
+	assert.equal(git(["log", "-1", "--format=%s"], repo), "crud: core:memo");
 	assert.equal(git(["status", "--porcelain"], bridge), "", "the workspace is ignored");
 	const cores = ok(await run(["--base", "workspace/other/kb", "crud", "nosedive-core:memo", "core's"], bridge));
 	assert.match(cores, /^workspace\/other\/kb\//);

@@ -106,7 +106,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 	}
 
 	if (changed.length > 0) {
-		commitFiles(dir, changed, `seed: ${repo} set up`);
+		commitFiles(dir, changed, `seed: ${repo} set up`, ctx.capes[0]!.version);
 		ctx.out(`seeded ${repo}`);
 	} else {
 		ctx.out(`${repo} is already seeded`);
@@ -121,7 +121,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		const tree = renderTree(kbDir, doc, [...(own.kindsDir ? [own.kindsDir] : []), ...(own.reposDir ? [own.reposDir] : []), ...own.roots.map((root) => root.dir)]);
 		if (tree === doc.body) continue;
 		writeKbDoc(doc.path, doc.yaml, tree);
-		commitFiles(dir, [doc.path], `seed: ${repo} tree rendered`);
+		commitFiles(dir, [doc.path], `seed: ${repo} tree rendered`, ctx.capes[0]!.version);
 		ctx.out(`rendered the tree of ${String(doc.fm.name)}`);
 	}
 

@@ -61,10 +61,19 @@ test("passes a doc through those of its gates in one sect with a usage the comma
 	const { bridge, memo, path } = await stampBridge("pass-stamp");
 	const head = git(["rev-parse", "HEAD"], bridge);
 	assert.equal(ok(await run(["pass", "--stamp", memo, "--loud"], bridge)), `stamping\ngate stamp: passed\n${path}`);
-	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "pass(a-memo-" + memo.slice(-6) + "): stamp");
+	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), "pass: stamp");
 	const text = readFileSync(join(bridge, path), "utf8");
 	assert.match(text, /\ngist: "?STAMPED"?\n/);
 	assert.match(text, /## Stamp\n\nby memo, with loud\n$/);
+});
+
+test("the commit names the feat of the doc passed, and ends with nosedive's co-author once", async () => {
+	const { bridge, memo, path } = await stampBridge("pass-feat");
+	ok(await run(["crud", findBridge(bridge)!.root!, "--links", "-"], bridge, `${path}: {rel: work.feat}\n`));
+	const head = git(["rev-parse", "HEAD"], bridge);
+	ok(await run(["pass", "--stamp", memo], bridge));
+	assert.equal(git(["log", "--format=%s", `${head}..HEAD`], bridge), `feat(a-memo-${memo.slice(-6)}): pass stamp`);
+	assert.equal(git(["log", "-1", "--format=%(trailers:only,unfold)"], bridge).trim(), "Co-Authored-By: nosedive source <noreply@nosedive.dev>");
 });
 
 test("fails fast, and writes nothing when a gate fails", async () => {

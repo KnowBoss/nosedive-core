@@ -15,7 +15,7 @@ test("deletes a doc of a kind that is not durable, and commits, past workspace r
 	mkdirSync(join(bridge, "workspace", "no-kb"), { recursive: true });
 	assert.equal(ok(await run(["crud", "--drop", id], bridge)), path);
 	assert.equal(existsSync(join(bridge, path)), false);
-	assert.equal(git(["log", "-1", "--format=%s"], bridge), `crud(${id}): dropped goal passing-work-${id.slice(-6)}`);
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: drop");
 	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
 

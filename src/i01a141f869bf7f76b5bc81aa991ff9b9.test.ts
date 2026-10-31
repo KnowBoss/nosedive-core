@@ -41,7 +41,7 @@ test("pass --attach-cape builds a registered cape and links it from the base, --
 	git(["commit", "-qm", "register greet-cape"], bridge);
 	assert.match(ok(await run(["pass", "--attach-cape", id], bridge)), /attached greet-cape \S+ \([0-9a-f]{7}\)/);
 	assert.deepEqual(configuredCapes(findBridge(bridge)!, core).map(({ name, build }) => [name, build?.actions]), [["greet-cape", { greet: "Greets" }]]);
-	assert.equal(git(["log", "-1", "--format=%s"], bridge), `pass(greet-cape): attach-cape`);
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), "pass: attach-cape");
 	assert.match((await run(["pass", "--attach-cape", id], bridge)).err, /the base already wears greet-cape/);
 	assert.match((await run(["crud", "--drop", id, "--hard"], bridge)).err, /still linked/);
 	assert.match(ok(await run(["pass", "--detach-cape", id], bridge)), /detached greet-cape/);

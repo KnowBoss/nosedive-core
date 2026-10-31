@@ -37,40 +37,40 @@ export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 			);
 		case "u3ac641d4a9d757a48df1f1de031be120": { // crud <quid> --meta <source>
 			const patch = await readSource(String(args.meta), ctx);
-			return single(ctx, (edit) => i3ac641d4a9d757a48df1f1de031be120(edit, quid(args.quid), patch, ctx));
+			return single(ctx, "meta", (edit) => i3ac641d4a9d757a48df1f1de031be120(edit, quid(args.quid), patch, ctx));
 		}
 		case "u7820a39cffb9511493085038a7e19447": { // crud <quid> --scopes <source>
 			const patch = await readSource(String(args.scopes), ctx);
-			return single(ctx, (edit) => i7820a39cffb9511493085038a7e19447(edit, quid(args.quid), patch));
+			return single(ctx, "scopes", (edit) => i7820a39cffb9511493085038a7e19447(edit, quid(args.quid), patch));
 		}
 		case "u21be7cc759fb5c758e11cffdb2630902": { // crud <quid> --links <source>
 			const patch = await readSource(String(args.links), ctx);
-			return single(ctx, (edit) => i21be7cc759fb5c758e11cffdb2630902(edit, quid(args.quid), patch));
+			return single(ctx, "links", (edit) => i21be7cc759fb5c758e11cffdb2630902(edit, quid(args.quid), patch));
 		}
 		case "u112fbf4a4c7153da8d321f828607a1d0": // crud <quid> --parent <parent>
-			return single(ctx, (edit) => i112fbf4a4c7153da8d321f828607a1d0(edit, quid(args.quid), quid(args.parent)));
+			return single(ctx, "parent", (edit) => i112fbf4a4c7153da8d321f828607a1d0(edit, quid(args.quid), quid(args.parent)));
 		case "u933f159845875010ad6ed3569414a651": // crud <quid> --title <title>
-			return single(ctx, (edit) => i933f159845875010ad6ed3569414a651(edit, quid(args.quid), String(args.title)));
+			return single(ctx, "title", (edit) => i933f159845875010ad6ed3569414a651(edit, quid(args.quid), String(args.title)));
 		case "uecbd59b3160b5626840a2de9f49fb01f": { // crud <quid> --body <source>
 			const text = await readText(String(args.body), ctx);
-			return single(ctx, (edit) => iecbd59b3160b5626840a2de9f49fb01f(edit, quid(args.quid), text));
+			return single(ctx, "body", (edit) => iecbd59b3160b5626840a2de9f49fb01f(edit, quid(args.quid), text));
 		}
 		case "u794ab6e0060f5ede8b0148203fe6df81": { // crud <quid> --section <heading> <source>
 			const text = await readText(String(args.source), ctx);
-			return single(ctx, (edit) => i794ab6e0060f5ede8b0148203fe6df81(edit, quid(args.quid), String(args.section), text));
+			return single(ctx, "section", (edit) => i794ab6e0060f5ede8b0148203fe6df81(edit, quid(args.quid), String(args.section), text));
 		}
 		case "ue9dc0e8d57db5875868f19e35aa40379": { // crud <quid> --replace <old> <new>
 			if (args.replace === "-" && args.new === "-") throw new Error("--replace can read only one of its texts from stdin");
 			const old = await readText(String(args.replace), ctx);
 			const replacement = await readText(String(args.new), ctx);
-			return single(ctx, (edit) => ie9dc0e8d57db5875868f19e35aa40379(edit, quid(args.quid), old, replacement));
+			return single(ctx, "replace", (edit) => ie9dc0e8d57db5875868f19e35aa40379(edit, quid(args.quid), old, replacement));
 		}
 		case "u7713e1ddd9c454948ec7f940be7ffe6f": // crud <quid> --gist <gist>
-			return single(ctx, (edit) => i7713e1ddd9c454948ec7f940be7ffe6f(edit, quid(args.quid), String(args.gist)));
+			return single(ctx, "gist", (edit) => i7713e1ddd9c454948ec7f940be7ffe6f(edit, quid(args.quid), String(args.gist)));
 		case "u971c8e5c145b560390e48ad4702e2fa5": // crud <quid> --name <name>
-			return single(ctx, (edit) => i971c8e5c145b560390e48ad4702e2fa5(edit, quid(args.quid), String(args.name)));
+			return single(ctx, "name", (edit) => i971c8e5c145b560390e48ad4702e2fa5(edit, quid(args.quid), String(args.name)));
 		case "u5225ca8db7b85be197b4b22ee341b5f1": // crud <quid> --kind <kind>
-			return single(ctx, (edit) => i5225ca8db7b85be197b4b22ee341b5f1(edit, quid(args.quid), String(args.kind), ctx));
+			return single(ctx, "kind", (edit) => i5225ca8db7b85be197b4b22ee341b5f1(edit, quid(args.quid), String(args.kind), ctx));
 		case "u2ad1fc06c83d538e8d38e574e99974af": // crud --batch <source>
 			return i2ad1fc06c83d538e8d38e574e99974af(String(args.batch), ctx);
 		case "u717f85b924b35f32b24a8cfaf9c0241f": // crud --drop <quid> [--hard]
@@ -82,10 +82,11 @@ export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 	}
 }
 
-/** Applies one edit and commits it. */
-function single(ctx: Ctx, apply: (edit: KbEdit) => void): void {
-	const edit = editKbDocs(ctx.cwd);
+/** Applies one edit, named as its flag, and commits it. */
+function single(ctx: Ctx, name: string, apply: (edit: KbEdit) => void): void {
+	const edit = editKbDocs(ctx.cwd, ctx.capes[0]!.version);
 	apply(edit);
+	edit.edits.push(name);
 	ctx.out(edit.commit().join("\n"));
 }
 

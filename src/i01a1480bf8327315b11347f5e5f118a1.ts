@@ -9,6 +9,7 @@ import { i01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "./i01a138b2b
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { i01a19005c109715583553072f4e38dc4 as commitSubject } from "./i01a19005c109715583553072f4e38dc4.ts";
 
 /** Returns the dropped docs' paths relative to the bridge. */
 export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], hard: boolean, capes: Cape[]): string[] {
@@ -71,13 +72,10 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	}
 
 	const byRepo = new Map<string, typeof docs>();
-	for (const entry of docs) {
-		rmSync(entry.doc.path);
-		byRepo.set(entry.doc.repoDir, [...(byRepo.get(entry.doc.repoDir) ?? []), entry]);
-	}
-	for (const [repoDir, dropped] of byRepo) {
-		const message = dropped.length === 1 ? `crud(${dropped[0]!.id}): dropped ${dropped[0]!.label}` : `crud: dropped ${dropped.length} docs`;
-		commitFiles(repoDir, dropped.map(({ doc }) => doc.path), message);
-	}
+	for (const entry of docs) byRepo.set(entry.doc.repoDir, [...(byRepo.get(entry.doc.repoDir) ?? []), entry]);
+	// Named before the docs go, since their links are how a feat is found.
+	const subjects = new Map([...byRepo].map(([repoDir, dropped]) => [repoDir, commitSubject(bridge, "crud", "drop", dropped.map(({ id }) => id))]));
+	for (const entry of docs) rmSync(entry.doc.path);
+	for (const [repoDir, dropped] of byRepo) commitFiles(repoDir, dropped.map(({ doc }) => doc.path), subjects.get(repoDir)!, capes[0]!.version);
 	return docs.map(({ doc }) => at(doc.path));
 }
