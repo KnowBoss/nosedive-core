@@ -46,11 +46,42 @@ test("pass --attach-cape builds a registered cape and links it from the base, --
 	assert.match(ok(await run(["pass", "--attach-cape", id], bridge)), /attached greet-cape \S+ \([0-9a-f]{7}\)/);
 	assert.deepEqual(configuredCapes(findBridge(bridge)!, core).map(({ name, build }) => [name, build?.actions]), [["greet-cape", { greet: "Greets" }]]);
 	assert.equal(git(["log", "-1", "--format=%s"], bridge), "pass: attach-cape");
-	assert.match((await run(["pass", "--attach-cape", id], bridge)).err, /the base already wears greet-cape/);
 	assert.match((await run(["crud", "--drop", id, "--hard"], bridge)).err, /still linked/);
 	assert.match(ok(await run(["pass", "--detach-cape", id], bridge)), /detached greet-cape/);
 	assert.deepEqual(configuredCapes(findBridge(bridge)!, core), []);
 	assert.match((await run(["pass", "--detach-cape", id], bridge)).err, /the base does not wear greet-cape/);
+});
+
+test("pass --attach-cape pins the commit its ref resolves to, builds keep to it as the remote moves, and attaching again bumps it", async () => {
+	const bridge = await tempBridge("configured-capes-pin");
+	const repo = greetCapeRepo();
+	const id = await registerRepo(bridge, "greet-cape", repo);
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "register greet-cape"], bridge);
+	const config = readRepoConfig(bridge)!;
+	const pinned = () => /commit: ([0-9a-f]{40})/.exec(readFileSync(config.roots.find((root) => root.id === config.root)!.path, "utf8"))?.[1];
+	const first = git(["rev-parse", "HEAD"], repo);
+	ok(await run(["pass", "--attach-cape", id], bridge));
+	assert.equal(pinned(), first);
+	git(["commit", "-q", "--allow-empty", "-m", "moved on"], repo);
+	ok(await run(["seed"], bridge));
+	const [kept] = configuredCapes(findBridge(bridge)!, core);
+	assert.equal(kept!.build!.commit, first);
+	assert.equal(kept!.spec, "greet-cape");
+	assert.match(ok(await run(["pass", "--attach-cape", id], bridge)), /re-attached greet-cape \S+ \([0-9a-f]{7}\)/);
+	const second = git(["rev-parse", "HEAD"], repo);
+	assert.equal(pinned(), second);
+	assert.equal(configuredCapes(findBridge(bridge)!, core)[0]!.build!.commit, second);
+	git(["tag", "-a", "v1", "-m", "v1", first], repo);
+	assert.match(ok(await run(["pass", "--attach-cape", id, "--ref", "v1"], bridge)), /re-attached greet-cape@v1 /);
+	assert.equal(pinned(), first);
+	git(["switch", "-qc", "next"], repo);
+	git(["commit", "-q", "--allow-empty", "-m", "next"], repo);
+	const third = git(["rev-parse", "HEAD"], repo);
+	git(["switch", "-q", "-"], repo);
+	ok(await run(["pass", "--attach-cape", id, "--ref", "next"], bridge));
+	assert.equal(pinned(), third);
+	assert.equal(configuredCapes(findBridge(bridge)!, core)[0]!.spec, "greet-cape@next");
 });
 
 test("pass --attach-cape takes whatever name the hero gave the repo, and refuses a repo that is no cape", async () => {

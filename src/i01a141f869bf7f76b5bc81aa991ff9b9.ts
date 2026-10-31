@@ -13,7 +13,7 @@ export type ConfiguredCape = {
 	/** As messages name it: `<repo>` or `<repo>@<ref>`. */
 	spec: string;
 	name: string;
-	/** A branch, tag or commit; empty for the trunk. */
+	/** What builds use: the link's commit pin, else its branch, tag or commit; empty for the trunk. */
 	ref: string;
 	/** Its repo doc; undefined when the bridge has none it can clone from. */
 	repo?: { id: string; name: string; remote: string; dir?: string };
@@ -28,29 +28,30 @@ function localCape(bridge: Bridge, key: string): { id: string; name: string; dir
 	return found ? { id: found.id, name: found.name, dir: found.dir } : undefined;
 }
 
-/** The capes the target root wears: its links whose rel's role is `cape`, each to a repo doc, with the `ref` it may pin. */
-export function wornCapes(bridge: Bridge): { id: string; name: string; ref: string; dir?: string }[] {
+/** The capes the target root wears: its links whose rel's role is `cape`, each to a repo doc; `ref` is what builds use, its `commit` pin when it has one, `follow` its own `ref`. */
+export function wornCapes(bridge: Bridge): { id: string; name: string; ref: string; follow: string; dir?: string }[] {
 	const base = bridge.roots.find((root) => root.id === bridge.activeRoot);
 	const doc = base ? findKbDoc(base.dir, base.id) : undefined;
 	const links = Array.isArray(doc?.fm.links) ? (doc.fm.links as unknown[]) : [];
 	return links.flatMap((link) =>
-		Object.entries((link ?? {}) as Record<string, { rel?: unknown; ref?: unknown } | null>).flatMap(([key, value]) => {
+		Object.entries((link ?? {}) as Record<string, { rel?: unknown; ref?: unknown; commit?: unknown } | null>).flatMap(([key, value]) => {
 			if (typeof value?.rel !== "string" || value.rel.split(".").at(-1) !== "cape") return [];
 			const id = QUID.exec(key)?.[1];
 			const repo = id ? findKbDoc(bridge.reposDir ?? join(bridge.dir, ".nosedive", "repos"), id) : undefined;
 			if (!repo) {
 				const local = localCape(bridge, key);
-				if (local) return [{ ...local, ref: "" }];
+				if (local) return [{ ...local, ref: "", follow: "" }];
 				throw new Error(`the base ${String(doc!.fm.name)} wears ${key}, which is no repo doc or local cape`);
 			}
-			return [{ id: id!, name: String(repo.fm.name), ref: typeof value.ref === "string" ? value.ref : "" }];
+			const follow = typeof value.ref === "string" ? value.ref : "";
+			return [{ id: id!, name: String(repo.fm.name), ref: typeof value.commit === "string" && COMMIT.test(value.commit) ? value.commit : follow, follow }];
 		}),
 	);
 }
 
 export function i01a141f869bf7f76b5bc81aa991ff9b9(bridge: Bridge, core: Cape): ConfiguredCape[] {
 	const builds = capeManifest(bridge.dir);
-	return wornCapes(bridge).map(({ id, name, ref, dir }) => {
+	return wornCapes(bridge).map(({ id, name, ref, follow, dir }) => {
 		let repo: ConfiguredCape["repo"];
 		try {
 			repo = dir ? { id, name, remote: "", dir } : findRepoDoc(bridge, name);
@@ -61,6 +62,6 @@ export function i01a141f869bf7f76b5bc81aa991ff9b9(bridge: Bridge, core: Cape): C
 			.filter((build) => build.repo === repo?.id && build.core === core.id && (COMMIT.test(ref) && !build.source ? build.commit === ref : build.ref === ref))
 			.sort((a, b) => a.builtAt.localeCompare(b.builtAt))
 			.at(-1);
-		return { spec: ref ? `${name}@${ref}` : name, name, ref, repo, build };
+		return { spec: follow ? `${name}@${follow}` : name, name, ref, repo, build };
 	});
 }
