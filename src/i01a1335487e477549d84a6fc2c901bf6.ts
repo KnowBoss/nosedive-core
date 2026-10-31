@@ -23,14 +23,15 @@ const QUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 /**
  * `fromSrc` reads only the docs whose ids name files in `src/`, never the rest of the kb: a doc with no code yet is left out.
  * `versions` records each kind's version, which asks git for the history of its doc.
+ * `kbOf` reads that directory in place of the repo's primary kb, as scaf does for a doc in another of its roots.
  * Only docs whose kind is core's count: a repo's action says so in a canonical scope, core's own do not need one.
  */
-export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = false, versions = false): CapeSource {
+export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = false, versions = false, kbOf?: string): CapeSource {
 	const docs: Record<string, CapeDoc> = {};
 	const entries: CapeSource["entries"] = [];
 	const kinds: CapeSource["kinds"] = {};
 	const parents = new Map<string, string[]>();
-	const kbDir = readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb");
+	const kbDir = kbOf ?? readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb");
 	const holder = readRepoConfig(repoDir)?.id;
 	const declare = (doc: ReturnType<typeof codeDocs>[number]) => {
 		const meta = (doc.fm.meta ?? {}) as { schema?: unknown };

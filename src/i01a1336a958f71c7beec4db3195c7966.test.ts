@@ -39,7 +39,7 @@ test("heads a cape in help by its short name, the name of its root doc, not its 
 test("--help lists an action's usages and names --help --more, which adds its ## Usage section", async () => {
 	const dir = tempDir("launch-action-help");
 	const help = ok(await run(["scaf", "--help"], dir));
-	assert.equal(help, "Writes the files a cape's action docs call for and do not have yet\n\n  scaf [<quid>]\n\nnosedive scaf --help --more for what each usage does.");
+	assert.equal(help, "Writes the files a seeded repo's action docs call for and do not have yet\n\n  scaf [<quid>]\n\nnosedive scaf --help --more for what each usage does.");
 	assert.match(ok(await run(["scaf", "--help", "--more"], dir)), /\n\n`nosedive \[--base <dir>\] scaf \[<quid>\]` walks the tree /);
 });
 

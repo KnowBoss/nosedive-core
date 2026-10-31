@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
@@ -15,52 +15,89 @@ import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177
 import { i01a14fdf275b70b48f86f7f5c651719d as kbDocKind } from "./i01a14fdf275b70b48f86f7f5c651719d.ts";
 import { CORE_OWNER, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 
-const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.md$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const CODE_KINDS = new Set(["action", "function", "migration"]);
 
+/** What a walk met: the docs named by a quid, and the symlinks it did not follow. */
+type Found = { docs: string[]; links: string[] };
+
+/** What is to be said about one repo: the action docs to scaffold, by the directory holding them, and its notes. */
+type Group = { kbs: Map<string, string[]>; notes: string[] };
+
 export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined, ctx: Ctx): Promise<void> {
+	const wanted = quid?.toLowerCase();
+	if (wanted !== undefined && !UUID.test(wanted)) throw new Error(`not a quid: ${quid}`);
 	const hero = findBridge(ctx.cwd);
 	if (!hero) throw new Error("scaf runs from a hero or a cape repo, and there is no nosedive config here or above");
 	const tree = hero.baseDir;
-	const paths = quid === undefined ? walk(tree) : [locateDoc(hero, quid)?.path ?? walk(hero.dir, `${quid}.md`)[0]];
-	if (quid !== undefined && paths[0] === undefined) throw new Error(`no doc ${quid} in ${hero.dir} or its workspace`);
+	const rel = (path: string, from = hero.dir) => relative(from, path).replace(/\\/g, "/");
+	const label = (repo: string) => rel(repo) || basename(hero.dir);
+
+	let found: Found;
+	if (wanted === undefined) found = walk(tree);
+	else {
+		const path = locateDoc(hero, wanted)?.path ?? walk(hero.dir, `${wanted}.md`).docs[0];
+		if (path === undefined) throw new Error(`no doc ${wanted} in ${hero.dir} or its workspace`);
+		found = { docs: [path], links: [] };
+	}
 
 	// Each action doc goes to the seeded repo holding it.
-	const byRepo = new Map<string, string[]>();
+	const groups = new Map<string, Group>();
+	const group = (repo: string) => groups.get(repo) ?? groups.set(repo, { kbs: new Map(), notes: [] }).get(repo)!;
 	const skipped: string[] = [];
-	const shown = (path: string) => relative(ctx.cwd, path).replace(/\\/g, "/");
-	for (const path of paths as string[]) {
-		const id = basename(path, ".md");
+	for (const path of found.docs) {
 		const repo = holdingRepo(path);
-		if (!isCodeDoc(path, repo)) {
-			if (quid !== undefined) throw new Error(`${quid} is not an action doc`);
+		const verdict = classify(path, repo);
+		if (verdict === "other") {
+			if (wanted !== undefined) throw new Error(`${wanted} is not an action doc`);
 			continue;
 		}
-		if (!repo) skipped.push(`${shown(path)}: in no seeded repo`);
-		else if (!findRoot(repo, "cape") && readRepoConfig(repo)?.workspace === undefined) skipped.push(`${shown(path)}: ${basename(repo)} is neither a cape nor a hero repo`);
-		else byRepo.set(repo, [...(byRepo.get(repo) ?? []), id]);
+		const unusable = !repo ? "in no seeded repo" : !findRoot(repo, "cape") && readRepoConfig(repo)?.workspace === undefined ? `${label(repo)} is neither a cape nor a hero repo` : undefined;
+		if (!repo || unusable) {
+			skipped.push(typeof verdict === "string" ? `${rel(path)}: ${unusable}` : `error ${rel(path)}: ${verdict.error}`);
+		} else if (typeof verdict !== "string") {
+			group(repo).notes.push(`error ${rel(path, repo)}: ${verdict.error}`);
+		} else {
+			const kbs = group(repo).kbs;
+			kbs.set(dirname(path), [...(kbs.get(dirname(path)) ?? []), basename(path, ".md")]);
+		}
 	}
-	if (quid !== undefined && skipped.length > 0) throw new Error(skipped[0]!);
-	if (byRepo.size === 0 && skipped.length === 0) throw new Error(`no action docs under ${tree}`);
+	for (const link of found.links) {
+		const repo = holdingRepo(link);
+		if (repo) group(repo).notes.push(`not followed: ${rel(link, repo)}`);
+		else skipped.push(`not followed: ${rel(link)}`);
+	}
+	if (wanted !== undefined) {
+		const refused = skipped[0] ?? [...groups.values()].flatMap((each) => each.notes)[0];
+		if (refused) throw new Error(refused);
+	}
+	if (groups.size === 0 && skipped.length === 0) throw new Error(`no action docs under ${tree}`);
 
 	const lines: string[] = [];
-	for (const [repo, ids] of byRepo) lines.push(`${basename(repo)}:`, ...scaffold(repo, ids).map((line) => `  ${line}`));
+	for (const [repo, each] of groups) {
+		// A repo whose docs cannot all be read is reported, and the walk goes on to the next.
+		let said: string[];
+		try {
+			said = scaffold(repo, each);
+		} catch (err) {
+			said = [...each.notes, `error: ${err instanceof Error ? err.message : String(err)}`];
+		}
+		lines.push(`${label(repo)}:`, ...said.map((line) => `  ${line}`));
+	}
 	if (skipped.length > 0) lines.push("skipped:", ...skipped.map((line) => `  ${line}`));
 	ctx.out(lines.join("\n"));
 }
 
 /** Writes what each of a repo's action docs lacks, and lists what is left. */
-function scaffold(repoDir: string, ids: string[]): string[] {
-	const { docs, entries } = describeCapeSource(repoDir);
-	const kbDir = readRepoConfig(repoDir)!.kbDir;
-	const chosen = entries.filter((entry) => ids.includes(entry.id));
-	const missing = ids.filter((id) => !chosen.some((entry) => entry.id === id)).map((id) => `${id}: not in ${basename(repoDir)}'s kb`);
+function scaffold(repoDir: string, group: Group): string[] {
 	// Core imports the launcher's types from its own source; any other cape, from core.
 	const launcher = "i01a1336a958f71c7beec4db3195c7966";
 	const types = existsSync(join(repoDir, "src", `${launcher}.ts`)) ? `./${launcher}.ts` : "nosedive-core";
 
 	const created: string[] = [];
+	const owned = new Set<string>();
 	const write = (file: string, text: string) => {
+		owned.add(file);
 		const path = join(repoDir, file);
 		if (existsSync(path)) return;
 		mkdirSync(dirname(path), { recursive: true });
@@ -69,51 +106,63 @@ function scaffold(repoDir: string, ids: string[]): string[] {
 	};
 
 	const updated: string[] = [];
-	for (const entry of chosen) {
-		const doc = docs[entry.id]!;
-		const raw = findKbDoc(kbDir, entry.id)!;
-		const body = codeSection(raw.body, doc, entry.name);
-		if (body !== raw.body) {
-			writeKbDoc(raw.path, raw.yaml, body);
-			updated.push(relative(repoDir, raw.path).replace(/\\/g, "/"));
-		}
-		if (doc.kind === "function") {
-			write(`src/${entry.name}.ts`, internalStub(entry.name, doc.name));
-			write(`src/${entry.name}.test.ts`, testStub(doc.name));
-			continue;
-		}
-		write(`src/${entry.name}.ts`, entryStub(entry.name, doc.name, doc.usages, types));
-		for (const usage of doc.usages) {
-			// A gate's usage impl takes the pass's GateCtx, and is a test itself.
-			if (gateUsage(usage.text)) {
-				write(`src/i${usage.id}.ts`, gateStub(`i${usage.id}`, usage.text, types));
+	for (const [kbDir, ids] of group.kbs) {
+		const { docs, entries } = describeCapeSource(repoDir, false, false, kbDir);
+		for (const id of ids) {
+			const entry = entries.find((each) => each.id === id);
+			if (!entry) throw new Error(`${id} in ${kbDir} did not read as an action doc`);
+			const doc = docs[id]!;
+			const raw = findKbDoc(kbDir, id)!;
+			const body = codeSection(raw.body, doc, entry.name);
+			if (body !== raw.body) {
+				writeKbDoc(raw.path, raw.yaml, body);
+				updated.push(relative(repoDir, raw.path).replace(/\\/g, "/"));
+			}
+			if (doc.kind === "function") {
+				write(`src/${entry.name}.ts`, internalStub(entry.name, doc.name));
+				write(`src/${entry.name}.test.ts`, testStub(doc.name));
 				continue;
 			}
-			write(`src/i${usage.id}.ts`, implStub(`i${usage.id}`, usage.text, types));
-			write(`src/i${usage.id}.test.ts`, testStub(usage.text));
+			write(`src/${entry.name}.ts`, entryStub(entry.name, doc.name, doc.usages, types));
+			for (const usage of doc.usages) {
+				// A gate's usage impl takes the pass's GateCtx, and is a test itself.
+				if (gateUsage(usage.text)) {
+					write(`src/i${usage.id}.ts`, gateStub(`i${usage.id}`, usage.text, types));
+					continue;
+				}
+				write(`src/i${usage.id}.ts`, implStub(`i${usage.id}`, usage.text, types));
+				write(`src/i${usage.id}.test.ts`, testStub(usage.text));
+			}
 		}
 	}
 
-	const left = checkCapeSource(repoDir);
-	const lines = [...created.map((file) => `created ${file}`), ...updated.map((file) => `updated ${file}`), ...missing.map((problem) => `skipped ${problem}`)];
+	// The check reads only the primary kb, so it does not know the files written for a doc in another root.
+	const left = group.kbs.size > 0 ? checkCapeSource(repoDir).filter((problem) => ![...owned].some((file) => problem.startsWith(`${file}: no doc`))) : [];
+	const lines = [...created.map((file) => `created ${file}`), ...updated.map((file) => `updated ${file}`), ...group.notes];
 	if (left.length > 0) lines.push("still to do:", ...left.map((problem) => `  ${problem}`));
 	else if (lines.length === 0) lines.push("nothing to scaffold");
 	return lines;
 }
 
-/** Every doc file under a directory, or just the one named, never entering node_modules, .git or .nosedive/capes. */
-function walk(dir: string, only?: string): string[] {
-	if (!existsSync(dir)) return [];
-	return readdirSync(dir, { withFileTypes: true })
-		.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-		.flatMap((entry) => {
-			const path = join(dir, entry.name);
-			if (entry.isDirectory()) {
-				const skip = entry.name === "node_modules" || entry.name === ".git" || (entry.name === "capes" && basename(dir) === ".nosedive");
-				return skip ? [] : walk(path, only);
-			}
-			return entry.isFile() && (only ? entry.name === only : QUID.test(entry.name)) ? [path] : [];
-		});
+/** The docs named by a quid under a directory, or just the one file named, never entering node_modules, .git or .nosedive/capes, and never following a symlink. */
+function walk(dir: string, only?: string): Found {
+	const found: Found = { docs: [], links: [] };
+	if (!existsSync(dir)) return found;
+	const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+	for (const entry of entries) {
+		const path = join(dir, entry.name);
+		if (entry.name === "node_modules" || entry.name === ".git" || (entry.name === "capes" && basename(dir) === ".nosedive")) continue;
+		const named = only ? entry.name.toLowerCase() === only : UUID.test(entry.name.replace(/\.md$/, "").toLowerCase()) && entry.name.endsWith(".md");
+		if (entry.isSymbolicLink()) {
+			// Only a link that could hide docs is worth a line: one to a directory, or one named as a doc.
+			if (named || statSync(path, { throwIfNoEntry: false })?.isDirectory()) found.links.push(path);
+		} else if (entry.isDirectory()) {
+			const inside = walk(path, only);
+			found.docs.push(...inside.docs);
+			found.links.push(...inside.links);
+		} else if (entry.isFile() && named) found.docs.push(path);
+	}
+	return found;
 }
 
 /** The seeded repo holding a doc: the nearest directory up with a nosedive config, not looking past the git checkout the doc is in. */
@@ -124,15 +173,19 @@ function holdingRepo(path: string): string | undefined {
 	}
 }
 
-/** Whether a doc is of core's action, function or migration kind, as its repo spells it. */
-function isCodeDoc(path: string, repo: string | undefined): boolean {
+/**
+ * Whether a doc is of core's action, function or migration kind, as its repo spells it: `code`, `other`, or the error that kept it from being read.
+ * In no seeded repo, a doc of those kinds with no owner counts: it is reported as an action nothing can scaffold.
+ */
+function classify(path: string, repo: string | undefined): "code" | "other" | { error: string } {
 	try {
-		if (!CODE_KINDS.has(kbDocKind(path) ?? "")) return false;
-		const doc = { ...readKbDoc(readFileSync(path, "utf8"), path), path };
+		if (!CODE_KINDS.has(kbDocKind(path) ?? "")) return "other";
+		const doc = { ...readKbDoc(readFileSync(path, "utf8")), path };
 		const kind = docKind(doc, repo ? readRepoConfig(repo)?.id : undefined);
-		return kind.owner === CORE_OWNER && CODE_KINDS.has(kind.name);
-	} catch {
-		return false;
+		const ours = kind.owner === CORE_OWNER || (repo === undefined && kind.owner === undefined);
+		return ours && CODE_KINDS.has(kind.name) ? "code" : "other";
+	} catch (err) {
+		return { error: err instanceof Error ? err.message : String(err) };
 	}
 }
 
