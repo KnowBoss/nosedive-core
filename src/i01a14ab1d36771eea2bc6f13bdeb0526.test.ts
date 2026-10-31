@@ -71,7 +71,26 @@ test("writes an edited doc in KINGSMETAL order, links last", async () => {
 	updateKbDocField(edit, idOf(a), "gist", () => "edited");
 	edit.commit();
 
-	const keys = readFileSync(path, "utf8").split("\n").filter((line) => /^\w+:/.test(line)).map((line) => line.split(":")[0]);
+	const keys = readFileSync(path, "utf8").split("\n").filter((line) => /^[\w-]+:/.test(line)).map((line) => line.split(":")[0]);
 	assert.deepEqual(keys, ["kind", "id", "name", "gist", "meta", "extra", "links"]);
 	assert.match(readFileSync(path, "utf8"), /meta:\n {2}z: 1\n {2}y: 2\n/);
+});
+
+test("writes a doc whose only change is its key order", async () => {
+	const bridge = await tempBridge("edit-docs-order-only");
+	const a = ok(await run(["crud", "core:memo", "a"], bridge));
+	const path = join(bridge, a);
+	const text = readFileSync(path, "utf8");
+	const body = text.slice(text.indexOf("\n---\n") + 5);
+	writeFileSync(path, `---\nx-y: 1\nname: n\nid: ${idOf(a)}\nkind: memo\ngist: g\n---\n${body}`);
+	git(["commit", "-qam", "misordered"], bridge);
+	const before = git(["rev-parse", "HEAD"], bridge);
+
+	const edit = editKbDocs(bridge);
+	updateKbDocField(edit, idOf(a), "gist", (gist) => gist);
+	assert.deepEqual(edit.commit(), [a]);
+
+	assert.notEqual(git(["rev-parse", "HEAD"], bridge), before);
+	const keys = readFileSync(path, "utf8").split("\n").filter((line) => /^[\w-]+:/.test(line)).map((line) => line.split(":")[0]);
+	assert.deepEqual(keys, ["kind", "id", "name", "gist", "x-y"]);
 });
