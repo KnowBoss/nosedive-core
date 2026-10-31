@@ -1,9 +1,10 @@
 // scaf [<quid>]
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { test } from "node:test";
-import { CANONICAL, gitRepo, ok, run } from "../test/harness.ts";
+import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "./i01a1335480c776ba8945020d0af333eb.ts";
+import { CANONICAL, checkedOut, git, gitRepo, kbOf, ok, run, tempBridge } from "../test/harness.ts";
 
 const ACTION = "01a1335b-f253-7b80-ab64-d2f9a03c9634";
 const HELPER = "01a1335b-f30a-7dd2-a1d4-b675fd419238";
@@ -22,7 +23,8 @@ async function capeRepo(): Promise<string> {
 test("writes every missing file, then nothing on a second run", async () => {
 	const dir = await capeRepo();
 	const out = ok(await run(["scaf"], dir));
-	const lines = out.split("\n");
+	const lines = out.split("\n").map((line) => line.trim());
+	assert.equal(lines[0], `${basename(dir)}:`);
 	const created = lines.filter((line) => line.startsWith("created ")).map((line) => line.slice(8));
 	assert.deepEqual(lines.filter((line) => line.startsWith("updated ")).sort(), [`updated kb/${ACTION}.md`, `updated kb/${HELPER}.md`]);
 	const docs = [ACTION, HELPER].map((id) => `src/i${id.replace(/-/g, "")}.ts`);
@@ -36,7 +38,7 @@ test("writes every missing file, then nothing on a second run", async () => {
 		`src/i${hex}.test.ts`,
 	].sort());
 	assert.match(readFileSync(join(dir, `src/i${ACTION.replace(/-/g, "")}.ts`), "utf8"), new RegExp(`case "u${hex}": // greet <who>`));
-	assert.equal(ok(await run(["scaf"], dir)), "nothing to scaffold");
+	assert.equal(ok(await run(["scaf"], dir)), `${basename(dir)}:\n  nothing to scaffold`);
 });
 
 test("a gate's usage gets an impl taking the pass's GateCtx, routed from call.gate, and no test", async () => {
@@ -52,7 +54,7 @@ test("a gate's usage gets an impl taking the pass's GateCtx, routed from call.ga
 	assert.doesNotMatch(out, /created src\/i[0-9a-f]{32}\.test\.ts/);
 	assert.match(readFileSync(join(dir, "src", `${files[0]}.ts`), "utf8"), /export async function i[0-9a-f]{32}\(ctx: GateCtx\)/);
 	assert.match(readFileSync(join(dir, "src", `i${ACTION.replace(/-/g, "")}.ts`), "utf8"), new RegExp(`return ${files[0]}\\(call\\.gate!\\);`));
-	assert.doesNotMatch(out, /\n {2}ready /, "nothing left to do for the gate");
+	assert.doesNotMatch(out, /\n {4}ready /, "nothing left to do for the gate");
 });
 
 test("one action only, and lists what it cannot fix", async () => {
@@ -75,12 +77,109 @@ test("runs in a cape outside core, whose code imports core's types by name", asy
 	assert.match(readFileSync(join(dir, "src", "i01a1335bf2537b80ab64d2f9a03c9634.ts"), "utf8"), /from "nosedive-core"/);
 });
 
-test("refuses a repo with no cape root, a hero's workspace not making one", async () => {
-	const hero = gitRepo("scaf-hero");
-	ok(await run(["seed", "--workspace"], hero));
-	const refused = await run(["scaf"], hero);
-	assert.equal(refused.code, 1);
-	assert.match(refused.err, /scaf runs in a cape, and none of this repo's roots is of kind cape: a root of kind cape in config `roots` makes it one, as `nosedive seed --root-kind cape` does/);
+
+const entryFile = (id: string) => `src/i${id.replace(/-/g, "")}.ts`;
+
+function actionDoc(kbDir: string, id: string, name: string): void {
+	mkdirSync(kbDir, { recursive: true });
+	writeFileSync(join(kbDir, `${id}.md`), `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${name}"\nmeta:\n  usages:\n    - ${name}\n${CANONICAL}---\n`);
+}
+
+/** Seeds a directory by hand as a cape, as a local cape or a checkout the hero cannot seed from inside. */
+function seededCape(dir: string, name: string): void {
+	const root = mintUuid();
+	mkdirSync(join(dir, ".nosedive"), { recursive: true });
+	mkdirSync(join(dir, "kb"), { recursive: true });
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), `id: ${root}\nroots:\n  - kb/${root}.md\n`);
+	writeFileSync(join(dir, "kb", `${root}.md`), `---\nkind: cape\nid: ${root}\nname: ${name}\n${CANONICAL}---\n`);
+}
+
+/** The lines a walk printed under each repo's name. */
+function groups(out: string): Record<string, string[]> {
+	const found: Record<string, string[]> = {};
+	let current = "";
+	for (const line of out.split("\n")) {
+		if (!line.startsWith(" ")) found[(current = line.slice(0, -1))] = [];
+		else found[current]!.push(line.trim());
+	}
+	return found;
+}
+
+async function walkFixture() {
+	const hero = await tempBridge("scaf-walk");
+	const ids = { hero: mintUuid(), local: mintUuid(), checkout: mintUuid(), plain: mintUuid(), ignored: mintUuid() };
+	actionDoc(kbOf(hero), ids.hero, "hero-cmd");
+	seededCape(join(hero, "capes", "local"), "local");
+	actionDoc(join(hero, "capes", "local", "kb"), ids.local, "local-cmd");
+	const checkout = checkedOut(hero, "wscape");
+	seededCape(checkout, "wscape");
+	actionDoc(join(checkout, "kb"), ids.checkout, "checkout-cmd");
+	// A checkout that was never seeded.
+	const plain = checkedOut(hero, "plain");
+	actionDoc(join(plain, "kb"), ids.plain, "plain-cmd");
+	// Directories a walk never enters.
+	for (const dir of ["node_modules/pkg", ".git/refs/stray", ".nosedive/capes/built"]) actionDoc(join(hero, dir), ids.ignored, "ignored-cmd");
+	return { hero, local: join(hero, "capes", "local"), checkout, plain, ids };
+}
+
+test("--base at the hero's directory scaffolds each action in the repo holding it, grouped by repo", async () => {
+	const { hero, local, checkout, plain, ids } = await walkFixture();
+	// An existing file is left alone.
+	mkdirSync(join(checkout, "src"));
+	writeFileSync(join(checkout, entryFile(ids.checkout)), "// mine\n");
+
+	const out = ok(await run(["--base", hero, "scaf"], hero));
+	const found = groups(out);
+	const created = (repo: string, id: string) => found[basename(repo)]!.includes(`created ${entryFile(id)}`);
+	assert.ok(created(hero, ids.hero));
+	assert.ok(created(local, ids.local));
+	assert.ok(!created(checkout, ids.checkout), "an existing entrypoint is not rewritten");
+	assert.equal(readFileSync(join(checkout, entryFile(ids.checkout)), "utf8"), "// mine\n");
+	assert.ok(found[basename(checkout)]!.some((line) => line.startsWith("created src/") && line.endsWith(".test.ts")));
+	assert.ok(existsSync(join(local, entryFile(ids.local))));
+	assert.ok(!existsSync(join(hero, entryFile(ids.local))), "a local cape's action is not written into the hero");
+	assert.ok(found[basename(hero)]!.every((line) => !line.includes(ids.local.replace(/-/g, ""))));
+	assert.deepEqual(found.skipped, [`workspace/plain/kb/${ids.plain}.md: in no seeded repo`]);
+	assert.ok(!existsSync(join(plain, "src")));
+	assert.doesNotMatch(out, new RegExp(ids.ignored), "node_modules, .git and .nosedive/capes are never entered");
+});
+
+test("the default walk covers the home base only", async () => {
+	const { hero, local, checkout, ids } = await walkFixture();
+	const found = groups(ok(await run(["scaf"], hero)));
+	assert.deepEqual(Object.keys(found), [basename(hero)]);
+	assert.ok(existsSync(join(hero, entryFile(ids.hero))));
+	assert.ok(!existsSync(join(local, "src")));
+	assert.ok(!existsSync(join(checkout, "src")));
+});
+
+test("scaf <quid> scaffolds that action wherever its doc lives, and refuses what it cannot", async () => {
+	const { hero, local, checkout, plain, ids } = await walkFixture();
+	const found = groups(ok(await run(["scaf", ids.checkout], hero)));
+	assert.deepEqual(Object.keys(found), [basename(checkout)]);
+	assert.ok(existsSync(join(checkout, entryFile(ids.checkout))));
+	assert.ok(!existsSync(join(hero, "src")));
+
+	ok(await run(["scaf", ids.local], hero));
+	assert.ok(existsSync(join(local, entryFile(ids.local))), "found in a local cape, which crud does not search");
+
+	const unseeded = await run(["scaf", ids.plain], hero);
+	assert.equal(unseeded.code, 1);
+	assert.match(unseeded.err, /workspace\/plain\/kb\/.*: in no seeded repo/);
+	assert.ok(!existsSync(join(plain, "src")));
+	assert.match((await run(["scaf", mintUuid()], hero)).err, /no doc .* in .* or its workspace/);
+});
+
+test("reports an action in a seeded repo that is neither a cape nor a hero, and refuses a place with no config", async () => {
+	const repo = gitRepo("scaf-neither");
+	ok(await run(["seed"], repo));
+	const id = mintUuid();
+	actionDoc(kbOf(repo), id, "stray");
+	const out = ok(await run(["scaf"], repo));
+	assert.match(out, new RegExp(`^skipped:\n {2}kb/${id}\.md: ${basename(repo)} is neither a cape nor a hero repo$`));
+	assert.ok(!existsSync(join(repo, "src")));
+
 	const bare = await run(["scaf"], gitRepo("scaf-bare"));
-	assert.match(bare.err, /this repo has no root/);
+	assert.equal(bare.code, 1);
+	assert.match(bare.err, /there is no nosedive config here or above/);
 });

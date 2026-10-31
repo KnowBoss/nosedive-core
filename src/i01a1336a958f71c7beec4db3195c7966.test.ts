@@ -40,7 +40,7 @@ test("--help lists an action's usages and names --help --more, which adds its ##
 	const dir = tempDir("launch-action-help");
 	const help = ok(await run(["scaf", "--help"], dir));
 	assert.equal(help, "Writes the files a cape's action docs call for and do not have yet\n\n  scaf [<quid>]\n\nnosedive scaf --help --more for what each usage does.");
-	assert.match(ok(await run(["scaf", "--help", "--more"], dir)), /\n\nRun in a cape or a hero repo: /);
+	assert.match(ok(await run(["scaf", "--help", "--more"], dir)), /\n\n`nosedive \[--base <dir>\] scaf \[<quid>\]` walks the tree /);
 });
 
 test("--base selects one of the hero's roots by directory, name or quid, else a directory in the hero for crud to write into; NOSEDIVE_HERO names the repo to act on", async () => {
