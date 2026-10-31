@@ -47,7 +47,7 @@ test("a kind that is not the holding repo's own is named in a canonical scope, v
 	const bridge = await tempBridge("crud-mint-foreign");
 	ok(await run(["crud", "core:kind", "An", "idea", "--name", "idea", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: true\n"));
 	const loose = checkedOut(bridge, "loose");
-	const refused = await run(["--base", "workspace/loose", "crud", "idea", "fly"], bridge);
+	const refused = await run(["--at", "workspace/loose", "crud", "idea", "fly"], bridge);
 	assert.equal(refused.code, 1);
 	assert.match(refused.err, /the schema of kind idea is not on its owner's origin trunk or a feat's work branch: land or push it first/);
 	assert.equal(readdirSync(loose).filter((file) => file.endsWith(".md")).length, 0);
@@ -56,7 +56,7 @@ test("a kind that is not the holding repo's own is named in a canonical scope, v
 	git(["init", "-q", "--bare", "-b", "main"], origin);
 	git(["remote", "add", "origin", origin], bridge);
 	git(["push", "-q", "origin", "main"], bridge);
-	const path = ok(await run(["--base", "workspace/loose", "crud", "idea", "fly"], bridge));
+	const path = ok(await run(["--at", "workspace/loose", "crud", "idea", "fly"], bridge));
 	const hero = findBridge(bridge)!;
 	const version = versionOf(findKind("idea", hero, [core])!);
 	assert.ok(readFileSync(join(bridge, path), "utf8").includes(`\nscopes:\n  - ${hero.id}:\n      canonical: true\n      version: ${version}\n`));
@@ -78,18 +78,18 @@ test("refuses outside a bridge, and a kind that is not a slug", async () => {
 	assert.match(outside.err, /not in a bridge: run `nosedive seed` first/);
 });
 
-test("--base writes into a workspace checkout, at any directory of it, and commits there; <cape>:<kind> names whose kind", async () => {
+test("--at writes into a workspace checkout, at any directory of it, and commits there; <cape>:<kind> names whose kind", async () => {
 	const bridge = await tempBridge("crud-mint-repo");
 	const repo = checkedOut(bridge, "other");
-	const path = ok(await run(["--base", "workspace/other", "crud", "core:memo", "over", "there"], bridge));
+	const path = ok(await run(["--at", "workspace/other", "crud", "core:memo", "over", "there"], bridge));
 	assert.match(path, /^workspace\/other\/[0-9a-f-]{36}\.md$/);
 	assert.equal(git(["log", "-1", "--format=%s"], repo), "crud: core:memo");
 	assert.equal(git(["status", "--porcelain"], bridge), "", "the workspace is ignored");
-	const cores = ok(await run(["--base", "workspace/other/kb", "crud", "nosedive-core:memo", "core's"], bridge));
+	const cores = ok(await run(["--at", "workspace/other/kb", "crud", "nosedive-core:memo", "core's"], bridge));
 	assert.match(cores, /^workspace\/other\/kb\//);
 	assert.match(readFileSync(join(bridge, cores), "utf8"), new RegExp(`^kind: memo\\n[^]*scopes:\\n  - ${CORE}:\\n      canonical: true\\n`, "m"), "the kind's name, and its owner's id in a canonical scope");
 	assert.match((await run(["crud", "nope-cape:memo", "x"], bridge)).err, /nope-cape:memo names no kind; memo is reached as core:memo, nosedive-core:memo, 01a1336b-c0b8-7cde-b7c6-285196062297:memo/);
-	assert.match((await run(["--base", "workspace/elsewhere", "crud", "core:memo", "x"], bridge)).err, /workspace\/elsewhere is none/);
+	assert.match((await run(["--at", "workspace/elsewhere", "crud", "core:memo", "x"], bridge)).err, /workspace\/elsewhere is none/);
 });
 
 test("refuses a kind doc named kind: only core declares the kind of kinds", async () => {
@@ -141,7 +141,7 @@ test("refuses a repo with no name, a name taken, or an origin git cannot reach, 
 	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
 
-test("keeps core's kinds and repos in .nosedive/, whatever the base, and mints anything else into the selected base", async () => {
+test("keeps core's kinds and repos in .nosedive/, whatever the target, and mints anything else into it", async () => {
 	const bridge = await tempBridge("crud-mint-into");
 	const kind = ok(await run(["crud", "core:kind", "An", "idea", "--name", "idea", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: false\n"));
 	assert.match(kind, /^\.nosedive\/kinds\/[0-9a-f-]{36}\.md$/, "a kind is shared by every root");
@@ -158,9 +158,9 @@ test("keeps core's kinds and repos in .nosedive/, whatever the base, and mints a
 	writeFileSync(config, `${readFileSync(config, "utf8")}  - clients/acme/${acme}.md\n`);
 	git(["add", "-A"], bridge);
 	git(["commit", "-qm", "a second root"], bridge);
-	assert.equal(dirname(join(bridge, ok(await run(["crud", "core:memo", "where"], bridge)))), kbOf(bridge), "the home base by default");
-	const there = ok(await run(["--base", "acme", "crud", "core:memo", "here"], bridge));
+	assert.equal(dirname(join(bridge, ok(await run(["crud", "core:memo", "where"], bridge)))), kbOf(bridge), "the primary root by default");
+	const there = ok(await run(["--at", "acme", "crud", "core:memo", "here"], bridge));
 	assert.match(there, /^clients\/acme\/[0-9a-f-]{36}\.md$/, "a root is named by its name");
 	ok(await run(["crud", there.replace(/^.*\/|\.md$/g, ""), "--gist", "found"], bridge));
-	assert.match((await run(["--base", "acme", "crud", "core:repo", "B", "--name", "b"], bridge)).err, /core's repos live in \.nosedive\/repos, where the hero reads them, whatever base is selected: drop --base/);
+	assert.match((await run(["--at", "acme", "crud", "core:repo", "B", "--name", "b"], bridge)).err, /core's repos live in \.nosedive\/repos, where the hero reads them, whatever base is selected: drop --at/);
 });

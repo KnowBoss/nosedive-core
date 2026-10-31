@@ -54,7 +54,7 @@ test("refuses meta its kind's schema forbids, and edits docs in workspace repos"
 	ok(await run(["crud", id, "--meta", "-"], bridge, "owner: dan\n"));
 
 	const repo = checkedOut(bridge, "other");
-	const there = ok(await run(["--base", "workspace/other/kb", "crud", "core:memo", "over", "there"], bridge));
+	const there = ok(await run(["--at", "workspace/other/kb", "crud", "core:memo", "over", "there"], bridge));
 	const thereId = there.replace(/^.*\/|\.md$/g, "");
 	assert.equal(ok(await run(["crud", thereId, "--meta", "-"], bridge, "a: 1\n")), there);
 	assert.match(readFileSync(join(bridge, there), "utf8"), /\nmeta:\n {2}a: 1\n/);

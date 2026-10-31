@@ -20,9 +20,9 @@ export function i01a13dee4b1d78f7a699c3777bf63587(dir: string): Bridge | undefin
 	});
 	const workspace = text(config.workspace);
 	const primary = roots.find((root) => root.id === text(config.id)?.toLowerCase()) ?? roots[0];
-	const wanted = process.env.NOSEDIVE_BASE;
-	const base = roots.find((root) => root.id === selectBase(roots, wanted)) ?? primary;
-	const plain = !selectBase(roots, wanted) && wanted && isAbsolute(wanted) ? wanted : undefined;
+	const wanted = process.env.NOSEDIVE_AT;
+	const base = roots.find((root) => root.id === selectRoot(roots, wanted)) ?? primary;
+	const plain = !selectRoot(roots, wanted) && wanted && isAbsolute(wanted) ? wanted : undefined;
 	return {
 		dir: resolve(dir),
 		configPath,
@@ -32,7 +32,7 @@ export function i01a13dee4b1d78f7a699c3777bf63587(dir: string): Bridge | undefin
 		kbDir: primary?.dir ?? resolve(dir, "kb"),
 		root: primary?.id,
 		base: base?.id,
-		baseDir: plain ?? base?.dir ?? resolve(dir, "kb"),
+		targetDir: plain ?? base?.dir ?? resolve(dir, "kb"),
 		workspace: workspace === undefined ? undefined : resolve(dir, workspace),
 		kindsDir: join(nosedive, "kinds"),
 		reposDir: join(nosedive, "repos"),
@@ -40,7 +40,7 @@ export function i01a13dee4b1d78f7a699c3777bf63587(dir: string): Bridge | undefin
 }
 
 /** The root a base selection names, by its quid, its doc's name or its directory's name; launch refuses a name the hero has no root by. */
-export function selectBase(roots: { id: string; dir: string; path: string }[], wanted: string | undefined): string | undefined {
+export function selectRoot(roots: { id: string; dir: string; path: string }[], wanted: string | undefined): string | undefined {
 	if (!wanted) return undefined;
 	const named = (path: string) => /^name:\s*(.+?)\s*$/m.exec(existsSync(path) ? readFileSync(path, "utf8") : "")?.[1]?.replace(/^"|"$/g, "");
 	return roots.find((root) => root.id === wanted.toLowerCase() || named(root.path) === wanted || basename(root.dir) === wanted || root.dir === resolve(wanted))?.id;

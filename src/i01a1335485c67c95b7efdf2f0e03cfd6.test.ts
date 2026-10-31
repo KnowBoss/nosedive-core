@@ -35,7 +35,7 @@ test("a workspace checkout is never a hero: nosedive refuses to run inside one u
 	assert.deepEqual(insideWorkspace(join(inner, "kb")), { hero: findBridge(outer), checkout: inner });
 	assert.equal(insideWorkspace(workspace), undefined, "the workspace itself is in no checkout");
 	assert.equal(insideWorkspace(outer), undefined);
-	assert.match((await run(["help"], join(inner, "kb"))).err, /inner is checked out in .*'s workspace, and a checkout is never a hero: run nosedive from .*workspace \(with --base \.\/inner to write into it\), or set NOSEDIVE_HERO/);
+	assert.match((await run(["help"], join(inner, "kb"))).err, /inner is checked out in .*'s workspace, and a checkout is never a hero: run nosedive from .*workspace \(with --at \.\/inner to write into it\), or set NOSEDIVE_HERO/);
 	ok(await run(["help"], workspace));
 	process.env.NOSEDIVE_HERO = inner;
 	try {

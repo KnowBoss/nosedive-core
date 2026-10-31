@@ -20,7 +20,7 @@ export type ConfiguredCape = {
 	build?: CapeBuild;
 };
 
-/** The capes the selected base wears: its links whose rel's role is `cape`, each to a repo doc, with the `ref` it may pin. */
+/** The capes the target root wears: its links whose rel's role is `cape`, each to a repo doc, with the `ref` it may pin. */
 export function wornCapes(bridge: Bridge): { id: string; name: string; ref: string }[] {
 	const base = bridge.roots.find((root) => root.id === bridge.base);
 	const doc = base ? findKbDoc(base.dir, base.id) : undefined;

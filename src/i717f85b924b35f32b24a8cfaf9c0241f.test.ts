@@ -32,7 +32,7 @@ test("refuses while anything links to it, naming each link, and edits nothing", 
 	git(["init", "-q", "--bare", "-b", "main"], origin);
 	git(["remote", "add", "origin", origin], bridge);
 	git(["push", "-q", "origin", "main"], bridge);
-	const there = ok(await run(["--base", "workspace/other/kb", "crud", "goal", "elsewhere"], bridge));
+	const there = ok(await run(["--at", "workspace/other/kb", "crud", "goal", "elsewhere"], bridge));
 	ok(await run(["crud", idOf(there), "--links", "-"], bridge, `${kbPath(bridge, id)}:\n  rel: uses.goal\n`));
 	const note = ok(await run(["crud", "core:memo", "a", "note"], bridge));
 	ok(await run(["crud", idOf(note), "--body", "-"], bridge, `See [the parent](${id}.md).\n`));

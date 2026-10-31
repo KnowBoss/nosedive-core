@@ -29,7 +29,7 @@ export async function ic984cd607bf9568d97eb5ffb0b7da854(quid: string | undefined
 	if (wanted !== undefined && !UUID.test(wanted)) throw new Error(`not a quid: ${quid}`);
 	const hero = findBridge(ctx.cwd);
 	if (!hero) throw new Error("scaf runs from a hero or a cape repo, and there is no nosedive config here or above");
-	const tree = hero.baseDir;
+	const tree = hero.targetDir;
 	const rel = (path: string, from = hero.dir) => relative(from, path).replace(/\\/g, "/");
 	const label = (repo: string) => rel(repo) || basename(hero.dir);
 

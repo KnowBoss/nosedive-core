@@ -9,7 +9,7 @@ import { greetCapeRepo, kbOf, ok, registerRepo, run, setCapes, tempBridge, tempD
 
 test("lists core's top-level actions, never internal functions", async () => {
 	const out = ok(await run([], tempDir("launch-help")));
-	assert.match(out, /^Usage: nosedive \[--base <base>\] <action> \[<args>\]\n\ncore \S+\n {2}crud {2}Reads, mints and edits kb docs\n {2}mint {2}Prints new uuid v7 ids/);
+	assert.match(out, /^Usage: nosedive \[--at <target>\] <action> \[<args>\]\n\ncore \S+\n {2}crud {2}Reads, mints and edits kb docs\n {2}mint {2}Prints new uuid v7 ids/);
 	assert.match(out, /\n {2}scaf {2}Writes the files/);
 	assert.match(out, /\n {2}seed {2}Makes the current git repo a bridge/);
 	assert.doesNotMatch(out, /match-usage|launch/);
@@ -40,26 +40,26 @@ test("--help lists an action's usages and names --help --more, which adds its ##
 	const dir = tempDir("launch-action-help");
 	const help = ok(await run(["scaf", "--help"], dir));
 	assert.equal(help, "Writes the files a seeded repo's action docs call for and do not have yet\n\n  scaf [<quid>]\n\nnosedive scaf --help --more for what each usage does.");
-	assert.match(ok(await run(["scaf", "--help", "--more"], dir)), /\n\n`nosedive \[--base <dir>\] scaf \[<quid>\]` walks the tree /);
+	assert.match(ok(await run(["scaf", "--help", "--more"], dir)), /\n\n`nosedive \[--at <dir>\] scaf \[<quid>\]` walks the tree /);
 });
 
-test("--base selects one of the hero's roots by directory, name or quid, else a directory in the hero for crud to write into; NOSEDIVE_HERO names the repo to act on", async () => {
+test("--at selects one of the hero's roots by directory, name or quid, else a directory in the hero for crud to write into; NOSEDIVE_HERO names the repo to act on", async () => {
 	const bridge = await tempBridge("launch-base");
 	try {
-		assert.match((await run(["--base", "nope", "help"], bridge)).err, /--base names one of the hero's roots, by quid, name or directory, or a directory in the hero or its workspace, and nope is none/);
-		assert.match((await run(["--base", "..", "help"], bridge)).err, /and \.\. is none/, "a directory outside the hero");
-		const path = ok(await run(["--base", relative(bridge, kbOf(bridge)), "crud", "core:memo", "Home"], bridge));
+		assert.match((await run(["--at", "nope", "help"], bridge)).err, /--at names one of the hero's roots, by quid, name or directory, or a directory in the hero or its workspace, and nope is none/);
+		assert.match((await run(["--at", "..", "help"], bridge)).err, /and \.\. is none/, "a directory outside the hero");
+		const path = ok(await run(["--at", relative(bridge, kbOf(bridge)), "crud", "core:memo", "Home"], bridge));
 		assert.equal(dirname(join(bridge, path)), kbOf(bridge));
 		const home = findBridge(bridge)!;
-		assert.equal(home.baseDir, home.kbDir);
+		assert.equal(home.targetDir, home.kbDir);
 		mkdirSync(join(bridge, "notes"));
-		assert.match(ok(await run(["--base", "notes", "crud", "core:memo", "Apart"], bridge)), /^notes\/[0-9a-f-]{36}\.md$/);
-		assert.equal(process.env.NOSEDIVE_BASE, undefined, "--base holds for one command line");
-		process.env.NOSEDIVE_BASE = join(bridge, "notes");
+		assert.match(ok(await run(["--at", "notes", "crud", "core:memo", "Apart"], bridge)), /^notes\/[0-9a-f-]{36}\.md$/);
+		assert.equal(process.env.NOSEDIVE_AT, undefined, "--at holds for one command line");
+		process.env.NOSEDIVE_AT = join(bridge, "notes");
 		const plain = findBridge(bridge)!;
-		assert.deepEqual([plain.baseDir, plain.base], [join(bridge, "notes"), home.root], "a plain directory is written to, and the home base's capes are worn");
+		assert.deepEqual([plain.targetDir, plain.base], [join(bridge, "notes"), home.root], "a plain directory is written to, and the primary root's capes are worn");
 	} finally {
-		delete process.env.NOSEDIVE_BASE;
+		delete process.env.NOSEDIVE_AT;
 	}
 	const before = process.env.NOSEDIVE_HERO;
 	process.env.NOSEDIVE_HERO = bridge;

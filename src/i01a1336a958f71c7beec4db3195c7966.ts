@@ -9,7 +9,7 @@ import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177
 import { i01a14fb79db47f8b94d5196027008697 as buildBase } from "./i01a14fb79db47f8b94d5196027008697.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
-import { selectBase } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
+import { selectRoot } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import type { EditedDoc, KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 
@@ -79,24 +79,24 @@ export type GateCtx = {
 
 /** Runs one command line, core's actions first and never shadowed; returns the exit code. */
 export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx): Promise<number> {
-	const base = process.env.NOSEDIVE_BASE;
+	const base = process.env.NOSEDIVE_AT;
 	try {
 		// A workspace checkout is never a hero, so nothing acts on one by running inside it.
 		const inside = process.env.NOSEDIVE_HERO ? undefined : insideWorkspace(ctx.cwd);
 		if (inside) {
 			const name = basename(inside.checkout);
-			throw new Error(`${name} is checked out in ${inside.hero.dir}'s workspace, and a checkout is never a hero: run nosedive from ${inside.hero.workspace} (with --base ./${name} to write into it), or set NOSEDIVE_HERO`);
+			throw new Error(`${name} is checked out in ${inside.hero.dir}'s workspace, and a checkout is never a hero: run nosedive from ${inside.hero.workspace} (with --at ./${name} to write into it), or set NOSEDIVE_HERO`);
 		}
-		// --base <base> selects the base: a root, whose capes the action runs with, or any directory for crud to write into.
-		if (argv[0] === "--base") {
+		// --at <target> selects the target: a root, whose capes the action runs with, or any directory for crud to write into.
+		if (argv[0] === "--at") {
 			const wanted = argv[1];
 			const bridge = findBridge(ctx.cwd);
-			if (!wanted || !bridge) throw new Error(`--base names one of the hero's roots or a directory in it, and ${wanted ?? "nothing"} is none`);
+			if (!wanted || !bridge) throw new Error(`--at names one of the hero's roots or a directory in it, and ${wanted ?? "nothing"} is none`);
 			const dir = resolve(ctx.cwd, wanted);
 			const inHero = [bridge.dir, bridge.workspace].some((parent) => parent !== undefined && !relative(parent, dir).startsWith("..") && !isAbsolute(relative(parent, dir)));
-			if (selectBase(bridge.roots, wanted)) process.env.NOSEDIVE_BASE = wanted;
-			else if (inHero && existsSync(dir) && statSync(dir).isDirectory()) process.env.NOSEDIVE_BASE = dir;
-			else throw new Error(`--base names one of the hero's roots, by quid, name or directory, or a directory in the hero or its workspace, and ${wanted} is none`);
+			if (selectRoot(bridge.roots, wanted)) process.env.NOSEDIVE_AT = wanted;
+			else if (inHero && existsSync(dir) && statSync(dir).isDirectory()) process.env.NOSEDIVE_AT = dir;
+			else throw new Error(`--at names one of the hero's roots, by quid, name or directory, or a directory in the hero or its workspace, and ${wanted} is none`);
 			argv = argv.slice(2);
 		}
 		// <cape>:<action> picks whose action runs: core's, the hero's own, or a worn cape's.
@@ -147,9 +147,9 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		ctx.err(`nosedive: ${err instanceof Error ? err.message : String(err)}`);
 		return 1;
 	} finally {
-		// --base holds for this command line only, as helm runs many in one process.
-		if (base === undefined) delete process.env.NOSEDIVE_BASE;
-		else process.env.NOSEDIVE_BASE = base;
+		// --at holds for this command line only, as helm runs many in one process.
+		if (base === undefined) delete process.env.NOSEDIVE_AT;
+		else process.env.NOSEDIVE_AT = base;
 	}
 }
 
@@ -207,7 +207,7 @@ async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 		name,
 		...rows.sort(([a], [b]) => a.localeCompare(b)).map(([action, gist]) => (action ? `  ${action.padEnd(width)}  ${gist}` : `  ${gist}`)),
 	]);
-	return ["Usage: nosedive [--base <base>] <action> [<args>]", ...lines, "", `nosedive <action> --help for its usages${more ? "" : "; nosedive --help --more for where each cape was built from"}.`].join("\n");
+	return ["Usage: nosedive [--at <target>] <action> [<args>]", ...lines, "", `nosedive <action> --help for its usages${more ? "" : "; nosedive --help --more for where each cape was built from"}.`].join("\n");
 }
 
 function renderHelp(doc: CapeDoc, more: boolean): string {

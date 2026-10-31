@@ -126,13 +126,13 @@ async function walkFixture() {
 	return { hero, local: join(hero, "capes", "local"), checkout, plain, ids };
 }
 
-test("--base at the hero's directory scaffolds each action in the repo holding it, grouped by repo", async () => {
+test("--at at the hero's directory scaffolds each action in the repo holding it, grouped by repo", async () => {
 	const { hero, local, checkout, plain, ids } = await walkFixture();
 	// An existing file is left alone.
 	mkdirSync(join(checkout, "src"));
 	writeFileSync(join(checkout, entryFile(ids.checkout)), "// mine\n");
 
-	const out = ok(await run(["--base", hero, "scaf"], hero));
+	const out = ok(await run(["--at", hero, "scaf"], hero));
 	const found = groups(out);
 	const created = (repo: string, id: string) => found[labelOf(hero, repo)]!.includes(`created ${entryFile(id)}`);
 	assert.ok(created(hero, ids.hero));
@@ -148,7 +148,7 @@ test("--base at the hero's directory scaffolds each action in the repo holding i
 	assert.doesNotMatch(out, new RegExp(ids.ignored), "node_modules, .git and .nosedive/capes are never entered");
 });
 
-test("the default walk covers the home base only", async () => {
+test("the default walk covers the primary root only", async () => {
 	const { hero, local, checkout, ids } = await walkFixture();
 	const found = groups(ok(await run(["scaf"], hero)));
 	assert.deepEqual(Object.keys(found), [basename(hero)]);
@@ -188,7 +188,7 @@ test("reports an action in a seeded repo that is neither a cape nor a hero, and 
 	assert.match(bare.err, /there is no nosedive config here or above/);
 });
 
-test("scaffolds an action doc from any root of its repo, which --base accepts", async () => {
+test("scaffolds an action doc from any root of its repo, which --at accepts", async () => {
 	const hero = await tempBridge("scaf-roots");
 	const root = mintUuid();
 	const config = join(hero, ".nosedive", "config.yaml");
@@ -200,7 +200,7 @@ test("scaffolds an action doc from any root of its repo, which --base accepts", 
 	const id = mintUuid();
 	actionDoc(join(hero, "more"), id, "more-cmd");
 
-	const out = ok(await run(["--base", "more", "scaf"], hero));
+	const out = ok(await run(["--at", "more", "scaf"], hero));
 	assert.ok(out.includes(`created ${entryFile(id)}`));
 	assert.ok(out.includes(`updated more/${id}.md`));
 	assert.ok(existsSync(join(hero, entryFile(id))));
@@ -221,7 +221,7 @@ test("reports a doc it cannot read, or one in an unseeded repo that looks like a
 	const plain = checkedOut(hero, "plain");
 	writeFileSync(join(plain, "kb", `${bare}.md`), `---\nkind: action\nid: ${bare}\nname: bare\n---\n`);
 
-	const found = groups(ok(await run(["--base", hero, "scaf"], hero)));
+	const found = groups(ok(await run(["--at", hero, "scaf"], hero)));
 	const lines = found[basename(hero)]!;
 	assert.ok(lines.includes(`created ${entryFile(good)}`), "the readable doc is still scaffolded");
 	assert.ok(lines.some((line) => line.startsWith(`error ${kbPath(hero, broken)}: `)));
@@ -254,7 +254,7 @@ test("names repos by their path from the hero, so two of one name differ", async
 	const checkout = checkedOut(hero, "foo");
 	seededCape(checkout, "foo");
 	actionDoc(kbOf(checkout), mintUuid(), "checkout-foo");
-	assert.deepEqual(Object.keys(groups(ok(await run(["--base", hero, "scaf"], hero)))).sort(), ["capes/foo", "workspace/foo"]);
+	assert.deepEqual(Object.keys(groups(ok(await run(["--at", hero, "scaf"], hero)))).sort(), ["capes/foo", "workspace/foo"]);
 });
 
 test("does not follow a symlink, and lists it under its repo", async (t) => {
@@ -268,7 +268,7 @@ test("does not follow a symlink, and lists it under its repo", async (t) => {
 		t.skip("this platform cannot make a symlink here");
 		return;
 	}
-	const out = ok(await run(["--base", hero, "scaf"], hero));
+	const out = ok(await run(["--at", hero, "scaf"], hero));
 	assert.deepEqual(groups(out)["capes/local"]!.filter((line) => line.startsWith("not followed")), ["not followed: linked"]);
 	assert.doesNotMatch(out, new RegExp(hidden));
 	assert.ok(out.includes(`created ${entryFile(ids.local)}`));

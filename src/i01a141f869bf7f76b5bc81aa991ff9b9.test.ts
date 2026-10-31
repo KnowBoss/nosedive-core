@@ -59,7 +59,7 @@ test("pass --attach-cape takes whatever name the hero gave the repo, and refuses
 	assert.match((await run(["pass", "--attach-cape", plain], bridge)).err, /not-a-cape is not a cape: it has no root/);
 });
 
-test("refuses a .cape link to a doc that is no repo, and reads only the selected base's", async () => {
+test("refuses a .cape link to a doc that is no repo, and reads only the target root's", async () => {
 	const bridge = await tempBridge("configured-capes-bad");
 	await registerRepo(bridge, "greet-cape", greetCapeRepo());
 	setCapes(bridge, ["greet-cape"]);
@@ -68,5 +68,5 @@ test("refuses a .cape link to a doc that is no repo, and reads only the selected
 	const root = at.roots[0]!.path;
 	writeFileSync(root, readFileSync(root, "utf8").replace(/\.nosedive\/repos\/[0-9a-f-]{36}\.md:\n {6}rel: \.cape/, `${kbPath(bridge, memo)}:\n      rel: .cape`));
 	assert.throws(() => configuredCapes(findBridge(bridge)!, core), new RegExp(`wears ${kbPath(bridge, memo)}, which is no repo doc`));
-	assert.deepEqual(configuredCapes({ ...at, base: undefined }, core), [], "no base selected, no capes");
+	assert.deepEqual(configuredCapes({ ...at, base: undefined }, core), [], "no target, no capes");
 });

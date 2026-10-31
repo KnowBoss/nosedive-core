@@ -52,10 +52,10 @@ function checkRepo(bridge: Bridge, kbDir: string, name: string | undefined, meta
 	if (reached.status !== 0) throw new Error(`cannot reach ${origin}, so no repo was registered: ${(reached.stderr || reached.stdout).trim()}`);
 }
 
-/** Core's own kinds and repos go where the hero reads them; any other doc goes in the selected base. */
+/** Core's own kinds and repos go where the hero reads them; any other doc goes in the target. */
 function targetDir(bridge: Bridge, kindId: string | undefined): string {
 	const managed = kindId === KIND_OF_KINDS ? bridge.kindsDir : kindId === REPO_KIND ? bridge.reposDir : undefined;
-	if (!managed) return bridge.baseDir;
-	if (process.env.NOSEDIVE_BASE) throw new Error(`core's ${kindId === REPO_KIND ? "repos" : "kinds"} live in ${relative(bridge.dir, managed).replace(/\\/g, "/")}, where the hero reads them, whatever base is selected: drop --base`);
+	if (!managed) return bridge.targetDir;
+	if (process.env.NOSEDIVE_AT) throw new Error(`core's ${kindId === REPO_KIND ? "repos" : "kinds"} live in ${relative(bridge.dir, managed).replace(/\\/g, "/")}, where the hero reads them, whatever base is selected: drop --at`);
 	return managed;
 }

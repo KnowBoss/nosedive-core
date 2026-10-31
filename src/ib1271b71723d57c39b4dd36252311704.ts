@@ -7,7 +7,7 @@ import { wornCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 
 export async function ib1271b71723d57c39b4dd36252311704(ctx: GateCtx): Promise<void> {
 	const { bridge, doc } = ctx;
-	if (!bridge.base) throw new Error("the hero has no base to wear a cape");
+	if (!bridge.base) throw new Error("the hero has no root to wear a cape");
 	const name = String(doc.fm.name);
 	if (wornCapes(bridge).some((cape) => cape.id === doc.id)) throw new Error(`the base already wears ${name}`);
 	const repo = findRepoDoc(bridge, name);
