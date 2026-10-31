@@ -24,7 +24,7 @@ export function holderToken(dir: string): string | undefined {
 	return `${email}#${createHash("sha256").update(`${top}/${branch}/${email}`).digest("hex").slice(0, 12)}`;
 }
 
-/** The name of the feat to group a commit under: the held dive's, else the first the touched docs have; nothing when none is found, several dives are held, or a doc will not read. */
+/** The name of the feat to group a commit under: the held dive's, else the first the touched docs other than roots have; nothing when none is found, several dives are held, or a doc will not read. */
 export function featNameOf(bridge: Bridge, ids: string[]): string | undefined {
 	try {
 		const walk = featWalk(bridge);
@@ -42,6 +42,8 @@ export function featNameOf(bridge: Bridge, ids: string[]): string | undefined {
 		if (heldFeat) return heldFeat;
 		for (const id of ids) {
 			if (walk.feats.has(id)) return nameOf(id);
+			// A root's .feat links go down to the feats it holds.
+			if (bridge.roots.some((root) => root.id === id)) continue;
 			const doc = walk.docs.get(id) ?? locateKbDoc(bridge, id);
 			const reached = doc && linkedIds(doc).find((link) => FEAT_OR_SPEC.test(String(link.rel)) && walk.feats.has(link.id));
 			if (reached) return nameOf(reached.id);

@@ -54,6 +54,12 @@ test("the feat is the edited doc's own when the hero's roots reach it, else the 
 	assert.equal(subject(bridge), "crud: gist", "a doc whose links reach no feat is plain");
 });
 
+test("an edit of a root is no feat's, though its .feat links reach the feats it holds", async () => {
+	const { bridge, root } = await heroWithFeat("subject-root");
+	ok(await run(["crud", root, "--gist", "changed"], bridge));
+	assert.equal(subject(bridge), "crud: gist");
+});
+
 test("a batch names its edits, once each in order, and a drop is a drop", async () => {
 	const { bridge, feat, noteId } = await heroWithFeat("subject-batch");
 	ok(await run(["crud", noteId, "--links", "-"], bridge, `${feat}: {rel: parent.feat}\n`));
