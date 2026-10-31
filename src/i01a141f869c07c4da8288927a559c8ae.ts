@@ -15,7 +15,7 @@ export function i01a141f869c07c4da8288927a559c8ae(
 	const meta = doc.meta && Object.keys(doc.meta).length > 0 ? stringify({ meta: doc.meta }, { lineWidth: 0 }) : "";
 	mkdirSync(kbDir, { recursive: true });
 	// A JSON string is a valid YAML scalar, whatever the gist holds.
-	writeFileSync(path, `---\nkind: ${doc.kind}\nid: ${id}\nname: ${name}\ngist: ${JSON.stringify(doc.gist)}\n${scopes}${meta}---\n\n# ${doc.title ?? (doc.name ? titleOf(doc.name) : doc.gist)}\n`);
+	writeFileSync(path, `---\nkind: ${doc.kind}\nid: ${id}\nname: ${name}\ngist: ${JSON.stringify(doc.gist)}\n${scopes}${meta}---\n\n# ${doc.title ?? (doc.name ? titleOf(doc.name) : doc.gist)}\n`, { flag: "wx" });
 	return { id, name, path };
 }
 

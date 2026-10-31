@@ -84,7 +84,7 @@ export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 
 /** Applies one edit, named as its flag, and commits it. */
 function single(ctx: Ctx, name: string, apply: (edit: KbEdit) => void): void {
-	const edit = editKbDocs(ctx.cwd, ctx.capes[0]!.version);
+	const edit = editKbDocs(ctx.cwd, ctx.capes[0]!.version, { exclusive: ctx.exclusiveWrites });
 	apply(edit);
 	edit.edits.push(name);
 	ctx.out(edit.commit().join("\n"));

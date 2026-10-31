@@ -17,6 +17,10 @@ export type Ctx = {
 	cwd: string;
 	out(text: string): void;
 	err(text: string): void;
+	/** Optional structured failure observer for in-process consumers; CLI text and exit codes stay the same. */
+	failure?(error: unknown): void;
+	/** Require OS-enforced exclusion for prepared KB writes; unsupported platforms refuse before writing. */
+	exclusiveWrites?: boolean;
 	stdin(): Promise<string>;
 	capes: Cape[];
 };
@@ -145,6 +149,7 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		return 0;
 	} catch (err) {
 		ctx.err(`nosedive: ${err instanceof Error ? err.message : String(err)}`);
+		ctx.failure?.(err);
 		return 1;
 	} finally {
 		// --at holds for this command line only, as helm runs many in one process.
@@ -152,6 +157,10 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		else process.env.NOSEDIVE_AT = base;
 	}
 }
+
+Object.defineProperty(i01a1336a958f71c7beec4db3195c7966, "writeProtection", {
+	value: Object.freeze({ protocol: 1, backend: process.platform === "win32" ? "windows-handles" : "unavailable" }),
+});
 
 /** The ctx of a real command line: this process's stdio, in the repo NOSEDIVE_HERO names or else its cwd. */
 export function consoleCtx(capes: Cape[]): Ctx {
