@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a1934563e77ed886f06d04416385ef as localCapes } from "./i01a1934563e77ed886f06d04416385ef.ts";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest, type CapeBuild } from "./i01a1337c810a7456876b831d0c873396.ts";
@@ -15,13 +16,20 @@ export type ConfiguredCape = {
 	/** A branch, tag or commit; empty for the trunk. */
 	ref: string;
 	/** Its repo doc; undefined when the bridge has none it can clone from. */
-	repo?: { id: string; name: string; remote: string };
+	repo?: { id: string; name: string; remote: string; dir?: string };
 	/** Its newest build for this core at that ref, if any. */
 	build?: CapeBuild;
 };
 
+/** A link key naming the root of one of the hero's local capes: that cape, built from where it lies. */
+function localCape(bridge: Bridge, key: string): { id: string; name: string; dir: string } | undefined {
+	const id = QUID.exec(key)?.[1];
+	const found = id ? localCapes(bridge).find((cape) => cape.id === id) : undefined;
+	return found ? { id: found.id, name: found.name, dir: found.dir } : undefined;
+}
+
 /** The capes the target root wears: its links whose rel's role is `cape`, each to a repo doc, with the `ref` it may pin. */
-export function wornCapes(bridge: Bridge): { id: string; name: string; ref: string }[] {
+export function wornCapes(bridge: Bridge): { id: string; name: string; ref: string; dir?: string }[] {
 	const base = bridge.roots.find((root) => root.id === bridge.activeRoot);
 	const doc = base ? findKbDoc(base.dir, base.id) : undefined;
 	const links = Array.isArray(doc?.fm.links) ? (doc.fm.links as unknown[]) : [];
@@ -30,7 +38,11 @@ export function wornCapes(bridge: Bridge): { id: string; name: string; ref: stri
 			if (typeof value?.rel !== "string" || value.rel.split(".").at(-1) !== "cape") return [];
 			const id = QUID.exec(key)?.[1];
 			const repo = id ? findKbDoc(bridge.reposDir ?? join(bridge.dir, ".nosedive", "repos"), id) : undefined;
-			if (!repo) throw new Error(`the base ${String(doc!.fm.name)} wears ${key}, which is no repo doc`);
+			if (!repo) {
+				const local = localCape(bridge, key);
+				if (local) return [{ ...local, ref: "" }];
+				throw new Error(`the base ${String(doc!.fm.name)} wears ${key}, which is no repo doc or local cape`);
+			}
 			return [{ id: id!, name: String(repo.fm.name), ref: typeof value.ref === "string" ? value.ref : "" }];
 		}),
 	);
@@ -38,10 +50,10 @@ export function wornCapes(bridge: Bridge): { id: string; name: string; ref: stri
 
 export function i01a141f869bf7f76b5bc81aa991ff9b9(bridge: Bridge, core: Cape): ConfiguredCape[] {
 	const builds = capeManifest(bridge.dir);
-	return wornCapes(bridge).map(({ name, ref }) => {
+	return wornCapes(bridge).map(({ id, name, ref, dir }) => {
 		let repo: ConfiguredCape["repo"];
 		try {
-			repo = findRepoDoc(bridge, name);
+			repo = dir ? { id, name, remote: "", dir } : findRepoDoc(bridge, name);
 		} catch {
 			repo = undefined;
 		}

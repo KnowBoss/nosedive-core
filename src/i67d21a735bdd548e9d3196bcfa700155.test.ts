@@ -221,3 +221,71 @@ test("renders each root's tree from its feat links, and leaves it once rendered"
 	assert.equal(git(["log", "-1", "--format=%s"], dir), `seed: ${basename(dir)} tree rendered`);
 	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], dir)), /rendered/);
 });
+
+test("--at seeds a directory of the hero as a cape and lists its root in the hero's roots, in one commit, with no .git of its own", async () => {
+	const hero = await tempBridge("seed-at");
+	const before = git(["rev-parse", "HEAD"], hero);
+	assert.equal(ok(await run(["--at", "tools/spec", "seed", "--root-kind", "cape"], hero)), "seeded spec");
+	const cape = join(hero, "tools", "spec");
+	const { id, roots } = configOf(cape);
+	assert.deepEqual(roots, [`kb/${id}.md`]);
+	assert.match(readFileSync(join(cape, roots[0]!), "utf8"), /^---\nkind: cape\nid: \S+\nname: spec\n/);
+	assert.equal(existsSync(join(cape, ".git")), false);
+	assert.equal(git(["log", "-1", "--format=%s"], hero), "seed: spec set up");
+	assert.equal(git(["status", "--porcelain", "--untracked-files=all"], hero), "");
+	assert.match(git(["diff", "--name-only", `${before}..HEAD`], hero), /^\.nosedive\/config\.yaml$/m, "the hero's config is in the same commit");
+	assert.deepEqual(configOf(hero).roots, [configOf(hero).roots[0], `tools/spec/kb/${id}.md`]);
+	assert.notEqual(configOf(hero).id, id, "the hero is still the hero");
+	assert.equal(ok(await run(["seed"], cape)), "spec is already seeded");
+});
+
+test("--at registers a cape seeded already but not listed, and says so", async () => {
+	const hero = await tempBridge("seed-at-register");
+	const cape = join(hero, "tools", "old");
+	ok(await run(["--at", "tools/old", "seed", "--root-kind", "cape"], hero));
+	// A cape made before roots listed it: take it out of the config again.
+	const config = join(hero, ".nosedive", "config.yaml");
+	writeFileSync(config, readFileSync(config, "utf8").replace(/ {2}- tools\/old\/.*\n/, ""));
+	git(["commit", "-qam", "unlist"], hero);
+	assert.equal(configOf(hero).roots.length, 1);
+	assert.equal(ok(await run(["--at", "tools/old", "seed"], hero)), "registered old");
+	assert.deepEqual(configOf(hero).roots.at(-1), `tools/old/kb/${configOf(cape).id}.md`);
+	assert.equal(git(["log", "-1", "--format=%s"], hero), "seed: old registered");
+	assert.match((await run(["--at", "tools/old", "seed"], hero)).err, /seeded and registered already/);
+});
+
+test("--at refuses a root, the workspace, .nosedive, a root's directory, a nested repo, a registered cape and a directory outside the hero, writing nothing", async () => {
+	const hero = await tempBridge("seed-at-refuses");
+	const outside = tempDir("seed-at-outside");
+	const head = git(["rev-parse", "HEAD"], hero);
+	assert.match((await run(["--at", "self", "seed"], hero)).err, /names one of the hero's roots/);
+	assert.match((await run(["--at", outside, "seed", "--root-kind", "cape"], hero)).err, /names one of the hero's roots, by quid/, "the launcher refuses a directory outside the hero");
+	const refusals: [string, RegExp][] = [
+		["workspace/spec", /outside the hero's workspace/],
+		[".nosedive/spec", /outside \.nosedive/],
+		["self/spec", /inside the directory of a root/],
+		[".", /inside the directory of a root|inside the hero/],
+	];
+	for (const [wrong, message] of refusals) assert.match((await run(["--at", wrong, "seed", "--root-kind", "cape"], hero)).err, message, wrong);
+	ok(await run(["--at", "tools/spec", "seed", "--root-kind", "cape"], hero));
+	const after = git(["rev-parse", "HEAD"], hero);
+	assert.match((await run(["--at", "tools/spec", "seed", "--root-kind", "cape"], hero)).err, /seeded and registered already|names one of the hero's roots/);
+	assert.match((await run(["--at", "tools/spec/src", "seed", "--root-kind", "cape"], hero)).err, /seeded on its own/);
+	assert.match((await run(["--at", "tools/spec/kb/x", "seed", "--root-kind", "cape"], hero)).err, /inside the directory of a root|seeded on its own/);
+	assert.match((await run(["--at", "tools", "seed", "--root-kind", "cape"], hero)).err, /holds the directory of a root/);
+	assert.equal(git(["rev-parse", "HEAD"], hero), after);
+	assert.equal(git(["rev-list", "--count", `${head}..HEAD`], hero), "1", "only the one seed committed");
+});
+
+test("seeds an unseeded repo nested under a seeded one, not the outer hero", async () => {
+	const hero = await tempBridge("seed-nested");
+	const nested = join(hero, "tools", "foo");
+	mkdirSync(nested, { recursive: true });
+	git(["init", "-q", "-b", "main"], nested);
+	git(["config", "user.name", "Core Test"], nested);
+	git(["config", "user.email", "core@example.com"], nested);
+	const before = git(["rev-parse", "HEAD"], hero);
+	assert.equal(ok(await run(["seed"], nested)), "seeded foo");
+	assert.equal(existsSync(join(nested, ".nosedive", "config.yaml")), true);
+	assert.equal(git(["rev-parse", "HEAD"], hero), before, "the outer hero is untouched");
+});

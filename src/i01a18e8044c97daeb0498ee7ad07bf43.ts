@@ -4,6 +4,7 @@ import { wornCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "./i01a13354850c7ba3ba5b8ac41a7b6b11.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
+import { nestedRoot } from "./i01a1934563e77ed886f06d04416385ef.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
 import { pinOf, type KindMeta } from "./i01a147171f057d019118aaa1f269f5fd.ts";
@@ -33,7 +34,7 @@ export function i01a18e8044c97daeb0498ee7ad07bf43(dir: string, ctx: MigrationCtx
 		return undefined;
 	}
 
-	const docs = [...new Set(hero.roots.map((root) => root.dir))]
+	const docs = [...new Set(hero.roots.filter((root) => !nestedRoot(hero, root)).map((root) => root.dir))]
 		.filter((root) => existsSync(root))
 		.flatMap((root) => listKbDocs(root))
 		.filter((doc) => !/[\\/]\.nosedive[\\/]/.test(doc.path));

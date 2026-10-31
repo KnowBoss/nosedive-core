@@ -1,7 +1,7 @@
 // pass [<argv>...]
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
@@ -90,9 +90,10 @@ test("fails fast, and writes nothing when a gate fails", async () => {
 test("lists its gates' usages, and refuses argv none matches or a doc that links no gate in the sect", async () => {
 	const { bridge, memo } = await stampBridge("pass-usages");
 	const help = ok(await run(["pass", "--help"], bridge));
-	assert.match(help, /\n {2}pass --stamp <quid> \[--loud\]\n {2}pass --stamp <quid> \[--refuse\]\n {2}pass --test <cape>$/);
+	// Core's gates sit under the kinds that link them; the stamp gates, linked by the doc alone, under any doc, last.
+	assert.match(help, /\n\ncore:cape\n {2}pass --attach-cape <cape>\n[^]*\n {2}pass --test <cape>\n\ncore:repo\n {2}pass --attach-cape <cape>\n[^]*\n\nany doc\n {2}pass --stamp <quid> \[--loud\]\n {2}pass --stamp <quid> \[--refuse\]$/);
 	assert.equal(ok(await run(["pass"], bridge)), help);
-	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n[^]*\n {2}pass --stamp[^]*\n {2}pass --test <cape>/);
+	assert.match((await run(["pass", "--stamp", memo, "--quiet"], bridge)).err, /no gate usage matches `pass --stamp \S+ --quiet`; usages:\n[^]*\n\nany doc\n {2}pass --stamp/);
 	const other = idOf(ok(await run(["crud", "core:memo", "other"], bridge)));
 	assert.match((await run(["pass", "--stamp", other], bridge)).err, /other-\w{6} links no stamp\.gate, nor does its kind \S+:memo/);
 });
@@ -110,4 +111,24 @@ test("a cape's root passes its kind's test gate, which runs its tests, once even
 	const failed = await run(["pass", "--test", rootOf(failing)], bridge);
 	assert.equal(failed.code, 1);
 	assert.match(failed.err, /gate cape-tests-pass failed, so nothing was written: the tests of failing-cape failed/);
+});
+
+test("a local cape's tests run by its path, not the hero's", async () => {
+	const hero = await tempBridge("pass-test-local");
+	ok(await run(["--at", "capes/greet", "seed", "--root-kind", "cape"], hero));
+	const fixture = greetCapeRepo();
+	for (const dir of ["kb", "src"]) cpSync(join(fixture, dir), join(hero, "capes", "greet", dir), { recursive: true });
+	git(["add", "-A"], hero);
+	git(["commit", "-qm", "greet"], hero);
+	assert.match(ok(await run(["pass", "--test", "capes/greet"], hero)), /✔ greet <who>[\s\S]*\ngate cape-tests-pass: passed$/);
+});
+
+test("lists a gate under each kind that links it, by the kind's spelling, and under no other group", async () => {
+	const { bridge } = await stampBridge("pass-groups");
+	const kind = idOf(ok(await run(["crud", "core:kind", "a thing", "--name", "thing", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: true\n")));
+	ok(await run(["crud", kind, "--links", "-"], bridge, `stamp-cape:${STAMP}:\n  rel: stamp.gate\n`));
+	const groups = ok(await run(["pass", "--help"], bridge)).split("\n\n");
+	assert.deepEqual(groups.slice(1).map((group) => group.split("\n")[0]), ["core:cape", "core:repo", "thing", "any doc"], "kinds by name, each once, then any doc");
+	assert.equal(groups.at(-2), "thing\n  pass --stamp <quid> [--loud]");
+	assert.equal(groups.at(-1), "any doc\n  pass --stamp <quid> [--refuse]");
 });

@@ -8,7 +8,8 @@ import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee
 
 export function i01a138b2b8ee703cab227b010f588b6a(bridge: Bridge, id: string) {
 	const own = inRepo(bridge, id);
-	if (own || bridge.workspace === undefined) return own;
+	if (own) return own;
+	if (bridge.workspace === undefined) return undefined;
 	const workspace = bridge.workspace;
 	if (!existsSync(workspace)) return undefined;
 	for (const entry of readdirSync(workspace, { withFileTypes: true })) {

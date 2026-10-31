@@ -95,7 +95,7 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 			const dir = resolve(ctx.cwd, wanted);
 			const inHero = [bridge.dir, bridge.workspace].some((parent) => parent !== undefined && !relative(parent, dir).startsWith("..") && !isAbsolute(relative(parent, dir)));
 			if (selectRoot(bridge.roots, wanted)) process.env.NOSEDIVE_AT = wanted;
-			else if (inHero && existsSync(dir) && statSync(dir).isDirectory()) process.env.NOSEDIVE_AT = dir;
+			else if (inHero && ((existsSync(dir) && statSync(dir).isDirectory()) || (argv[2] === "seed" && !existsSync(dir)))) process.env.NOSEDIVE_AT = dir;
 			else throw new Error(`--at names one of the hero's roots, by quid, name or directory, or a directory in the hero or its workspace, and ${wanted} is none`);
 			argv = argv.slice(2);
 		}

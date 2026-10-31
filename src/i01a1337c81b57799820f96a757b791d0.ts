@@ -20,7 +20,8 @@ const COMMIT = /^[0-9a-f]{40}$/;
 const CORE = "nosedive-core";
 const BARE_IMPORT = /import\s*\{([^}]*)\}\s*from\s*["']([^"'./][^"']*)["']/g;
 
-type Repo = { id: string; name: string; remote: string };
+/** `dir` is where a local cape lies in the hero, which it is built from as a workspace checkout is. */
+type Repo = { id: string; name: string; remote: string; dir?: string };
 /** What a cape imports from one source: core, or another cape, with the doc ids it uses. */
 type Source = { specifier: string; capeId: string; label: string; docs: Record<string, CapeDoc>; ids: Set<string>; names: Set<string> };
 
@@ -34,12 +35,12 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	log: (message: string) => void = () => {},
 ): Promise<CapeBuild & { fresh: boolean }> {
 	if (building.includes(repo.name)) throw new Error(`capes import each other in a cycle: ${[...building, repo.name].join(" -> ")}`);
-	const local = bridge.workspace ? join(bridge.workspace, repo.name) : undefined;
+	const local = repo.dir ?? (bridge.workspace ? join(bridge.workspace, repo.name) : undefined);
 	const workspace = local !== undefined && existsSync(local);
 	const dir = workspace ? local : join(bridge.dir, ".nosedive", "capes", "src", repo.id);
 	let commit: string;
 	if (workspace) {
-		log(`cape ${repo.name}: using workspace checkout ${dir}`);
+		log(`cape ${repo.name}: using ${repo.dir ? "local cape" : "workspace checkout"} ${dir}`);
 		commit = git(dir, "rev-parse", "HEAD");
 	} else {
 		if (existsSync(dir)) git(dir, "fetch", "-q", "origin");
@@ -90,7 +91,8 @@ export async function i01a1337c81b57799820f96a757b791d0(
 		}
 	}
 
-	const hash = createHash("sha256").update(commit);
+	// A local cape lives in the hero's git, whose every commit would otherwise make it a new build.
+	const hash = createHash("sha256").update(repo.dir ? "" : commit);
 	if (workspace) {
 		for (const file of git(dir, "ls-files", "--cached", "--others", "--exclude-standard", "-z").split("\0").filter(Boolean).sort()) {
 			hash.update(`\0${file}\0`);

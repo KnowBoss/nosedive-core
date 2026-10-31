@@ -1,9 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
-import { Document, parseDocument } from "yaml";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { Document, isSeq, parseDocument } from "yaml";
 import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
+import { nestedRoot } from "./i01a1934563e77ed886f06d04416385ef.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
 import { i01a1337c81b57799820f96a757b791d0 as buildCape } from "./i01a1337c81b57799820f96a757b791d0.ts";
@@ -13,7 +15,7 @@ import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
-import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig, selectRoot } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a175dbf4517dafa3a9048ecd98ab84 as runMigrations, MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
@@ -41,11 +43,62 @@ function placeWorkspace(dir: string, workspace: string): void {
 	writeFileSync(record, `${relative(dir, workspace).replace(/\\/g, "/")}\n`);
 }
 
+/** The directory `--at` seeds as a local cape of the hero, made when it is not there, and whether the hero's config lists its root yet. */
+function localCapeDir(cwd: string, at: string): { dir: string; hero: Bridge } {
+	const hero = findBridge(cwd);
+	const refuse = (why: string) => new Error(`seed --at ${at}: ${why}`);
+	if (!hero) throw refuse("this is no hero to hold a cape");
+	if (selectRoot(hero.roots, at)) throw refuse("that names one of the hero's roots, which is seeded already");
+	const dir = resolve(cwd, at);
+	const inside = (parent: string, path: string) => !relative(parent, path).startsWith("..") && !isAbsolute(relative(parent, path)) && relative(parent, path) !== "";
+	if (!inside(hero.dir, dir)) throw refuse("a local cape lies inside the hero");
+	if (hero.workspace !== undefined && (dir === hero.workspace || inside(hero.workspace, dir))) throw refuse("a local cape lies outside the hero's workspace");
+	if (dir === join(hero.dir, ".nosedive") || inside(join(hero.dir, ".nosedive"), dir)) throw refuse("a local cape lies outside .nosedive");
+	const seeded = existsSync(join(dir, ".nosedive", "config.yaml"));
+	for (const root of hero.roots) {
+		if (dir === root.dir || inside(root.dir, dir)) throw refuse(`that lies inside the directory of a root, ${root.dir}`);
+		if (!seeded && inside(dir, root.dir)) throw refuse(`that holds the directory of a root, ${root.dir}`);
+	}
+	// The nearest repo above it must be the hero: a nested repo or another cape holds what lies in it.
+	const above = dirname(dir);
+	const holder = findBridge(above);
+	if (!holder || relative(holder.dir, hero.dir) !== "") throw refuse(`that lies inside ${holder?.dir ?? "another repo"}, which is seeded on its own`);
+	if (!seeded) {
+		mkdirSync(dir, { recursive: true });
+		return { dir, hero };
+	}
+	const own = readRepoConfig(dir);
+	if (!own?.root) throw refuse("that directory is seeded but has no root");
+	if (hero.roots.some((root) => root.id === own.root)) throw refuse("that directory is seeded and registered already");
+	return { dir, hero };
+}
+
+/** Appends a cape root's path to the hero's config `roots`; returns the config's path when it changed. */
+function listRoot(hero: Bridge, rootPath: string): string {
+	const config = parseDocument(readFileSync(hero.configPath, "utf8"));
+	const roots = config.get("roots");
+	const path = relative(hero.dir, rootPath).replace(/\\/g, "/");
+	if (!isSeq(roots)) throw new Error(`${hero.configPath} lists no roots`);
+	roots.add(path);
+	writeFileSync(hero.configPath, config.toString({ lineWidth: 0 }));
+	return hero.configPath;
+}
+
+/** The seeded repo seed acts on without `--at`: the nearest one, unless it lies outside the git checkout, which is then its own. */
+function nearestRepo(cwd: string, top: string): string {
+	const found = findBridge(cwd)?.dir;
+	const rel = found === undefined ? undefined : relative(top, found);
+	return found !== undefined && rel !== undefined && !rel.startsWith("..") && !isAbsolute(rel) ? found : top;
+}
+
 export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: boolean; rootKind: string; workspace: boolean }, ctx: Ctx): Promise<void> {
 	const { noCapes, rootKind, workspace } = options;
 	const root = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: ctx.cwd, encoding: "utf8" });
 	if (root.status !== 0) throw new Error("seed makes a git repo a bridge, and this is not a git repo");
-	const dir = root.stdout.trim();
+	const top = root.stdout.trim();
+	// --at seeds a directory of the hero, committed in the hero's git; run inside such a directory, seed acts on it, the nearest repo nosedive knows.
+	const at = process.env.NOSEDIVE_AT ? localCapeDir(ctx.cwd, process.env.NOSEDIVE_AT) : undefined;
+	const dir = at?.dir ?? nearestRepo(ctx.cwd, top);
 	const changed: string[] = [];
 
 	const repo = basename(dir);
@@ -112,15 +165,19 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		changed.push(readme);
 	}
 
+	// A local cape's root joins the hero's roots in the commit that makes it, or in one of its own when it was made before.
+	const registering = at && own.root ? own.roots.find((root) => root.id === own.root) : undefined;
+	const registered = changed.length === 0 && registering !== undefined;
+	if (at && registering) changed.push(listRoot(at.hero, registering.path));
 	if (changed.length > 0) {
-		commitFiles(dir, changed, `seed: ${repo} set up`, ctx.capes[0]!.version);
-		ctx.out(`seeded ${repo}`);
+		commitFiles(top, changed, registered ? `seed: ${repo} registered` : `seed: ${repo} set up`, ctx.capes[0]!.version);
+		ctx.out(registered ? `registered ${repo}` : `seeded ${repo}`);
 	} else {
 		ctx.out(`${repo} is already seeded`);
 	}
 
 	// Each root's body is its tree, rendered from its links.
-	const roots = own.roots.flatMap((root) => {
+	const roots = own.roots.filter((root) => !nestedRoot(own, root)).flatMap((root) => {
 		const doc = findKbDoc(root.dir, root.id);
 		return doc ? [{ doc, kbDir: root.dir }] : [];
 	});
@@ -128,7 +185,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		const tree = renderTree(kbDir, doc, [...(own.kindsDir ? [own.kindsDir] : []), ...(own.reposDir ? [own.reposDir] : []), ...own.roots.map((root) => root.dir)]);
 		if (tree === doc.body) continue;
 		writeKbDoc(doc.path, doc.yaml, tree);
-		commitFiles(dir, [doc.path], `seed: ${repo} tree rendered`, ctx.capes[0]!.version);
+		commitFiles(top, [doc.path], `seed: ${repo} tree rendered`, ctx.capes[0]!.version);
 		ctx.out(`rendered the tree of ${String(doc.fm.name)}`);
 	}
 
