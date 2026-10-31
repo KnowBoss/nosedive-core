@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { relative, resolve, join } from "node:path";
+import { i01a19005c31172b68871d4842563d310 as coAuthored } from "./i01a19005c31172b68871d4842563d310.ts";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc, kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import { hostname } from "node:os";
@@ -108,7 +109,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 					parent: process.pid, host: hostname(),
 					leases: [...new Set([...heads.keys()].map(repo => realpathSync(resolve(repo,git(repo,"rev-parse","--git-common-dir").trim()))))].map(common => join(common,"nosedive-writers",randomUUID()+".json")),
 					files: [...originals].map(([doc, original]) => ({ path: original.path, expected: original.content.toString("base64"), replacement: replacements.get(doc), index: original.index, repo: original.repo })),
-					repos: [...byRepo].map(([repo, written]) => ({ repo, head: heads.get(repo), paths: written.map(({doc}) => relative(repo,doc.path).replace(/\\/g,"/")), message: given ?? (written.length === 1 ? `crud(${written[0]!.doc.id}): updated ${String(written[0]!.doc.fm.kind)} ${String(written[0]!.doc.fm.name)}` : `crud: updated ${written.length} docs`) })),
+					repos: [...byRepo].map(([repo, written]) => ({ repo, head: heads.get(repo), paths: written.map(({doc}) => relative(repo,doc.path).replace(/\\/g,"/")), message: coAuthored(commitSubject(bridge, given?.action ?? "crud", given?.what ?? ([...new Set(edits)].join(", ") || "edit"), written.map(({doc}) => doc.id)), version) })),
 					heads: [...heads].map(([repo,head])=>({repo,head})),
 				};
 				const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(protectedWrite, "utf16le").toString("base64")], { input: JSON.stringify(plan), encoding: "utf8", windowsHide: true, maxBuffer: 16 * 1024 * 1024 });

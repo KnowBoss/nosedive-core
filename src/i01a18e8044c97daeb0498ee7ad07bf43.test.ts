@@ -266,7 +266,7 @@ test("skips docs in .nosedive, which are core's by place, and docs of kind kind 
 test("changes nothing in core's own repo, whose kinds it declares itself", () => {
 	const dir = gitRepo("canonical-kinds-core-repo");
 	const source = join(import.meta.dirname, "..");
-	cpSync(join(source, ".nosedive"), join(dir, ".nosedive"), { recursive: true, filter: (path) => !/[\\/]\.nosedive[\\/](cache|capes|local)/.test(path) });
+	cpSync(join(source, ".nosedive"), join(dir, ".nosedive"), { recursive: true, filter: (path) => !/[\\/](cache|capes|local)(?:[\\/]|$)/.test(path.slice(join(source, ".nosedive").length)) });
 	cpSync(join(source, "kb"), join(dir, "kb"), { recursive: true });
 	assert.equal(readRepoConfig(dir)!.id, CORE);
 	const { changed, said } = migrate(dir);

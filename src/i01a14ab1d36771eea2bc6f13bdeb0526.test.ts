@@ -21,8 +21,8 @@ const isConflict = (error: unknown) => {
 
 test("protected saves exclude a competing process through commit, including unchanged dependencies", {skip:process.platform!=="win32"}, async () => {
 	const bridge=await tempBridge("protected-save");
-	const target=ok(await run(["crud","memo","target"],bridge));
-	const dependency=ok(await run(["crud","memo","dependency"],bridge));
+	const target=ok(await run(["crud", "core:memo","target"],bridge));
+	const dependency=ok(await run(["crud", "core:memo","dependency"],bridge));
 	const targetPath=join(bridge,target),dependencyPath=join(bridge,dependency);
 	const dependencyText=readFileSync(dependencyPath,"utf8");
 	const probe=join(bridge,".git","probe.cjs"),result=join(bridge,".git","probe.json");
@@ -39,23 +39,24 @@ for(const path of process.argv.slice(3)) {
 }fs.writeFileSync(process.argv[2],JSON.stringify(results));`);
 	const quote=(text:string)=>"'"+text.replace(/'/g,"'\\''")+"'";
 	writeFileSync(join(bridge,".git","hooks","pre-commit"),`#!/bin/sh\n${[process.execPath,probe,result,targetPath,dependencyPath].map(path=>quote(path.replace(/\\/g,"/"))).join(" ")}\n`);
-	const edit=editKbDocs(bridge,{exclusive:true});edit.doc(idOf(dependency));
+	const edit=editKbDocs(bridge,"test",{exclusive:true});edit.doc(idOf(dependency));
 	updateKbDocField(edit,idOf(target),"gist",()=>"protected proposal");
-	edit.commit('protected "quoted" message');
+	edit.commit({action:"crud",what:'protected "quoted" message'});
 	const attempts=JSON.parse(readFileSync(result,"utf8")) as {act:string;blocked:boolean}[];
 	assert.equal(attempts.length,6);assert.ok(attempts.every(attempt=>attempt.blocked),JSON.stringify(attempts));
 	assert.match(readFileSync(targetPath,"utf8"),/gist: "?protected proposal/);
 	assert.equal(readFileSync(dependencyPath,"utf8"),dependencyText);
-	assert.equal(git(["log","-1","--format=%s"],bridge),'protected "quoted" message');
+	assert.match(git(["log","-1","--format=%s"],bridge),/protected "quoted" message/);
+	assert.match(git(["log","-1","--format=%B"],bridge),/Co-Authored-By: nosedive test <noreply@nosedive\.dev>/);
 	appendFileSync(targetPath,"\nEditor can save after release\n");
 	assert.match(readFileSync(targetPath,"utf8"),/Editor can save after release/);
 });
 
 test("protected save refuses an already open external writer without changing anything", {skip:process.platform!=="win32"}, async () => {
-	const bridge=await tempBridge("protected-busy");const path=ok(await run(["crud","memo","target"],bridge));
-	const dependency=ok(await run(["crud","memo","busy dependency"],bridge));
+	const bridge=await tempBridge("protected-busy");const path=ok(await run(["crud", "core:memo","target"],bridge));
+	const dependency=ok(await run(["crud", "core:memo","busy dependency"],bridge));
 	const full=join(bridge,path),original=readFileSync(full,"utf8"),head=git(["rev-parse","HEAD"],bridge);
-	const edit=editKbDocs(bridge,{exclusive:true});updateKbDocField(edit,idOf(path),"gist",()=>"must refuse");edit.doc(idOf(dependency));
+	const edit=editKbDocs(bridge,"test",{exclusive:true});updateKbDocField(edit,idOf(path),"gist",()=>"must refuse");edit.doc(idOf(dependency));
 	const writer=spawn(process.execPath,["-e","require('node:fs').openSync(process.argv[1],'r+');console.log('ready');setInterval(()=>{},1000)",join(bridge,dependency)],{stdio:["ignore","pipe","pipe"]});
 	try {
 		await once(writer.stdout,"data");
@@ -66,10 +67,10 @@ test("protected save refuses an already open external writer without changing an
 });
 
 test("a protected commit failure after writing remains unknown", {skip:process.platform!=="win32"}, async () => {
-	const bridge=await tempBridge("protected-failure"),path=ok(await run(["crud","memo","target"],bridge));
+	const bridge=await tempBridge("protected-failure"),path=ok(await run(["crud", "core:memo","target"],bridge));
 	const head=git(["rev-parse","HEAD"],bridge);
 	writeFileSync(join(bridge,".git","hooks","pre-commit"),"#!/bin/sh\nexit 1\n");
-	const edit=editKbDocs(bridge,{exclusive:true});updateKbDocField(edit,idOf(path),"gist",()=>"written but not committed");
+	const edit=editKbDocs(bridge,"test",{exclusive:true});updateKbDocField(edit,idOf(path),"gist",()=>"written but not committed");
 	assert.throws(()=>edit.commit(),error=>(error as {outcome:string}).outcome==="unknown");
 	assert.match(readFileSync(join(bridge,path),"utf8"),/written but not committed/);
 	assert.equal(git(["rev-parse","HEAD"],bridge),head);
@@ -77,9 +78,9 @@ test("a protected commit failure after writing remains unknown", {skip:process.p
 
 test("refuses an external edit made after preparation and preserves the external text", async () => {
 	const bridge = await tempBridge("edit-stale");
-	const path = ok(await run(["crud", "memo", "original"], bridge));
+	const path = ok(await run(["crud", "core:memo", "original"], bridge));
 	const full = join(bridge, path), head = git(["rev-parse", "HEAD"], bridge);
-	const edit = editKbDocs(bridge);
+	const edit = editKbDocs(bridge,"test");
 	updateKbDocField(edit, idOf(path), "gist", () => "stale proposal");
 	const external = readFileSync(full, "utf8") + "\nExternal draft\n";
 	writeFileSync(full, external);
@@ -92,10 +93,10 @@ test("refuses an external edit made after preparation and preserves the external
 
 test("validates unchanged read dependencies before writing a different document", async () => {
 	const bridge = await tempBridge("edit-read-set");
-	const path = ok(await run(["crud", "memo", "target"], bridge));
-	const dependency = ok(await run(["crud", "memo", "dependency"], bridge));
+	const path = ok(await run(["crud", "core:memo", "target"], bridge));
+	const dependency = ok(await run(["crud", "core:memo", "dependency"], bridge));
 	const full = join(bridge, path), original = readFileSync(full, "utf8");
-	const edit = editKbDocs(bridge);
+	const edit = editKbDocs(bridge,"test");
 	edit.doc(idOf(dependency));
 	updateKbDocField(edit, idOf(path), "gist", () => "depends on stale data");
 	appendFileSync(join(bridge, dependency), "\nDependency changed\n");
@@ -105,14 +106,14 @@ test("validates unchanged read dependencies before writing a different document"
 
 test("a conflict in a later repository prevents writes and commits in every repository", async () => {
 	const bridge = await tempBridge("edit-cross-repo-conflict");
-	const path = ok(await run(["crud", "memo", "local"], bridge));
+	const path = ok(await run(["crud", "core:memo", "local"], bridge));
 	const repo = checkedOut(bridge, "other");
 	const remote = join(repo, "kb", `${WORKSPACE_DOC}.md`);
 	writeFileSync(remote, `---\nkind: memo\nid: ${WORKSPACE_DOC}\nname: far\n---\n`);
 	git(["add", "."], repo);git(["commit", "-qm", "remote document"], repo);
 	const head = git(["rev-parse", "HEAD"], bridge), remoteHead = git(["rev-parse", "HEAD"], repo);
 	const original = readFileSync(join(bridge, path), "utf8");
-	const edit = editKbDocs(bridge);
+	const edit = editKbDocs(bridge,"test");
 	updateKbDocField(edit, idOf(path), "gist", () => "local proposal");
 	updateKbDocField(edit, WORKSPACE_DOC, "gist", () => "remote proposal");
 	appendFileSync(remote, "\nExternal remote edit\n");
@@ -125,9 +126,9 @@ test("a conflict in a later repository prevents writes and commits in every repo
 test("refuses removed documents, index changes, new commits and touched source files", async (t) => {
 	for (const action of ["remove", "index", "head", "touch"] as const) await t.test(action, async () => {
 		const bridge = await tempBridge(`edit-${action}`);
-		const path = ok(await run(["crud", "memo", "original"], bridge));
+		const path = ok(await run(["crud", "core:memo", "original"], bridge));
 		const full = join(bridge, path), original = readFileSync(full, "utf8");
-		const edit = editKbDocs(bridge);
+		const edit = editKbDocs(bridge,"test");
 		updateKbDocField(edit, idOf(path), "gist", () => "proposal");
 		if (action === "remove") rmSync(full);
 		if (action === "index") git(["rm", "--cached", "--", path], bridge);
