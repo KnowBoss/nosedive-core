@@ -44,3 +44,8 @@ test("titles a doc by the name it was given, else by its gist", () => {
 	const titled = mintKbDoc(kb, { kind: "memo", gist: "g", name: "n", title: "The title" });
 	assert.match(readFileSync(titled.path, "utf8"), /\n# The title\n$/);
 });
+
+test("writes scopes before meta", () => {
+	const doc = mintKbDoc(tempDir("mint-kb-doc-order"), { kind: "repo", gist: "g", meta: { a: 1 }, scopes: [{ "01a141ff-2539-7f5d-b07d-52a11fd6acb9": { x: 1 } }] });
+	assert.match(readFileSync(doc.path, "utf8"), /\ngist: "g"\nscopes:\n[^]*\nmeta:\n {2}a: 1\n---/);
+});

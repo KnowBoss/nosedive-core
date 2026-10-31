@@ -38,7 +38,7 @@ test("takes legacy nosedive's config to one that lists its root, keeping its oth
 		readFileSync(join(dir, ".nosedive", "config.yaml"), "utf8"),
 		`compatibility-level: 2\nworkspace: ./workspace\nbridge: ${BRIDGE}\nwork-branch-prefix: work/\nid: ${ROOT}\nroots:\n  - kb/${ROOT}.md\n`,
 	);
-	assert.match(readFileSync(join(dir, "kb", `${ROOT}.md`), "utf8"), /^---\nid: [^\n]+\nkind: base\nname: backlog\.legacy\n/, "a memo root becomes a base");
+	assert.match(readFileSync(join(dir, "kb", `${ROOT}.md`), "utf8"), /^---\nkind: base\nid: [^\n]+\nname: backlog\.legacy\n/, "a memo root becomes a base");
 	assert.equal(existsSync(join(dir, ".nosedive", "repos", `${BRIDGE}.md`)), true);
 	assert.equal(existsSync(join(dir, ".nosedive", "kinds", `${KIND}.md`)), true);
 	assert.equal(existsSync(join(dir, "kb", `${KIND}.md`)), false);

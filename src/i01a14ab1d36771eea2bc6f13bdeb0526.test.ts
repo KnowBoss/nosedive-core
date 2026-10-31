@@ -57,3 +57,21 @@ test("refuses outside a bridge and for a missing doc", async () => {
 	const bridge = await tempBridge("edit-missing");
 	assert.throws(() => editKbDocs(bridge).doc(UNTRACKED), new RegExp(`no doc ${UNTRACKED} in the bridge or its workspace`));
 });
+
+test("writes an edited doc in KINGSMETAL order, links last", async () => {
+	const bridge = await tempBridge("edit-docs-order");
+	const a = ok(await run(["crud", "core:memo", "a"], bridge));
+	const path = join(bridge, a);
+	const text = readFileSync(path, "utf8");
+	const body = text.slice(text.indexOf("\n---\n") + 5);
+	writeFileSync(path, `---\nlinks:\n  - kb/x.md:\n      rel: parent.feat\nextra: 1\nmeta:\n  z: 1\n  y: 2\ngist: a\nname: n\nid: ${idOf(a)}\nkind: memo\n---\n${body}`);
+	git(["commit", "-qam", "misordered"], bridge);
+
+	const edit = editKbDocs(bridge);
+	updateKbDocField(edit, idOf(a), "gist", () => "edited");
+	edit.commit();
+
+	const keys = readFileSync(path, "utf8").split("\n").filter((line) => /^\w+:/.test(line)).map((line) => line.split(":")[0]);
+	assert.deepEqual(keys, ["kind", "id", "name", "gist", "meta", "extra", "links"]);
+	assert.match(readFileSync(path, "utf8"), /meta:\n {2}z: 1\n {2}y: 2\n/);
+});

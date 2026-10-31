@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { relative } from "node:path";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
-import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
+import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc, kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import type { KbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge, type Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -47,6 +47,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string): KbEdit {
 			for (const doc of changed) {
 				// A doc is refused only as it would be written, so an edit can repair one.
 				scopeEntries(doc.fm.scopes);
+				kingsmetal(doc.yaml);
 				const text = `---\n${doc.yaml.toString({ lineWidth: 0 })}---\n${doc.body}`;
 				if (text === doc.text) continue;
 				byRepo.set(doc.repoDir, [...(byRepo.get(doc.repoDir) ?? []), { doc, text }]);
