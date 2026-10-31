@@ -61,9 +61,10 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		const pin = pinOf(kind, { roots: [] });
 		mkdirSync(join(dir, ".nosedive"), { recursive: true });
 		const scopes = [{ [CORE_OWNER]: { canonical: true, ...pin } }];
-		const root = mintKbDoc(join(dir, "kb"), { kind: rootKind, name: repo, gist: `What ${repo} holds`, title: repo, scopes });
+		const home = workspace ? "home" : "kb";
+		const root = mintKbDoc(join(dir, home), { kind: rootKind, name: repo, gist: `What ${repo} holds`, title: repo, scopes });
 		// The primary root is the one whose id is the repo's.
-		const config = { id: root.id, migrations: MIGRATIONS.map((migration) => migration.id), ...(workspace ? { workspace: "./workspace" } : {}), roots: [`kb/${root.id}.md`] };
+		const config = { id: root.id, migrations: MIGRATIONS.map((migration) => migration.id), ...(workspace ? { workspace: "./workspace" } : {}), roots: [`${home}/${root.id}.md`] };
 		writeFileSync(configPath, new Document(config).toString({ lineWidth: 0 }));
 		changed.push(root.path, configPath);
 	} else {

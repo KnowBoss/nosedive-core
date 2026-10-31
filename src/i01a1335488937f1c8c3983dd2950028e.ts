@@ -1,8 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1336cb234701bb0338faf5183960c as codeSection } from "./i01a1336cb234701bb0338faf5183960c.ts";
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 
 const FRAMEWORK = new Set(["test/harness.ts"]);
 
@@ -11,14 +12,16 @@ export function i01a1335488937f1c8c3983dd2950028e(repoDir: string): string[] {
 	const problems: string[] = [];
 	const expected = new Set<string>();
 	const names = new Map<string, string>();
+	const kbDir = readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb");
+	const docPath = (id: string) => relative(repoDir, join(kbDir, `${id}.md`)).replace(/\\/g, "/");
 
 	for (const entry of entries) {
 		const doc = docs[entry.id]!;
 		const hex = entry.name.slice(1);
-		const label = `${doc.name || entry.id} (kb/${entry.id}.md)`;
+		const label = `${doc.name || entry.id} (${docPath(entry.id)})`;
 		if (!doc.name) problems.push(`${label}: has no name`);
 		const clash = names.get(doc.name);
-		if (clash) problems.push(`${label}: name also used by kb/${clash}.md`);
+		if (clash) problems.push(`${label}: name also used by ${docPath(clash)}`);
 		names.set(doc.name, entry.id);
 		if (codeSection(doc.body, doc, entry.name).trim() !== doc.body.trim()) {
 			problems.push(`${label}: its ## Code section is missing or stale; run scaf`);

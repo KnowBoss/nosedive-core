@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { parseDocument } from "yaml";
@@ -205,10 +205,17 @@ export function checkedOut(bridge: string, name: string): string {
 	return dir;
 }
 
-/** A hero repo, seeded in a fresh temp repo: the repo a team works from, with a workspace. */
+/** An existing kb-based hero, enabled for work after its first seed, for fixtures that name kb paths. New heroes are covered by seed's tests. */
 export async function tempBridge(label: string, seed: string[] = []): Promise<string> {
 	const dir = gitRepo(label);
 	ok(await run(["seed", "--workspace", ...seed], dir));
+	// Model an existing kb-based hero without adding a second setup commit or changing config key order.
+	renameSync(join(dir, "home"), join(dir, "kb"));
+	for (const path of [join(dir, ".nosedive", "config.yaml"), join(dir, "README.md")]) {
+		writeFileSync(path, readFileSync(path, "utf8").replaceAll("home/", "kb/"));
+	}
+	git(["add", "-A"], dir);
+	git(["commit", "--amend", "--no-edit", "-q"], dir);
 	return dir;
 }
 

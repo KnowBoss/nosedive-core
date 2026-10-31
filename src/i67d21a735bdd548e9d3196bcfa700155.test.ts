@@ -45,11 +45,20 @@ test("--workspace makes it able to do work, and a cape root keeps its lockfile c
 	const hero = gitRepo("seed-workspace");
 	ok(await run(["seed", "--workspace"], hero));
 	const { id, roots, text } = configOf(hero);
+	assert.deepEqual(roots, [`home/${id}.md`]);
+	assert.equal(existsSync(join(hero, "kb")), false);
+	assert.equal(readFileSync(join(hero, "README.md"), "utf8"), `# [${basename(hero)}](home/${id}.md)\n`);
+	const cape = gitRepo("seed-cape-beside-hero");
+	ok(await run(["seed", "--root-kind", "cape"], cape));
+	assert.deepEqual(configOf(cape).roots, [`kb/${configOf(cape).id}.md`]);
+	assert.equal(existsSync(join(cape, "home")), false);
 	assert.equal(text, `id: ${id}\nmigrations:\n${LISTED}workspace: ./workspace\nroots:\n  - ${roots[0]}\n`);
 	assert.equal(readFileSync(join(hero, ".gitignore"), "utf8"), "!package-lock.json\n", "the repo's own .gitignore is the user's, but for its lockfile");
 	const later = gitRepo("seed-workspace-later");
 	ok(await run(["seed"], later));
+	const previousRoots = configOf(later).roots;
 	ok(await run(["seed", "--workspace"], later));
+	assert.deepEqual(configOf(later).roots, previousRoots, "adding a workspace preserves the configured roots");
 	assert.match(configOf(later).text, /^workspace: \.\/workspace$/m, "added to a repo that lacked one");
 	assert.equal(existsSync(join(later, "workspace", ".gitignore")), true);
 });
@@ -63,6 +72,22 @@ test("leaves an existing repo's config alone, and says it is seeded", async () =
 	const out = ok(await run(["seed"], dir));
 	assert.equal(out, `${basename(dir)} is already seeded`);
 	assert.match(readFileSync(config, "utf8"), /custom: value # kept\n/);
+});
+
+test("a new hero mints, reads, edits and renders its home docs through the configured root", async () => {
+	const hero = gitRepo("seed-home-readers");
+	ok(await run(["seed", "--workspace"], hero));
+	const { id, roots } = configOf(hero);
+	const path = ok(await run(["crud", "core:memo", "A home doc", "--name", "home-note"], hero));
+	assert.match(path, /^home\/[0-9a-f-]{36}\.md$/);
+	const note = basename(path, ".md");
+	assert.match(ok(await run(["crud", note], hero)), /name: home-note/);
+	ok(await run(["crud", note, "--title", "Edited home note"], hero));
+	assert.match(ok(await run(["crud", note], hero)), /# Edited home note/);
+	ok(await run(["crud", id, "--links", "-"], hero, `${path}:\n  rel: notes.feat\n`));
+	assert.match(ok(await run(["seed", "--no-capes"], hero)), /rendered the tree of /);
+	assert.match(readFileSync(join(hero, roots[0]!), "utf8"), new RegExp(`\\[Edited home note\\]\\(${note}\\.md\\)`));
+	assert.equal(existsSync(join(hero, "kb")), false);
 });
 
 test("builds the capes config names, so their actions run", async () => {

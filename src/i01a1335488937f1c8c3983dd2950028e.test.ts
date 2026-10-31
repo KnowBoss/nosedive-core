@@ -17,6 +17,17 @@ test("this repo accounts for every file", () => {
 	assert.deepEqual(checkCapeSource(repoDir), []);
 });
 
+test("diagnostics name the configured home directory and ignore an unrelated kb", () => {
+	const dir = tempDir("check-home");
+	for (const sub of [".nosedive", "home", "kb"]) mkdirSync(join(dir, sub));
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), `roots:\n  - home/${ID}.md\n`);
+	writeFileSync(join(dir, "home", `${ID}.md`), `---\nkind: action\nid: ${ID}\nname: greet\n${CANONICAL}---\n`);
+	writeFileSync(join(dir, "kb", "broken.md"), "---\nkind: action\n[bad yaml\n");
+	const problems = checkCapeSource(dir).join("\n");
+	assert.match(problems, new RegExp(`greet \\(home/${ID}\\.md\\): an action lists usages`));
+	assert.doesNotMatch(problems, /kb\//);
+});
+
 test("names every way a cape repo can disagree with its docs", () => {
 	const dir = tempDir("check");
 	for (const sub of ["kb", "src", "test"]) mkdirSync(join(dir, sub));
