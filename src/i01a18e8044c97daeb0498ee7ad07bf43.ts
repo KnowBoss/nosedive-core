@@ -127,7 +127,7 @@ function wornKinds(hero: Bridge, ctx: MigrationCtx): { owners: Owner[]; unbuilt:
 	const builds = capeManifest(hero.dir);
 	const unbuilt = new Set<string>();
 	// Every root wears capes of its own, not only the one selected.
-	for (const worn of hero.roots.flatMap((root) => wornCapes({ ...hero, base: root.id }))) {
+	for (const worn of hero.roots.flatMap((root) => wornCapes({ ...hero, activeRoot: root.id }))) {
 		const build = builds
 			.filter((each) => each.repo === worn.id && each.ref === worn.ref)
 			.sort((a, b) => a.builtAt.localeCompare(b.builtAt))

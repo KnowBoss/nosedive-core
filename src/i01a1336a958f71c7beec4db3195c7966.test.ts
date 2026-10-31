@@ -57,7 +57,7 @@ test("--at selects one of the hero's roots by directory, name or quid, else a di
 		assert.equal(process.env.NOSEDIVE_AT, undefined, "--at holds for one command line");
 		process.env.NOSEDIVE_AT = join(bridge, "notes");
 		const plain = findBridge(bridge)!;
-		assert.deepEqual([plain.targetDir, plain.base], [join(bridge, "notes"), home.root], "a plain directory is written to, and the primary root's capes are worn");
+		assert.deepEqual([plain.targetDir, plain.activeRoot], [join(bridge, "notes"), home.root], "a plain directory is written to, and the primary root's capes are worn");
 	} finally {
 		delete process.env.NOSEDIVE_AT;
 	}

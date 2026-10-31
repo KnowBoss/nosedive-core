@@ -14,7 +14,7 @@ export type Bridge = {
 	/** Its primary root's id: the root whose id is config `id`, else its first. */
 	root: string | undefined;
 	/** The target's id: the root NOSEDIVE_AT names, else the primary, whose capes a plain directory wears. */
-	base: string | undefined;
+	activeRoot: string | undefined;
 	/** Where crud writes: the target's directory, or the plain directory NOSEDIVE_AT names. */
 	targetDir: string;
 	/** Where other repos are checked out, which only a hero repo has. */

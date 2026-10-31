@@ -68,5 +68,5 @@ test("refuses a .cape link to a doc that is no repo, and reads only the target r
 	const root = at.roots[0]!.path;
 	writeFileSync(root, readFileSync(root, "utf8").replace(/\.nosedive\/repos\/[0-9a-f-]{36}\.md:\n {6}rel: \.cape/, `${kbPath(bridge, memo)}:\n      rel: .cape`));
 	assert.throws(() => configuredCapes(findBridge(bridge)!, core), new RegExp(`wears ${kbPath(bridge, memo)}, which is no repo doc`));
-	assert.deepEqual(configuredCapes({ ...at, base: undefined }, core), [], "no target, no capes");
+	assert.deepEqual(configuredCapes({ ...at, activeRoot: undefined }, core), [], "no target, no capes");
 });

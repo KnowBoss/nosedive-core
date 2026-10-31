@@ -22,7 +22,7 @@ export type ConfiguredCape = {
 
 /** The capes the target root wears: its links whose rel's role is `cape`, each to a repo doc, with the `ref` it may pin. */
 export function wornCapes(bridge: Bridge): { id: string; name: string; ref: string }[] {
-	const base = bridge.roots.find((root) => root.id === bridge.base);
+	const base = bridge.roots.find((root) => root.id === bridge.activeRoot);
 	const doc = base ? findKbDoc(base.dir, base.id) : undefined;
 	const links = Array.isArray(doc?.fm.links) ? (doc.fm.links as unknown[]) : [];
 	return links.flatMap((link) =>

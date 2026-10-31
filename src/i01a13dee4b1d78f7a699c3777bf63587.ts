@@ -31,7 +31,7 @@ export function i01a13dee4b1d78f7a699c3777bf63587(dir: string): Bridge | undefin
 		roots,
 		kbDir: primary?.dir ?? resolve(dir, "kb"),
 		root: primary?.id,
-		base: base?.id,
+		activeRoot: base?.id,
 		targetDir: plain ?? base?.dir ?? resolve(dir, "kb"),
 		workspace: workspace === undefined ? undefined : resolve(dir, workspace),
 		kindsDir: join(nosedive, "kinds"),

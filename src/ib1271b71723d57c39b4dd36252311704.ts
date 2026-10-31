@@ -7,7 +7,7 @@ import { wornCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 
 export async function ib1271b71723d57c39b4dd36252311704(ctx: GateCtx): Promise<void> {
 	const { bridge, doc } = ctx;
-	if (!bridge.base) throw new Error("the hero has no root to wear a cape");
+	if (!bridge.activeRoot) throw new Error("the hero has no root to wear a cape");
 	const name = String(doc.fm.name);
 	if (wornCapes(bridge).some((cape) => cape.id === doc.id)) throw new Error(`the base already wears ${name}`);
 	const repo = findRepoDoc(bridge, name);
@@ -18,6 +18,6 @@ export async function ib1271b71723d57c39b4dd36252311704(ctx: GateCtx): Promise<v
 	// The repo doc's name is the hero's own for the cape; its short name is its root's, which the hero does not choose.
 	if (!root) throw new Error(`${name} is no cape: it has no cape root`);
 	const key = relative(bridge.dir, doc.path).replace(/\\/g, "/");
-	ctx.crud(bridge.base, "links", { [key]: { rel: ".cape", ...(ref ? { ref } : {}) } });
+	ctx.crud(bridge.activeRoot, "links", { [key]: { rel: ".cape", ...(ref ? { ref } : {}) } });
 	ctx.out(`attached ${ref ? `${name}@${ref}` : name} ${built.version} (${built.commit.slice(0, 7)})`);
 }
