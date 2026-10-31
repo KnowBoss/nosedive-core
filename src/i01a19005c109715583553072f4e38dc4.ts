@@ -1,14 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
-import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
-import { CORE_OWNER, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
+import { i01a1901e263b7209a4b5f39a71c568b3 as featWalk, heldDives, linkedIds } from "./i01a1901e263b7209a4b5f39a71c568b3.ts";
 
-const LOCAL = /^(?:[^:]*\/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.md)?$/;
+const FEAT_OR_SPEC = /\.(feat|spec)$/;
 
 /** `feat(<feat>): <action> <what>`, or `<action>: <what>` when there is no feat to name. */
 export function subjectLine(feat: string | undefined, action: string, what: string): string {
@@ -28,89 +24,34 @@ export function holderToken(dir: string): string | undefined {
 	return `${email}#${createHash("sha256").update(`${top}/${branch}/${email}`).digest("hex").slice(0, 12)}`;
 }
 
-/** The name of the feat to group a commit under: the held dive's, else the first the touched docs have; nothing when none is found, or a doc will not read. */
+/** The name of the feat to group a commit under: the held dive's, else the first the touched docs have; nothing when none is found, several dives are held, or a doc will not read. */
 export function featNameOf(bridge: Bridge, ids: string[]): string | undefined {
 	try {
-		const held = heldFeat(bridge);
-		if (held) return held;
-		if (ids.length === 0) return undefined;
-		const feats = featIds(bridge);
+		const walk = featWalk(bridge);
+		const nameOf = (id: string): string | undefined => {
+			const doc = walk.docs.get(id);
+			// A dive belongs to its feat.
+			if (doc?.fm.kind === "dive") return nameOf(String((doc.fm.meta as { feat?: unknown } | undefined)?.feat));
+			const name = doc?.fm.name;
+			return name === undefined ? undefined : String(name);
+		};
+		const token = holderToken(bridge.dir);
+		const held = token ? heldDives(bridge, token, walk) : [];
+		if (held.length > 1) return undefined;
+		const heldFeat = held[0] && nameOf(String((held[0].fm.meta as { feat?: unknown }).feat));
+		if (heldFeat) return heldFeat;
 		for (const id of ids) {
-			const doc = locateKbDoc(bridge, id);
-			const found = feats.has(id) ? id : linkedIds(doc?.fm.links).find((link) => /\.(feat|spec)$/.test(String(link.rel)) && feats.has(link.id))?.id;
-			const name = found && inHero(bridge, found)?.fm.name;
-			if (name) return String(name);
+			if (walk.feats.has(id)) return nameOf(id);
+			const doc = walk.docs.get(id) ?? locateKbDoc(bridge, id);
+			const reached = doc && linkedIds(doc).find((link) => FEAT_OR_SPEC.test(String(link.rel)) && walk.feats.has(link.id));
+			if (reached) return nameOf(reached.id);
+			for (const feat of walk.feats.keys()) {
+				const links = walk.docs.get(feat);
+				if (links && linkedIds(links).some((link) => link.id === id && FEAT_OR_SPEC.test(String(link.rel)))) return nameOf(feat);
+			}
 		}
 	} catch {
 		// A commit is never refused for want of a feat to name.
-	}
-	return undefined;
-}
-
-/** The feat of the open dive whose `diver` is this checkout's holder token; the first by file name when it holds several. */
-function heldFeat(bridge: Bridge): string | undefined {
-	const token = holderToken(bridge.dir);
-	if (!token) return undefined;
-	for (const dir of rootDirs(bridge)) {
-		for (const file of readdirSync(dir).filter((each) => each.endsWith(".md")).sort()) {
-			const text = readFileSync(join(dir, file), "utf8");
-			if (!text.includes(token)) continue;
-			try {
-				const { fm } = readKbDoc(text, file);
-				const meta = (fm.meta ?? {}) as { diver?: unknown; feat?: unknown; outcome?: unknown };
-				if (fm.kind !== "dive" || meta.diver !== token || meta.outcome || typeof meta.feat !== "string") continue;
-				const name = inHero(bridge, meta.feat)?.fm.name;
-				if (name) return String(name);
-			} catch {
-				// A doc that does not read is no dive.
-			}
-		}
-	}
-	return undefined;
-}
-
-/** Every doc the hero's roots reach through links whose rel ends `.feat`, a root of kind cape and `parent.feat` links aside. */
-function featIds(bridge: Bridge): Set<string> {
-	const feats = new Set<string>();
-	for (const root of bridge.roots) {
-		const rootDoc = inHero(bridge, root.id);
-		const kind = rootDoc && docKind(rootDoc);
-		if (kind?.owner === CORE_OWNER && kind.name === "cape") continue;
-		const seen = new Set<string>();
-		const queue = [root.id];
-		while (queue.length > 0) {
-			const at = queue.shift()!;
-			if (seen.has(at)) continue;
-			seen.add(at);
-			for (const link of linkedIds(inHero(bridge, at)?.fm.links)) {
-				if (typeof link.rel !== "string" || !link.rel.endsWith(".feat") || link.rel === "parent.feat") continue;
-				feats.add(link.id);
-				queue.push(link.id);
-			}
-		}
-	}
-	return feats;
-}
-
-/** The ids a links list names within its own repo, with each link's rel. */
-function linkedIds(links: unknown): { id: string; rel: unknown }[] {
-	return (Array.isArray(links) ? links : []).flatMap((link) =>
-		Object.entries((link ?? {}) as Record<string, { rel?: unknown } | null>).flatMap(([key, value]) => {
-			const id = LOCAL.exec(key)?.[1];
-			return id ? [{ id, rel: value?.rel }] : [];
-		}),
-	);
-}
-
-function rootDirs(bridge: Bridge): string[] {
-	return [...new Set([bridge.kbDir, ...bridge.roots.map((root) => root.dir)])].filter((dir) => existsSync(dir));
-}
-
-/** A doc of the hero repo itself, never one of its workspace's. */
-function inHero(bridge: Bridge, id: string) {
-	for (const dir of [...new Set([...(bridge.kindsDir ? [bridge.kindsDir] : []), ...(bridge.reposDir ? [bridge.reposDir] : []), ...rootDirs(bridge)])]) {
-		const doc = existsSync(dir) ? findKbDoc(dir, id) : undefined;
-		if (doc) return doc;
 	}
 	return undefined;
 }

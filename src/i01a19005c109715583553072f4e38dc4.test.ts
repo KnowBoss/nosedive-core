@@ -63,28 +63,64 @@ test("a batch names its edits, once each in order, and a drop is a drop", async 
 	assert.equal(subject(bridge), "feat(ideas): crud drop", "named by the links the doc had");
 });
 
-test("the feat of the dive this worktree holds wins, for a mint too; an over dive holds nothing", async () => {
-	const { bridge, noteId } = await heroWithFeat("subject-held");
-	const other = ok(await run(["crud", "core:memo", "other", "--name", "other"], bridge));
-	const root = findBridge(bridge)!.root!;
-	ok(await run(["crud", root, "--links", "-"], bridge, `${other}: {rel: work.feat}\n`));
-	const token = holderToken(bridge)!;
-	assert.match(token, /^core@example\.com#[0-9a-f]{12}$/);
-
-	const dive = (outcome?: string) =>
-		writeFileSync(join(bridge, "kb", "01a19005-0000-7000-8000-000000000001.md"), `---\nkind: dive\nid: 01a19005-0000-7000-8000-000000000001\nname: ideas.000001\nmeta:\n  feat: ${idOf(other)}\n  diver: ${token}\n${outcome ? `  outcome: ${outcome}\n` : ""}---\n\n# A dive\n`);
-	dive();
+/** Writes dive `n` of the feat `featId`, held by `diver`, and has the feat link it as dives.feat when `linked`. */
+async function dive(bridge: string, feat: string, n: number, meta: { diver: string; outcome?: string; linked?: boolean }) {
+	const id = `01a19005-0000-7000-8000-00000000000${n}`;
+	writeFileSync(join(bridge, "kb", `${id}.md`), `---\nkind: dive\nid: ${id}\nname: ideas.00000${n}\nmeta:\n  feat: ${idOf(feat)}\n  diver: ${meta.diver}\n${meta.outcome ? `  outcome: ${meta.outcome}\n` : ""}---\n\n# A dive\n`);
 	git(["add", "-A"], bridge);
 	git(["commit", "-qm", "a dive"], bridge);
+	if (meta.linked !== false) ok(await run(["crud", idOf(feat), "--links", "-"], bridge, `kb/${id}.md: {rel: dives.feat}\n`));
+}
+
+test("the feat of the dive this worktree holds wins, for a mint too; an over dive holds nothing", async () => {
+	const { bridge, noteId, feat } = await heroWithFeat("subject-held");
+	const token = holderToken(bridge)!;
+	assert.match(token, /^core@example\.com#[0-9a-f]{12}$/);
+	const other = ok(await run(["crud", "core:memo", "other", "--name", "other"], bridge));
+	ok(await run(["crud", findBridge(bridge)!.root!, "--links", "-"], bridge, `${other}: {rel: work.feat}\n`));
+	await dive(bridge, other, 1, { diver: token });
 	ok(await run(["crud", noteId, "--gist", "held"], bridge));
 	assert.equal(subject(bridge), "feat(other): crud gist");
 	ok(await run(["crud", "core:memo", "fresh"], bridge));
 	assert.equal(subject(bridge), "feat(other): crud core:memo");
+	ok(await run(["crud", idOf(feat), "--gist", "held too"], bridge));
+	assert.equal(subject(bridge), "feat(other): crud gist", "over the doc's own feat");
 
-	dive("landed");
-	git(["commit", "-qam", "over"], bridge);
+	await dive(bridge, other, 1, { diver: token, outcome: "landed", linked: false });
 	ok(await run(["crud", noteId, "--gist", "free"], bridge));
 	assert.equal(subject(bridge), "crud: gist");
+});
+
+test("a dive held by another worktree's token, or reachable by no feat's link, is no one's here", async () => {
+	const { bridge, noteId, feat } = await heroWithFeat("subject-not-held");
+	await dive(bridge, feat, 1, { diver: "core@example.com#000000000000" });
+	ok(await run(["crud", noteId, "--gist", "theirs"], bridge));
+	assert.equal(subject(bridge), "crud: gist");
+	await dive(bridge, feat, 2, { diver: holderToken(bridge)!, linked: false });
+	ok(await run(["crud", noteId, "--gist", "unlinked"], bridge));
+	assert.equal(subject(bridge), "crud: gist", "a dive no feat links is not found by reading the kb");
+});
+
+test("two held dives make the subject plain, even for a doc with a feat of its own", async () => {
+	const { bridge, feat, featId } = await heroWithFeat("subject-two-held");
+	const token = holderToken(bridge)!;
+	await dive(bridge, feat, 1, { diver: token });
+	ok(await run(["crud", featId, "--gist", "one"], bridge));
+	assert.equal(subject(bridge), "feat(ideas): crud gist");
+	await dive(bridge, feat, 2, { diver: token });
+	ok(await run(["crud", featId, "--gist", "two"], bridge));
+	assert.equal(subject(bridge), "crud: gist");
+});
+
+test("a decision a feat links as closed.spec, which links nothing back, is grouped under that feat", async () => {
+	const { bridge, featId } = await heroWithFeat("subject-backlink");
+	const decision = ok(await run(["crud", "core:memo", "decided", "--name", "decided"], bridge));
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${decision}: {rel: closed.spec}\n`));
+	ok(await run(["crud", idOf(decision), "--gist", "answered"], bridge));
+	assert.equal(subject(bridge), "feat(ideas): crud gist");
+	const question = ok(await run(["crud", "core:memo", "asked", "--name", "asked"], bridge));
+	ok(await run(["crud", idOf(question), "--gist", "unlinked"], bridge));
+	assert.equal(subject(bridge), "crud: gist", "a doc no feat links stays plain");
 });
 
 test("every commit ends with the nosedive co-author, once", async () => {
