@@ -10,6 +10,12 @@ test("ends a subject with the nosedive co-author, after a blank line", () => {
 	assert.equal(commitMessage("feat(x): crud links", "1.2.3"), `feat(x): crud links\n\n${TRAILER}\n`);
 });
 
+test("keeps the trailer off the subject whether or not the message ends with a newline", () => {
+	assert.equal(commitMessage("add a", "1.2.3"), `add a\n\n${TRAILER}\n`);
+	assert.equal(commitMessage("add a\n", "1.2.3"), `add a\n\n${TRAILER}\n`);
+	assert.equal(commitMessage("add a\n\nwhy", "1.2.3"), `add a\n\nwhy\n\n${TRAILER}\n`);
+});
+
 test("joins the trailers a message has, and follows a body", () => {
 	assert.equal(commitMessage("subject\n\nCo-Authored-By: Ann <ann@example.com>\n", "1.2.3"), `subject\n\nCo-Authored-By: Ann <ann@example.com>\n${TRAILER}\n`);
 	assert.equal(commitMessage("subject\n\nwhy\n", "1.2.3"), `subject\n\nwhy\n\n${TRAILER}\n`);
