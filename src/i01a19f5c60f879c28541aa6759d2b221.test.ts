@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, SURFACE_BEGIN, SURFACE_END, surfaceDigest, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
-const SURFACE = "Usage: nosedive [--at <target>] <action> [<args>]\n\ncore 1.0\n  seed  Makes a bridge\n";
+const SURFACE = "Usage: nosedive [--at <target>] <action> [<args>]\n\ncore\n  seed  Makes a bridge\n";
 const STAMP = `<!-- nosedive v=1.0 surface=${surfaceDigest(SURFACE)} -->`;
 const BLOCK = [
 	STAMP,

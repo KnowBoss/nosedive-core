@@ -226,7 +226,7 @@ export async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 		name,
 		...rows.sort(([a], [b]) => a.localeCompare(b)).map(([action, gist]) => (action ? `  ${action.padEnd(width)}  ${gist}` : `  ${gist}`)),
 	]);
-	return ["Usage: nosedive [--at <target>] <action> [<args>]", ...lines, "", `nosedive <action> --help for its usages${more ? "" : "; nosedive --help --more for where each cape was built from"}.`].join("\n");
+	return ["Usage: nosedive [--at <target>] <action> [<args>]", ...lines, "", `nosedive <action> --help for its usages${more ? "" : "; nosedive --help --more for each cape's version and where it was built from"}.`].join("\n");
 }
 
 function renderHelp(doc: CapeDoc, more: boolean): string {
