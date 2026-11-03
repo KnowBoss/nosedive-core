@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { i01a133588bcc7f8bae725ff70d8f6800 as updateKbDocField } from "./i01a133588bcc7f8bae725ff70d8f6800.ts";
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
-import { checkedOut, git, ok, run, tempBridge, tempDir, kbOf, kbPath } from "../test/harness.ts";
+import { checkedOut, declareDurable, git, ok, run, tempBridge, tempDir, kbOf, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 const WORKSPACE_DOC = "01a14ab4-cb92-7dba-bd33-79535603579d";
@@ -93,4 +93,40 @@ test("writes a doc whose only change is its key order", async () => {
 	assert.notEqual(git(["rev-parse", "HEAD"], bridge), before);
 	const keys = readFileSync(path, "utf8").split("\n").filter((line) => /^[\w-]+:/.test(line)).map((line) => line.split(":")[0]);
 	assert.deepEqual(keys, ["kind", "id", "name", "gist", "x-y"]);
+});
+
+/** A hero with a durable kind of its own, `keep`, and its primary root's path. */
+async function keepingBridge(label: string): Promise<{ bridge: string; root: string }> {
+	const bridge = await tempBridge(label);
+	await declareDurable(bridge, "keep");
+	const root = /roots:\r?\n {2}- (\S+)/.exec(readFileSync(join(bridge, ".nosedive", "config.yaml"), "utf8"))![1]!;
+	return { bridge, root };
+}
+
+test("refuses a new .feat link that hangs a durable doc under one that is neither durable nor a root", async () => {
+	const { bridge, root } = await keepingBridge("edit-durable-links");
+	const memo = ok(await run(["crud", "core:memo", "work"], bridge));
+	const kept = ok(await run(["crud", "keep", "kept"], bridge));
+	const other = ok(await run(["crud", "keep", "other"], bridge));
+
+	const under = await run(["crud", idOf(kept), "--parent", idOf(memo)], bridge);
+	assert.equal(under.code, 1);
+	assert.match(under.err, /keep kept-\w+ is durable, so it cannot hang under memo work-\w+, which is neither durable nor a root/);
+	const child = await run(["crud", idOf(memo), "--links", "-"], bridge, `${kept}:\n  rel: child.feat\n`);
+	assert.equal(child.code, 1, "a child link down from the memo is refused too");
+	assert.doesNotMatch(readFileSync(join(bridge, memo), "utf8"), /child\.feat/, "nothing was written");
+
+	ok(await run(["crud", idOf(kept), "--parent", idOf(other)], bridge));
+	ok(await run(["crud", idOf(root.replace(/^.*\//, "")), "--links", "-"], bridge, `${kept}:\n  rel: kept.feat\n`));
+	ok(await run(["crud", idOf(memo), "--parent", idOf(kept)], bridge));
+});
+
+test("leaves a link the doc held before the edit alone", async () => {
+	const { bridge } = await keepingBridge("edit-durable-held");
+	const memo = ok(await run(["crud", "core:memo", "work"], bridge));
+	const kept = ok(await run(["crud", "keep", "kept"], bridge));
+	const path = join(bridge, kept);
+	writeFileSync(path, readFileSync(path, "utf8").replace(/\n---\n/, `\nlinks:\n  - ${memo}:\n      rel: parent.feat\n---\n`));
+	git(["commit", "-qam", "held"], bridge);
+	ok(await run(["crud", idOf(kept), "--gist", "still kept"], bridge));
 });

@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { doneWhenOf } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
@@ -80,7 +81,8 @@ function ownKinds(hero: Bridge): Record<string, KindMeta> {
 		const name = String(doc.fm.name);
 		if (kind.owner !== CORE_OWNER || kind.name !== "kind" || name in kinds) continue;
 		const meta = (doc.fm.meta ?? {}) as { schema?: unknown; durable?: boolean };
-		kinds[name] = { ...meta, links: doc.fm.links ?? [], id: String(doc.fm.id), name, owner: hero.id!, file: relative(hero.dir, path).replace(/\\/g, "/"), repoDir: hero.dir };
+		const doneWhen = doneWhenOf(doc.body);
+		kinds[name] = { ...meta, links: doc.fm.links ?? [], id: String(doc.fm.id), name, owner: hero.id!, file: relative(hero.dir, path).replace(/\\/g, "/"), repoDir: hero.dir, ...(doneWhen ? { doneWhen } : {}) };
 	}
 	return kinds;
 }

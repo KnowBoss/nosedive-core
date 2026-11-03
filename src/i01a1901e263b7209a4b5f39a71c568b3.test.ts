@@ -21,7 +21,8 @@ test("reads the feats the roots reach, not parent.feat, and the open dives among
 	}
 	git(["add", "-A"], dir);
 	git(["commit", "-qm", "dives"], dir);
-	ok(await run(["crud", hero.root!, "--links", "-"], dir, `${feat}: {rel: work.feat}\n${loose}: {rel: parent.feat}\n`));
+	ok(await run(["crud", hero.root!, "--links", "-"], dir, `${feat}: {rel: work.feat}\n`));
+	ok(await run(["crud", idOf(feat), "--links", "-"], dir, `${loose}: {rel: parent.feat}\n`));
 	ok(await run(["crud", idOf(feat), "--links", "-"], dir, `${kbPath(dir, DIVE)}: {rel: dives.feat}\n${kbPath(dir, OVER)}: {rel: dives.feat}\n`));
 
 	const walk = featWalk(hero);

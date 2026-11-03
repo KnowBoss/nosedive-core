@@ -12,6 +12,10 @@ import { i01a18e40518e7f15a2066909dca2be43 as listKinds } from "./i01a18e40518e7
 export type KindMeta = {
 	schema?: unknown;
 	durable?: boolean;
+	/** The first line of its doc's `## Done when` section. */
+	doneWhen?: string;
+	/** Rels by which a walked doc linking a doc of this kind makes `next` list it. */
+	next?: string[];
 	links?: unknown;
 	id?: string;
 	name: string;

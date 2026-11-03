@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { declareKinds, git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
+import { declareDurable, declareKinds, git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
@@ -25,8 +25,9 @@ test("drops docs that mention each other together, in one commit", async () => {
 test("refuses while a doc outside the list links in, or one is durable, and drops nothing", async () => {
 	const bridge = await tempBridge("crud-drop-list-refused");
 	await declareKinds(bridge, "goal");
+	await declareDurable(bridge, "keep");
 	const a = idOf(ok(await run(["crud", "goal", "a"], bridge)));
-	const note = idOf(ok(await run(["crud", "core:memo", "note"], bridge)));
+	const note = idOf(ok(await run(["crud", "keep", "note"], bridge)));
 	const outside = ok(await run(["crud", "goal", "outside"], bridge));
 	ok(await run(["crud", idOf(outside), "--links", "-"], bridge, `${kbPath(bridge, a)}:\n  rel: uses.goal\n`));
 	const head = git(["rev-parse", "HEAD"], bridge);
@@ -37,7 +38,7 @@ test("refuses while a doc outside the list links in, or one is durable, and drop
 
 	ok(await run(["crud", idOf(outside), "--links", "-"], bridge, `${kbPath(bridge, a)}: null\n`));
 	const durable = await run(["crud", "--drop-list", "-"], bridge, `${a}\n${note}\n`);
-	assert.match(durable.err, /1 of these are durable, so none was dropped; --hard drops them anyway:\n {2}memo note-\w{6}/);
+	assert.match(durable.err, /1 of these are durable, so none was dropped; --hard drops them anyway:\n {2}keep note-\w{6}/);
 	assert.equal(git(["rev-list", "--count", `${head}..HEAD`], bridge), "1", "only the unlink was committed");
 	ok(await run(["crud", "--drop-list", "-", "--hard"], bridge, `${a}\n${note}\n`));
 });

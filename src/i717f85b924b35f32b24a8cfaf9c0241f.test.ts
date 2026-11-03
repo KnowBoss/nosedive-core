@@ -4,7 +4,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
-import { declareKinds, checkedOut, git, ok, run, tempBridge, tempDir, kbPath } from "../test/harness.ts";
+import { declareDurable, declareKinds, checkedOut, git, ok, run, tempBridge, tempDir, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
@@ -57,11 +57,11 @@ test("refuses a root its config lists", async () => {
 
 test("keeps a durable doc unless --hard", async () => {
 	const bridge = await tempBridge("crud-drop-durable");
-	await declareKinds(bridge, "goal");
-	const path = ok(await run(["crud", "core:memo", "a", "note"], bridge));
+	await declareDurable(bridge, "keep");
+	const path = ok(await run(["crud", "keep", "a", "note"], bridge));
 	const refused = await run(["crud", "--drop", idOf(path)], bridge);
 	assert.equal(refused.code, 1);
-	assert.match(refused.err, /memo a-note-\w{6} is durable: its file keeps it findable by id, so it was not dropped; --hard drops it anyway/);
+	assert.match(refused.err, /keep a-note-\w{6} is durable: its file keeps it findable by id, so it was not dropped; --hard drops it anyway/);
 	assert.equal(existsSync(join(bridge, path)), true);
 	ok(await run(["crud", "--drop", idOf(path), "--hard"], bridge));
 	assert.equal(existsSync(join(bridge, path)), false);

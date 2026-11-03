@@ -234,3 +234,8 @@ export function lock(dir: string): void {
 export async function declareKinds(hero: string, ...names: string[]): Promise<void> {
 	for (const name of names) ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], hero, "schema:\n  type: object\n  additionalProperties: true\n"));
 }
+
+/** Declares an open, durable kind in a hero, as its own. */
+export async function declareDurable(hero: string, name: string): Promise<void> {
+	ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], hero, "schema:\n  type: object\n  additionalProperties: true\ndurable: true\n"));
+}

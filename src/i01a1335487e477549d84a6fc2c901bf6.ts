@@ -38,7 +38,8 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = fal
 		const file = relative(repoDir, doc.path).replace(/\\/g, "/");
 		const version = versions ? kindVersion(repoDir, file, meta.schema) : undefined;
 		// Whether the version is on the trunk is recorded with it: a trunk only grows, so the answer stays true for whoever wears this build.
-		kinds[String(doc.fm.name)] = { ...meta, links: doc.fm.links ?? [], id: doc.fm.id, file, digest: schemaDigest(meta.schema), ...(version ? { version, published: onTrunk(repoDir, version) } : {}) };
+		const doneWhen = doneWhenOf(doc.body);
+		kinds[String(doc.fm.name)] = { ...meta, links: doc.fm.links ?? [], id: doc.fm.id, file, digest: schemaDigest(meta.schema), ...(doneWhen ? { doneWhen } : {}), ...(version ? { version, published: onTrunk(repoDir, version) } : {}) };
 	};
 	// The kinds a repo keeps in .nosedive/kinds/ are as much its own as those in its kb.
 	const kindsDir = join(repoDir, ".nosedive", "kinds");
@@ -157,6 +158,12 @@ export function kindVersion(repoDir: string, file: string, schema: unknown): str
  */
 export function schemaDigest(schema: unknown): string {
 	return createHash("sha256").update(canonical(schema ?? null)).digest("hex").slice(0, 12);
+}
+
+/** The first line of a kind doc's `## Done when` section, which says when a doc of that kind is done. */
+export function doneWhenOf(body: string): string | undefined {
+	const section = /^##\s+Done when\s*$([\s\S]*?)(?=^#{1,2}\s|(?![\s\S]))/m.exec(body)?.[1];
+	return section?.split("\n").map((line) => line.trim()).find(Boolean);
 }
 
 function canonical(value: unknown): string {

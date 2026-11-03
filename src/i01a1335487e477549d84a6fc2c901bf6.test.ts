@@ -61,6 +61,17 @@ test("reads the kinds a repo keeps in .nosedive/kinds/ as well as its kb's", () 
 	assert.equal((kinds.idea as { durable?: boolean }).durable, false);
 });
 
+test("records the first line of a kind doc's Done when section, and nothing for a doc without one", () => {
+	const dir = tempDir("describe-done-when");
+	mkdirSync(join(dir, ".nosedive", "kinds"), { recursive: true });
+	mkdirSync(join(dir, "kb"));
+	writeFileSync(join(dir, ".nosedive", "kinds", "01a175e2-0000-7000-8000-000000000001.md"), "---\nkind: kind\nid: 01a175e2-0000-7000-8000-000000000001\nname: idea\nmeta:\n  durable: false\n---\n\n# Idea\n\n## Done when\n\n  It is built or let go.\nMore on that.\n\n## Later\n\nnot this\n");
+	writeFileSync(join(dir, ".nosedive", "kinds", "01a175e2-0000-7000-8000-000000000002.md"), "---\nkind: kind\nid: 01a175e2-0000-7000-8000-000000000002\nname: goal\nmeta:\n  durable: false\n---\n\n# Goal\n\n### Done when\n\nnot a section of its own\n");
+	const { kinds } = describeCapeSource(dir);
+	assert.equal((kinds.idea as { doneWhen?: string }).doneWhen, "It is built or let go.");
+	assert.equal("doneWhen" in (kinds.goal as object), false);
+});
+
 test("counts a doc as an action only when its kind is core's: a canonical scope says so, and a repo's own kind of that name is another", async () => {
 	const dir = gitRepo("describe-identity");
 	ok(await run(["seed"], dir));

@@ -228,8 +228,8 @@ test("gives the docs of a kind core's code reads core's entry, and declares memo
 	const minted = kindDocs(dir).filter((text) => /^name: memo$/m.test(text));
 	assert.equal(minted.length, 1);
 	const declared = core.kinds.memo as { schema: unknown; durable?: boolean };
-	assert.equal(declared.durable, true, "core's memo is durable");
-	assert.deepEqual(fmOf(minted[0]!).meta, { schema: declared.schema, durable: true }, "copied from core, not open");
+	assert.equal(declared.durable, false, "core's memo is not durable");
+	assert.deepEqual(fmOf(minted[0]!).meta, { schema: declared.schema, durable: false }, "copied from core, not open");
 	assert.doesNotMatch(minted[0]!, /open schema/);
 	assert.match(said.join("\n"), /declared kind memo here, as core declares it, for 1 doc/);
 	assert.match(said.join("\n"), /1 doc of function now name core as its owner/);
