@@ -3,7 +3,7 @@ import { relative } from "node:path";
 import type { Args, Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
-import { kindOfDoc, type KindMeta } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { isDurable, kindOfDoc, type KindMeta } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { i01a18e40518e7f15a2066909dca2be43 as listKinds } from "./i01a18e40518e7f15a2066909dca2be43.ts";
 import { i01a1901e263b7209a4b5f39a71c568b3 as featWalk, linkedIds } from "./i01a1901e263b7209a4b5f39a71c568b3.ts";
@@ -36,7 +36,7 @@ export async function ibc5113a84ba55195add71cac33f0bf20(_args: Args, ctx: Ctx): 
 
 	for (const [id, node] of walk.feats) {
 		const doc = walk.docs.get(id);
-		if (!doc || kindOf(doc).kind?.durable === true) continue;
+		if (!doc || isDurable(kindOf(doc).kind)) continue;
 		const leaf = !linkedIds(doc).some(({ rel }) => typeof rel === "string" && rel.endsWith(".feat") && rel !== "parent.feat");
 		if (leaf) list(node.parents[0]!, doc);
 	}
@@ -46,7 +46,7 @@ export async function ibc5113a84ba55195add71cac33f0bf20(_args: Args, ctx: Ctx): 
 			if (typeof rel !== "string" || rel.endsWith(".feat") || !declared.has(rel)) continue;
 			const doc = locateKbDoc(bridge, target);
 			const kind = doc && kindOf(doc).kind;
-			if (kind && kind.durable !== true && kind.next?.includes(rel)) list(id, doc);
+			if (kind && !isDurable(kind) && kind.next?.includes(rel)) list(id, doc);
 		}
 	}
 
@@ -59,11 +59,17 @@ export async function ibc5113a84ba55195add71cac33f0bf20(_args: Args, ctx: Ctx): 
 		lines.push(`${String(parent.fm.name)}  ${at(parent)}`);
 		for (const doc of docs.values()) {
 			const found = kindOf(doc);
-			lines.push(`  ${spell(found)} ${String(doc.fm.name)}  ${at(doc)}`, `    done when: ${found.kind?.doneWhen ?? "its kind does not say; read the doc"}`);
+			lines.push(`  ${spell(found)} ${String(doc.fm.name)}  ${at(doc)}`, `    done when: ${doneWhenLine(found.kind)}`);
 		}
 	}
 	ctx.out(lines.length > 0 ? lines.join("\n") : "nothing left to do");
 	if (gap) throw new Error(`the hero is behind ${gap.trunk}`);
+}
+
+/** A listed doc's kind is not durable, so it has a Done when, which says nothing only when its section is empty, or no declaration at all. */
+function doneWhenLine(kind: KindMeta | undefined): string {
+	if (!kind) return "its kind is not declared; read the doc";
+	return kind.doneWhen || "its kind's Done when section is empty; read the doc";
 }
 
 /** How far the hero's HEAD is behind origin's trunk after fetching it; nothing when it has no origin or is not behind. */

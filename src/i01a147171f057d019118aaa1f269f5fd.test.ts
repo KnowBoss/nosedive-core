@@ -62,7 +62,7 @@ test("given a hero repo, finds a kind its configured capes' builds recorded, wit
 	const repo = await registerRepo(dir, "kinded-cape", gitRepo("find-kind-cape"));
 	setCapes(dir, ["kinded-cape"]);
 	mkdirSync(join(dir, ".nosedive", "capes"), { recursive: true });
-	const idea = { schema: { type: "object", additionalProperties: false }, durable: false, links: [] };
+	const idea = { schema: { type: "object", additionalProperties: false }, doneWhen: "It is built or let go.", links: [] };
 	const build = { id: "b", owner: WORK, shortName: "kinded", repo, ref: "", commit: "c", core: core.id, coreVersion: core.version, actions: {}, kinds: { idea }, needs: {}, version: "v", builtAt: "2026-01-01T00:00:00.000Z" };
 	writeFileSync(join(dir, ".nosedive", "capes", "manifest.json"), JSON.stringify([build]));
 	const hero = findBridge(dir)!;

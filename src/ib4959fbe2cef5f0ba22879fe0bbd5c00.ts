@@ -63,7 +63,7 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 	const quid = sectValue(String(first[1][key]), ctx.cwd, bridge).toLowerCase();
 	if (!QUID.test(quid)) throw new Error(`not a quid: ${quid}`);
 
-	const edit = editKbDocs(ctx.cwd, core.version, ctx.capes);
+	const edit = editKbDocs(ctx.cwd, core.version, ctx.capes, (warning) => ctx.err(`nosedive: ${warning}`));
 	const doc = edit.doc(quid);
 	const { spelling: kind, kind: declared, identity } = kindOfDoc(doc, bridge, all);
 	const name = String(doc.fm.name);

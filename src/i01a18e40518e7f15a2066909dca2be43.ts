@@ -80,9 +80,9 @@ function ownKinds(hero: Bridge): Record<string, KindMeta> {
 		const kind = docKind(doc, hero.id);
 		const name = String(doc.fm.name);
 		if (kind.owner !== CORE_OWNER || kind.name !== "kind" || name in kinds) continue;
-		const meta = (doc.fm.meta ?? {}) as { schema?: unknown; durable?: boolean };
+		const meta = (doc.fm.meta ?? {}) as { schema?: unknown };
 		const doneWhen = doneWhenOf(doc.body);
-		kinds[name] = { ...meta, links: doc.fm.links ?? [], id: String(doc.fm.id), name, owner: hero.id!, file: relative(hero.dir, path).replace(/\\/g, "/"), repoDir: hero.dir, ...(doneWhen ? { doneWhen } : {}) };
+		kinds[name] = { ...meta, links: doc.fm.links ?? [], id: String(doc.fm.id), name, owner: hero.id!, file: relative(hero.dir, path).replace(/\\/g, "/"), repoDir: hero.dir, ...(doneWhen !== undefined ? { doneWhen } : {}) };
 	}
 	return kinds;
 }

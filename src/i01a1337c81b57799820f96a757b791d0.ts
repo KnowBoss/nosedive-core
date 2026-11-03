@@ -60,6 +60,11 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	if (problems.length > 0) throw new Error(`${repo.name} at ${commit.slice(0, 7)} does not check out:\n  ${problems.join("\n  ")}`);
 	// Its kinds are recorded with their versions, so a hero wearing it can name them in its docs.
 	const source = describeCapeSource(dir, false, true);
+	// A kind's durability is read from its doc's Done when now, so a kind doc still saying durable is from before that, and would be misread.
+	const flagged = Object.entries(source.kinds).filter(([, declared]) => declared !== null && typeof declared === "object" && "durable" in declared).map(([name]) => name);
+	if (flagged.length > 0) {
+		throw new Error(`${repo.name} at ${commit.slice(0, 7)} predates durability read from Done when: its kind${flagged.length === 1 ? "" : "s"} ${flagged.join(", ")} still say${flagged.length === 1 ? "s" : ""} meta.durable; seed it with this core (the durable-from-done-when migration) and push`);
+	}
 	const owner = readRepoConfig(dir)?.id;
 	const shortName = String(root.fm.name);
 

@@ -64,7 +64,8 @@ test("declares one open kind for a legacy name across all roots, listing the met
 	assert.equal(kindDocs(dir).length, kinds + 1, "one kind doc for both roots");
 	assert.equal(minted.length, 1);
 	const kind = fmOf(minted[0]!);
-	assert.deepEqual(kind.meta, { schema: { type: "object" }, durable: false }, "open, and not durable");
+	assert.deepEqual(kind.meta, { schema: { type: "object" } }, "open");
+	assert.match(minted[0]!, /\n## Done when\n\nNot yet defined: ask the pilot\.\n$/, "not durable, by a Done when the pilot is to fill in");
 	assert.match(minted[0]!, /Pilot: say what feat is for/);
 	assert.match(minted[0]!, /^- `owner`: `"dan"`$/m, "the first sample seen");
 	assert.match(minted[0]!, /^- `priority`: `3`$/m, "a field only the other root's doc has");
@@ -227,9 +228,10 @@ test("gives the docs of a kind core's code reads core's entry, and declares memo
 	assert.equal(fmOf(read(home, memo)).scopes, undefined);
 	const minted = kindDocs(dir).filter((text) => /^name: memo$/m.test(text));
 	assert.equal(minted.length, 1);
-	const declared = core.kinds.memo as { schema: unknown; durable?: boolean };
-	assert.equal(declared.durable, false, "core's memo is not durable");
-	assert.deepEqual(fmOf(minted[0]!).meta, { schema: declared.schema, durable: false }, "copied from core, not open");
+	const declared = core.kinds.memo as { schema: unknown; doneWhen?: string };
+	assert.ok(declared.doneWhen, "core's memo is not durable");
+	assert.deepEqual(fmOf(minted[0]!).meta, { schema: declared.schema }, "copied from core, not open");
+	assert.ok(minted[0]!.endsWith(`\n## Done when\n\n${declared.doneWhen}\n`), "its Done when copied from core's, so it is no more durable than core's");
 	assert.doesNotMatch(minted[0]!, /open schema/);
 	assert.match(said.join("\n"), /declared kind memo here, as core declares it, for 1 doc/);
 	assert.match(said.join("\n"), /1 doc of function now name core as its owner/);
