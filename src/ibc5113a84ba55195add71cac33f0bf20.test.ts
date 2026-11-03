@@ -33,7 +33,7 @@ test("lists the non-durable leaves the feats reach under the doc that reaches th
 	const one = ok(await run(["crud", "step", "one", "--name", "one"], bridge));
 	const two = ok(await run(["crud", "step", "two", "--name", "two"], bridge));
 	const kept = ok(await run(["crud", "keep", "kept", "--name", "kept"], bridge));
-	const loose = ok(await run(["crud", "core:memo", "loose", "--name", "loose"], bridge));
+	const loose = ok(await run(["crud", "step", "loose", "--name", "loose"], bridge));
 	const note = ok(await run(["crud", "core:memo", "a note", "--name", "note"], bridge));
 	const question = ok(await run(["crud", "ask", "what?", "--name", "question"], bridge));
 	const unlisted = ok(await run(["crud", "step", "not a next rel", "--name", "unlisted"], bridge));
@@ -51,8 +51,8 @@ test("lists the non-durable leaves the feats reach under the doc that reaches th
 		ok(await run(["next"], bridge)),
 		[
 			`${rootName}  ${root}`,
-			`  core:memo loose  ${loose}`,
-			"    done when: What it was written for is done, reviewed and tested, and whatever it settled lives on in durable docs.",
+			`  step loose  ${loose}`,
+			"    done when: It is landed or bailed.",
 			`feat  ${feat}`,
 			`  step one  ${one}`,
 			"    done when: It is landed or bailed.",

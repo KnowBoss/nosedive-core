@@ -105,13 +105,16 @@ async function keepingBridge(label: string): Promise<{ bridge: string; root: str
 
 test("refuses a new .feat link that hangs a durable doc under one that is neither durable nor a root", async () => {
 	const { bridge, root } = await keepingBridge("edit-durable-links");
-	const memo = ok(await run(["crud", "core:memo", "work"], bridge));
+	// A kind of passing work: its Done when makes it not durable.
+	const step = ok(await run(["crud", "core:kind", "a step", "--name", "step", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: true\n"));
+	ok(await run(["crud", idOf(step), "--section", "Done when", "-"], bridge, "It is landed.\n"));
+	const memo = ok(await run(["crud", "step", "work"], bridge));
 	const kept = ok(await run(["crud", "keep", "kept"], bridge));
 	const other = ok(await run(["crud", "keep", "other"], bridge));
 
 	const under = await run(["crud", idOf(kept), "--parent", idOf(memo)], bridge);
 	assert.equal(under.code, 1);
-	assert.match(under.err, /keep kept-\w+ is durable, so it cannot hang under memo work-\w+, which is neither durable nor a root/);
+	assert.match(under.err, /keep kept-\w+ is durable, so it cannot hang under step work-\w+, which is neither durable nor a root/);
 	const child = await run(["crud", idOf(memo), "--links", "-"], bridge, `${kept}:\n  rel: child.feat\n`);
 	assert.equal(child.code, 1, "a child link down from the memo is refused too");
 	assert.doesNotMatch(readFileSync(join(bridge, memo), "utf8"), /child\.feat/, "nothing was written");
