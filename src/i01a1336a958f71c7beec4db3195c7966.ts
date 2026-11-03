@@ -11,7 +11,7 @@ import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { selectRoot } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
+import { hasSurface, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import type { EditedDoc, KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 
 export type Ctx = {
@@ -173,12 +173,17 @@ export function consoleCtx(capes: Cape[]): Ctx {
 
 /** One stderr line per agent instruction file whose managed block shows another surface; never fails the command. */
 async function reportDrift(ctx: Ctx): Promise<void> {
-	const bridge = findBridge(ctx.cwd);
-	if (!bridge) return;
+	const at = process.env.NOSEDIVE_AT;
 	try {
-		for (const line of surfaceDrift(bridge.dir, await renderActions(ctx, true))) ctx.err(line);
+		// Seed renders the surface for the primary root, so drift compares against that, whatever --at names.
+		delete process.env.NOSEDIVE_AT;
+		const bridge = findBridge(ctx.cwd);
+		if (!bridge || !hasSurface(bridge.dir)) return;
+		for (const line of await surfaceDrift(bridge.dir, () => renderActions(ctx, true))) ctx.err(line);
 	} catch {
 		// Drift is advice: a hero it cannot read is the action's to report.
+	} finally {
+		if (at !== undefined) process.env.NOSEDIVE_AT = at;
 	}
 }
 

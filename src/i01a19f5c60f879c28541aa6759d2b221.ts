@@ -1,6 +1,7 @@
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 /** The agent instruction files a hero may hold, read by the write and the drift check alike. */
 export const INSTRUCTION_FILES = ["AGENTS.md", "CLAUDE.md", "GEMINI.md", ".github/copilot-instructions.md"];
@@ -19,21 +20,38 @@ export function surfaceDigest(surface: string): string {
 	return createHash("sha256").update(surface.trim()).digest("hex").slice(0, 8);
 }
 
-/** Where a file's managed block lies: the lines between its markers, each on a line of its own, or nothing when it has no such pair. */
+/** Whether a directory has a surface of its own: the top of its git checkout, not a local cape inside a hero's. */
+export function hasSurface(dir: string): boolean {
+	return existsSync(join(dir, ".git"));
+}
+
+/** Where a file's managed block lies: its first marker pair, each on a line of its own and outside fenced code, or nothing when it has none. */
 function managed(text: string): { lines: string[]; begin: number; end: number } | undefined {
 	const lines = text.split("\n");
-	const at = (marker: string, from: number) => lines.findIndex((line, index) => index >= from && line.replace(/\r$/, "").trim() === marker);
-	const begin = at(SURFACE_BEGIN, 0);
-	if (begin < 0) return undefined;
-	const end = at(SURFACE_END, begin + 1);
-	return end < 0 ? undefined : { lines, begin, end };
+	let fence: string | undefined;
+	let begin = -1;
+	for (const [index, raw] of lines.entries()) {
+		const line = raw.replace(/\r$/, "").trim();
+		const opener = /^(`{3,}|~{3,})/.exec(line)?.[1];
+		if (fence === undefined && opener && begin < 0) {
+			fence = opener;
+			continue;
+		}
+		if (fence !== undefined) {
+			if (line.startsWith(fence) && line.slice(fence.length).trim() === "") fence = undefined;
+			continue;
+		}
+		if (begin < 0 && line === SURFACE_BEGIN) begin = index;
+		else if (begin >= 0 && line === SURFACE_END) return { lines, begin, end: index };
+	}
+	return undefined;
 }
 
 function block(surface: string, version: string): string[] {
 	const body = surface.trim();
 	const longest = Math.max(0, ...(body.match(/`+/g) ?? []).map((run) => run.length));
 	const fence = "`".repeat(Math.max(3, longest + 1));
-	return [`<!-- nosedive v=${version} surface=${surfaceDigest(body)} -->`, "", ...GUIDANCE.map((line) => `- ${line}`), "", fence, body, fence];
+	return [`<!-- nosedive v=${version} surface=${surfaceDigest(body)} -->`, "", ...GUIDANCE.map((line) => `- ${line}`), "", fence, ...body.split("\n"), fence];
 }
 
 /**
@@ -56,7 +74,9 @@ export function i01a19f5c60f879c28541aa6759d2b221(dir: string, surface: string, 
 		const found = managed(text);
 		if (!found) continue;
 		marked += 1;
-		const next = [...found.lines.slice(0, found.begin + 1), ...lines, ...found.lines.slice(found.end)].join("\n");
+		// The block's lines end as the file's do.
+		const eol = text.includes("\r\n") ? "\r" : "";
+		const next = [...found.lines.slice(0, found.begin + 1), ...lines.map((line) => `${line}${eol}`), ...found.lines.slice(found.end)].join("\n");
 		if (next === text) continue;
 		writeFileSync(path, next);
 		changed.push(path);
@@ -68,14 +88,31 @@ export function i01a19f5c60f879c28541aa6759d2b221(dir: string, surface: string, 
 	};
 }
 
-/** One line for each marked instruction file whose block's stamp does not match the surface, or which carries no stamp. */
-export function surfaceDrift(dir: string, surface: string): string[] {
-	const digest = surfaceDigest(surface);
-	return INSTRUCTION_FILES.flatMap((file) => {
+/** A file's text with its managed block emptied, so two texts compare by what lies outside it. */
+function outside(text: string): string {
+	const found = managed(text);
+	return found ? [...found.lines.slice(0, found.begin + 1), ...found.lines.slice(found.end)].join("\n") : text;
+}
+
+/** Whether a file the write changed differs from git's HEAD only inside its block, or is an AGENTS.md it created holding nothing else: only then may seed commit it. */
+export function ownChange(path: string): boolean {
+	const text = readFileSync(path, "utf8");
+	const head = spawnSync("git", ["show", `HEAD:./${basename(path)}`], { cwd: dirname(path), encoding: "utf8" });
+	if (head.status === 0) return outside(head.stdout) === outside(text);
+	return basename(path) === "AGENTS.md" && outside(text) === `${SURFACE_BEGIN}\n${SURFACE_END}\n`;
+}
+
+/** One line for each marked instruction file whose block's stamp does not match the surface, or which carries no stamp; the surface is rendered only when some file is marked. */
+export async function surfaceDrift(dir: string, render: () => Promise<string>): Promise<string[]> {
+	const marked = INSTRUCTION_FILES.flatMap((file) => {
 		const path = join(dir, file);
 		if (!existsSync(path)) return [];
 		const found = managed(readFileSync(path, "utf8"));
-		if (!found) return [];
+		return found ? [{ file, found }] : [];
+	});
+	if (marked.length === 0) return [];
+	const digest = surfaceDigest(await render());
+	return marked.flatMap(({ file, found }) => {
 		const stamp = found.lines.slice(found.begin + 1, found.end).map((line) => STAMP.exec(line.replace(/\r$/, "").trim())).find(Boolean);
 		return stamp?.[2] === digest ? [] : [`${file}'s agent instructions do not match this nosedive: run nosedive seed`];
 	});
