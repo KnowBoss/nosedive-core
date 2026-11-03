@@ -125,7 +125,8 @@ test("a local cape is attached by its path, built from its working tree, its act
 	assert.match(readFileSync(readRepoConfig(hero)!.roots[0]!.path, "utf8"), new RegExp(`tools/greet/kb/${root}\.md:\n {6}rel: \.cape`));
 	assert.deepEqual(configuredCapes(findBridge(hero)!, core).map(({ name, repo, build }) => [name, repo?.id, repo?.dir, build?.actions]), [["greet", root, dir, { greet: "Greets" }]]);
 	assert.match(ok(await run(["greet", "ann"], hero)), /^hello ann /);
-	assert.match(ok(await run(["--help"], hero)), /greet working tree\n {2}greet\s+Greets/, "listed under its short name");
+	assert.match(ok(await run(["--help"], hero)), /\ngreet\n {2}greet\s+Greets/, "listed under its short name");
+	assert.match(ok(await run(["--help", "--more"], hero)), /\ngreet working tree\n/, "its version, working tree, behind --more");
 	assert.match(ok(await run(["pass"], hero)), /--attach-cape <cape>/);
 	// Its build follows its files, not the hero's commits.
 	const built = configuredCapes(findBridge(hero)!, core)[0]!.build!.id;

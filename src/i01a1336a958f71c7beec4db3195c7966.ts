@@ -197,12 +197,12 @@ function findAction(capes: Cape[], name: string) {
 	return undefined;
 }
 
-/** Core's top-level actions, then each worn cape's, as its build recorded them, grouped by cape under its name and version; `more` adds where each was built from. */
+/** Core's top-level actions, then each worn cape's, as its build recorded them, grouped by cape under its name; `more` adds its version and where each was built from. */
 export async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 	const core = ctx.capes[0]!;
 	const groups: [string, [string, string][]][] = [];
 	const coreRows = Object.values(core.docs).flatMap((doc): [string, string][] => (doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") ? [[doc.name, doc.gist]] : []));
-	groups.push([`${core.shortName ?? core.name} ${core.version}${more ? `\n  ${core.commit.slice(0, 12)}, id ${core.id}` : ""}`, coreRows]);
+	groups.push([`${core.shortName ?? core.name}${more ? ` ${core.version}\n  ${core.commit.slice(0, 12)}, id ${core.id}` : ""}`, coreRows]);
 	const bridge = findBridge(ctx.cwd);
 	// The hero's own commands, read from its docs: listing them needs no build.
 	const root = bridge && findRoot(bridge.dir, "cape");
@@ -217,7 +217,7 @@ export async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 		const rows = Object.entries(cape.build?.actions ?? {}).filter(([name]) => !coreRows.some(([taken]) => taken === name));
 		const build = cape.build;
 		const from = build ? (build.source ?? (build.ref || "trunk")) : "";
-		const header = build ? `${build.shortName ?? cape.name} ${build.version}${more ? `\n  ${from} at ${build.commit.slice(0, 12)}, repo ${cape.repo?.id ?? "unregistered"}` : ""}` : cape.name;
+		const header = build ? `${build.shortName ?? cape.name}${more ? ` ${build.version}\n  ${from} at ${build.commit.slice(0, 12)}, repo ${cape.repo?.id ?? "unregistered"}` : ""}` : cape.name;
 		groups.push([header, build ? rows : [["", "not built: run `nosedive seed`"]]]);
 	}
 	const width = Math.max(0, ...groups.flatMap(([, rows]) => rows.map(([name]) => name.length)));

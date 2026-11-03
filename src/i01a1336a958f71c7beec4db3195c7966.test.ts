@@ -9,7 +9,7 @@ import { greetCapeRepo, kbOf, ok, registerRepo, run, setCapes, tempBridge, tempD
 
 test("lists core's top-level actions, never internal functions", async () => {
 	const out = ok(await run([], tempDir("launch-help")));
-	assert.match(out, /^Usage: nosedive \[--at <target>\] <action> \[<args>\]\n\ncore \S+\n {2}crud {2}Reads, mints and edits kb docs\n {2}mint {2}Prints new uuid v7 ids/);
+	assert.match(out, /^Usage: nosedive \[--at <target>\] <action> \[<args>\]\n\ncore\n {2}crud {2}Reads, mints and edits kb docs\n {2}mint {2}Prints new uuid v7 ids/);
 	assert.match(out, /\n {2}scaf {2}Writes the files/);
 	assert.match(out, /\n {2}seed {2}Makes the current git repo a bridge/);
 	assert.doesNotMatch(out, /match-usage|launch/);
@@ -22,7 +22,7 @@ test("lists the actions of the capes config names under each cape, once built, f
 	assert.match(ok(await run(["help"], bridge)), /\n\ngreet-cape\n {2}not built: run `nosedive seed`\n/);
 	ok(await run(["seed"], bridge));
 	const help = ok(await run(["help"], bridge));
-	assert.match(help, /\n\ngreet-cape \S+\n {2}greet {2}Greets\n/);
+	assert.match(help, /\n\ngreet-cape\n {2}greet {2}Greets\n/, "no version: plain help is the agent surface");
 	assert.match(ok(await run(["--help", "--more"], bridge)), /\n\ngreet-cape \S+\n {2}trunk at [0-9a-f]{12}, repo [0-9a-f-]{36}\n {2}greet {2}Greets\n/);
 	assert.doesNotMatch(help, /not built/);
 });
@@ -32,7 +32,7 @@ test("heads a cape in help by its short name, the name of its root doc, not its 
 	await registerRepo(bridge, "greet-cape", greetCapeRepo({ name: "greet" }));
 	setCapes(bridge, ["greet-cape"]);
 	ok(await run(["seed"], bridge));
-	assert.match(ok(await run(["help"], bridge)), /\n\ngreet \S+\n {2}greet {2}Greets\n/);
+	assert.match(ok(await run(["help"], bridge)), /\n\ngreet\n {2}greet {2}Greets\n/);
 	assert.doesNotMatch(ok(await run(["help"], bridge)), /\n\ngreet-cape/);
 });
 
