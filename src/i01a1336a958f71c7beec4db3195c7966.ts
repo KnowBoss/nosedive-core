@@ -179,7 +179,7 @@ async function reportDrift(ctx: Ctx): Promise<void> {
 		delete process.env.NOSEDIVE_AT;
 		const bridge = findBridge(ctx.cwd);
 		if (!bridge || !hasSurface(bridge.dir)) return;
-		for (const line of await surfaceDrift(bridge.dir, () => renderActions(ctx, true))) ctx.err(line);
+		for (const line of await surfaceDrift(bridge.dir, () => renderActions(ctx, false))) ctx.err(line);
 	} catch {
 		// Drift is advice: a hero it cannot read is the action's to report.
 	} finally {

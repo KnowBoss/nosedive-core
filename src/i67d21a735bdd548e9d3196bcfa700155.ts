@@ -198,7 +198,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 	const writeSurface = async () => {
 		// A local cape lies in the hero's checkout: the hero's surface is the hero's.
 		if (relative(top, dir) !== "" || !hasSurface(dir)) return;
-		const written = writeAgentSurface(dir, await renderActions(ctx, true), ctx.capes[0]!.version);
+		const written = writeAgentSurface(dir, await renderActions(ctx, false), ctx.capes[0]!.version);
 		if (written.hint) ctx.out(written.hint);
 		const rel = (path: string) => relative(dir, path).replace(/\\/g, "/");
 		// A block restored to what HEAD holds, after a hand edit, leaves nothing to commit.

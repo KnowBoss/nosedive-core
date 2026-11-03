@@ -1,9 +1,10 @@
 // agent-surface
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, SURFACE_BEGIN, SURFACE_END, surfaceDigest, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
+import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, GUIDANCE, SURFACE_BEGIN, SURFACE_END, surfaceDigest, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
 const SURFACE = "Usage: nosedive [--at <target>] <action> [<args>]\n\ncore 1.0\n  seed  Makes a bridge\n";
@@ -39,6 +40,7 @@ test("stamps core's version and the digest of the surface, the first 8 hex of it
 	assert.match(surfaceDigest(SURFACE), /^[0-9a-f]{8}$/);
 	assert.equal(surfaceDigest(`\n${SURFACE}\n\n`), surfaceDigest(SURFACE), "two renderings of the same surface agree");
 	assert.notEqual(surfaceDigest(`${SURFACE}  more  Another action\n`), surfaceDigest(SURFACE));
+	assert.equal(surfaceDigest(SURFACE), createHash("sha256").update(`${GUIDANCE.join("\n")}\n\n${SURFACE.trim()}`).digest("hex").slice(0, 8), "the guidance is covered too, so rewording it is drift");
 	const dir = tempDir("agent-surface-stamp");
 	writeFileSync(join(dir, "AGENTS.md"), `${SURFACE_BEGIN}\n${SURFACE_END}\n`);
 	writeAgentSurface(dir, SURFACE, "2026.11.3-1");

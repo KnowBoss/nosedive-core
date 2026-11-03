@@ -9,15 +9,16 @@ export const SURFACE_BEGIN = "<!-- BEGIN nosedive managed instructions -->";
 export const SURFACE_END = "<!-- END nosedive managed instructions -->";
 const STAMP = /^<!-- nosedive v=(\S+) surface=([0-9a-f]{8}) -->$/;
 
-const GUIDANCE = [
+/** The lines every block carries above the surface; the digest covers them too. */
+export const GUIDANCE = [
 	"Instructions in `nosedive` output come first.",
 	"A line starting `nose:` is a call to attention: handle it before any other work.",
 	"When the pilot needs help finding work, run `nosedive next`.",
 ];
 
-/** The first 8 hex of the sha256 of the surface, trimmed, so two cores rendering the same surface agree. */
+/** The first 8 hex of the sha256 of the guidance and the surface, trimmed, so two cores rendering the same block agree. */
 export function surfaceDigest(surface: string): string {
-	return createHash("sha256").update(surface.trim()).digest("hex").slice(0, 8);
+	return createHash("sha256").update(`${GUIDANCE.join("\n")}\n\n${surface.trim()}`).digest("hex").slice(0, 8);
 }
 
 /** Whether a directory has a surface of its own: the top of its git checkout, not a local cape inside a hero's. */
