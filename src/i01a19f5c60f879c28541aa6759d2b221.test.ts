@@ -105,7 +105,7 @@ test("the block's lines end as the file's do", async () => {
 
 test("launch reports drift on stderr before an action runs, never for seed, and says nothing once seed has written the surface", async () => {
 	const hero = gitRepo("agent-surface-launch");
-	ok(await run(["seed"], hero));
+	ok(await run(["seed", "--workspace"], hero));
 	assert.equal(git(["log", "-1", "--format=%s"], hero), `seed: ${hero.split("/").at(-1)} agent surface written`);
 	const clean = await run(["mint"], hero);
 	assert.equal(clean.err, "", "the block seed wrote matches the surface");
@@ -126,7 +126,7 @@ test("seed prints the hint when instruction files exist but none is marked, and 
 	writeFileSync(join(hero, "CLAUDE.md"), "# Mine\n");
 	git(["add", "CLAUDE.md"], hero);
 	git(["commit", "-qm", "instructions"], hero);
-	const out = ok(await run(["seed"], hero));
+	const out = ok(await run(["seed", "--workspace"], hero));
 	assert.match(out, /no agent instruction file has the nosedive placeholder/);
 	assert.equal(readFileSync(join(hero, "CLAUDE.md"), "utf8"), "# Mine\n");
 	assert.equal(existsSync(join(hero, "AGENTS.md")), false);
@@ -142,7 +142,7 @@ test("seed writes but never commits a file holding the pilot's uncommitted edits
 	git(["add", "CLAUDE.md"], hero);
 	git(["commit", "-qm", "instructions"], hero);
 	writeFileSync(join(hero, "CLAUDE.md"), `# Mine, edited\n${SURFACE_BEGIN}\n${SURFACE_END}\n`);
-	const out = ok(await run(["seed", "--no-capes"], hero));
+	const out = ok(await run(["seed", "--no-capes", "--workspace"], hero));
 	assert.match(out, /wrote the agent surface into CLAUDE\.md, not committed: it holds uncommitted edits of yours/);
 	assert.match(readFileSync(join(hero, "CLAUDE.md"), "utf8"), /^# Mine, edited\n<!-- BEGIN nosedive managed instructions -->\n<!-- nosedive v=source surface=/);
 	assert.equal(git(["show", "HEAD:CLAUDE.md"], hero), `# Mine\n${SURFACE_BEGIN}\n${SURFACE_END}`, "the pilot's edit is theirs to commit");
@@ -159,4 +159,17 @@ test("launch reports no drift for --at another root, nor inside a local cape hol
 	assert.equal((await run(["--at", "spec", "mint"], hero)).err, "", "drift compares the primary root's surface, which seed writes");
 	writeFileSync(join(hero, "tools", "spec", "CLAUDE.md"), `${SURFACE_BEGIN}\n${SURFACE_END}\n`);
 	assert.equal((await run(["mint"], join(hero, "tools", "spec"))).err, "", "a local cape has no surface of its own");
+});
+
+test("seed writes no surface for a cape, core's kind included, nor a base: only a hero gets one", async () => {
+	const cape = gitRepo("agent-surface-cape");
+	assert.equal(ok(await run(["seed", "--root-kind", "cape"], cape)), `seeded ${cape.split("/").at(-1)}`);
+	assert.equal(existsSync(join(cape, "AGENTS.md")), false);
+	const base = gitRepo("agent-surface-base");
+	writeFileSync(join(base, "CLAUDE.md"), `${SURFACE_BEGIN}\n${SURFACE_END}\n`);
+	git(["add", "CLAUDE.md"], base);
+	git(["commit", "-qm", "marked"], base);
+	ok(await run(["seed"], base));
+	assert.equal(readFileSync(join(base, "CLAUDE.md"), "utf8"), `${SURFACE_BEGIN}\n${SURFACE_END}\n`, "a base is not worked in from its root, marked or not");
+	assert.equal((await run(["mint"], base)).err, "", "nor is it reported");
 });
