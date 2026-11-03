@@ -11,6 +11,7 @@ import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { selectRoot } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import type { EditedDoc, KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 
 export type Ctx = {
@@ -141,6 +142,8 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		);
 		const entry = cape.index[namespacedUuid(docId, cape.id)];
 		if (typeof entry !== "function") throw new Error(`${cape.name} has no entrypoint for ${name}`);
+		// Advice on stderr when the hero's agent instructions no longer show this surface; seed rewrites them anyway.
+		if (doc.name !== "seed") await reportDrift(ctx);
 		await entry({ usage: `u${doc.usages[matched.index]!.id}`, args: matched.args, ctx });
 		return 0;
 	} catch (err) {
@@ -168,6 +171,17 @@ export function consoleCtx(capes: Cape[]): Ctx {
 	};
 }
 
+/** One stderr line per agent instruction file whose managed block shows another surface; never fails the command. */
+async function reportDrift(ctx: Ctx): Promise<void> {
+	const bridge = findBridge(ctx.cwd);
+	if (!bridge) return;
+	try {
+		for (const line of surfaceDrift(bridge.dir, await renderActions(ctx, true))) ctx.err(line);
+	} catch {
+		// Drift is advice: a hero it cannot read is the action's to report.
+	}
+}
+
 function findAction(capes: Cape[], name: string) {
 	for (const cape of capes) {
 		const docId = cape.index[namespacedUuid(name, cape.id)];
@@ -179,7 +193,7 @@ function findAction(capes: Cape[], name: string) {
 }
 
 /** Core's top-level actions, then each worn cape's, as its build recorded them, grouped by cape under its name and version; `more` adds where each was built from. */
-async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
+export async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 	const core = ctx.capes[0]!;
 	const groups: [string, [string, string][]][] = [];
 	const coreRows = Object.values(core.docs).flatMap((doc): [string, string][] => (doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? "") ? [[doc.name, doc.gist]] : []));

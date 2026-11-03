@@ -2,7 +2,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { Document, isSeq, parseDocument } from "yaml";
-import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { renderActions, type Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { nestedRoot } from "./i01a1934563e77ed886f06d04416385ef.ts";
@@ -193,7 +194,22 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 	const migrateAgain = () => {
 		for (const name of runMigrations(dir, ctx)) ctx.out(`migrated ${repo}: ${name}`);
 	};
-	if (noCapes) return migrateAgain();
+	// Last, the hero's agent instruction files show the surface as it now is, the capes just built included.
+	const writeSurface = async () => {
+		// A local cape lies in the hero's checkout: the hero's surface is the hero's.
+		if (relative(top, dir) !== "") return;
+		const written = writeAgentSurface(dir, await renderActions(ctx, true), ctx.capes[0]!.version);
+		if (written.hint) ctx.out(written.hint);
+		// A block restored to what HEAD holds, after a hand edit, leaves nothing to commit.
+		const changed = written.changed.filter((path) => spawnSync("git", ["status", "--porcelain", "--", path], { cwd: top, encoding: "utf8" }).stdout.trim() !== "");
+		if (changed.length === 0) return;
+		commitFiles(top, changed, `seed: ${repo} agent surface written`, ctx.capes[0]!.version);
+		ctx.out(`wrote the agent surface into ${changed.map((path) => relative(dir, path).replace(/\\/g, "/")).join(", ")}`);
+	};
+	if (noCapes) {
+		migrateAgain();
+		return writeSurface();
+	}
 	const core = ctx.capes[0]!;
 	const bridgeAt = findBridge(dir)!;
 	const failed: string[] = [];
@@ -207,6 +223,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		}
 	}
 	migrateAgain();
+	await writeSurface();
 	if (failed.length > 0) throw new Error(`some capes are not usable:\n${failed.map((failure) => `- ${failure}`).join("\n")}`);
 }
 

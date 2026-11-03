@@ -28,5 +28,5 @@ test("sets, then removes, one field, which later updates in the same edit see", 
 	removal.commit();
 	assert.doesNotMatch(readFileSync(join(bridge, path), "utf8"), /owner/);
 	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: edit");
-	assert.equal(git(["rev-list", "--count", "HEAD"], bridge), "4");
+	assert.equal(git(["rev-list", "--count", "HEAD"], bridge), "5", "seed's two commits (set up, agent surface), the doc, and the two edits");
 });

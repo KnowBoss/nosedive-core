@@ -20,10 +20,10 @@ function configOf(dir: string): { id: string; roots: string[]; text: string } {
 	return { id: /^id: (\S+)$/m.exec(text)![1]!, roots: [.../^roots:\n((?: {2}- \S+\n)+)/m.exec(text)![1]!.matchAll(/^ {2}- (\S+)$/gm)].map((match) => match[1]!), text };
 }
 
-test("makes a git repo a nosedive repo, its config naming its id and one root of kind base, in one commit", async () => {
+test("makes a git repo a nosedive repo, its config naming its id and one root of kind base, in one commit, then writes its agent surface", async () => {
 	const dir = gitRepo("seed");
 	const repo = basename(dir);
-	assert.equal(ok(await run(["seed"], dir)), `seeded ${repo}`);
+	assert.equal(ok(await run(["seed"], dir)), `seeded ${repo}\nwrote the agent surface into AGENTS.md`);
 	const { id, roots, text } = configOf(dir);
 	const root = roots[0]!.replace(/^kb\/|\.md$/g, "");
 	assert.equal(text, `id: ${id}\nmigrations:\n${LISTED}roots:\n  - kb/${root}.md\n`, "already in today's shape, and no workspace unless asked");
@@ -36,8 +36,9 @@ test("makes a git repo a nosedive repo, its config naming its id and one root of
 	assert.equal(readFileSync(join(dir, ".nosedive", ".gitignore"), "utf8"), "cache/\ncapes/\nlocal/\n");
 	assert.equal(existsSync(join(dir, ".gitignore")), false, "no workspace and no cape root, so no lockfile line");
 	assert.equal(existsSync(join(dir, "workspace")), false);
-	assert.equal(git(["log", "--format=%s"], dir), `seed: ${repo} set up`, "the subject is unchanged by feats");
-	assert.equal(git(["log", "--format=%(trailers:only,unfold)"], dir).trim(), "Co-Authored-By: nosedive source <noreply@nosedive.dev>", "and ends with nosedive's co-author, once");
+	assert.equal(git(["log", "--format=%s"], dir), `seed: ${repo} agent surface written\nseed: ${repo} set up`, "the subjects are unchanged by feats");
+	assert.equal(git(["log", "-1", "--skip=1", "--format=%(trailers:only,unfold)"], dir).trim(), "Co-Authored-By: nosedive source <noreply@nosedive.dev>", "and ends with nosedive's co-author, once");
+	assert.match(readFileSync(join(dir, "AGENTS.md"), "utf8"), /^<!-- BEGIN nosedive managed instructions -->\n<!-- nosedive v=source surface=[0-9a-f]{8} -->\n/, "no instruction file, so AGENTS.md is made with the block");
 	assert.equal(git(["status", "--porcelain"], dir), "");
 });
 
@@ -285,7 +286,7 @@ test("seeds an unseeded repo nested under a seeded one, not the outer hero", asy
 	git(["config", "user.name", "Core Test"], nested);
 	git(["config", "user.email", "core@example.com"], nested);
 	const before = git(["rev-parse", "HEAD"], hero);
-	assert.equal(ok(await run(["seed"], nested)), "seeded foo");
+	assert.equal(ok(await run(["seed"], nested)), "seeded foo\nwrote the agent surface into AGENTS.md");
 	assert.equal(existsSync(join(nested, ".nosedive", "config.yaml")), true);
 	assert.equal(git(["rev-parse", "HEAD"], hero), before, "the outer hero is untouched");
 });
