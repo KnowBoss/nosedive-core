@@ -14,7 +14,7 @@ export async function ibc5113a84ba55195add71cac33f0bf20(_args: Args, ctx: Ctx): 
 	const bridge = findBridge(ctx.cwd);
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");
 	const gap = trunkGap(bridge.dir, ctx);
-	if (gap) ctx.out(`nose: the hero lacks ${gap.missing} commits origin's trunk has: rebase onto ${gap.trunk} before trusting this list`);
+	if (gap) ctx.err(`warning: the hero lacks ${gap.missing} commits origin's trunk has: rebase onto ${gap.trunk} before trusting this list`);
 
 	const walk = featWalk(bridge);
 	const kindGroups = listKinds(bridge, ctx.capes);

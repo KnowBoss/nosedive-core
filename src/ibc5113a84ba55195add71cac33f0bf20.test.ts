@@ -110,8 +110,8 @@ test("fetches origin first, and still lists but exits 1 when the hero is behind 
 
 	const behind = await run(["next"], bridge);
 	assert.equal(behind.code, 1);
-	assert.equal(behind.out, `nose: the hero lacks 1 commits origin's trunk has: rebase onto origin/${branch} before trusting this list\nnothing left to do`);
-	assert.match(behind.err, new RegExp(`the hero is behind origin/${branch}`));
+	assert.equal(behind.out, "nothing left to do", "stdout is the list alone");
+	assert.equal(behind.err, `warning: the hero lacks 1 commits origin's trunk has: rebase onto origin/${branch} before trusting this list\nnosedive: the hero is behind origin/${branch}`);
 });
 
 test("lists the hero as it is, saying so, when origin cannot be fetched", async () => {
