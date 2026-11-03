@@ -161,10 +161,13 @@ test("launch reports no drift for --at another root, nor inside a local cape hol
 	assert.equal((await run(["mint"], join(hero, "tools", "spec"))).err, "", "a local cape has no surface of its own");
 });
 
-test("seed writes no surface for a cape, core's kind included, nor a base: only a hero gets one", async () => {
+test("seed writes no surface for a cape, with a workspace or not, nor a base: only a hero gets one", async () => {
 	const cape = gitRepo("agent-surface-cape");
 	assert.equal(ok(await run(["seed", "--root-kind", "cape"], cape)), `seeded ${cape.split("/").at(-1)}`);
 	assert.equal(existsSync(join(cape, "AGENTS.md")), false);
+	const core = gitRepo("agent-surface-core");
+	ok(await run(["seed", "--root-kind", "cape", "--workspace"], core));
+	assert.equal(existsSync(join(core, "AGENTS.md")), false, "a cape with a workspace, as core is, is still no hero");
 	const base = gitRepo("agent-surface-base");
 	writeFileSync(join(base, "CLAUDE.md"), `${SURFACE_BEGIN}\n${SURFACE_END}\n`);
 	git(["add", "CLAUDE.md"], base);

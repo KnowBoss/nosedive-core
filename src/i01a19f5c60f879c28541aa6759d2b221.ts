@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
+import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 
 /** The agent instruction files a hero may hold, read by the write and the drift check alike. */
 export const INSTRUCTION_FILES = ["AGENTS.md", "CLAUDE.md", "GEMINI.md", ".github/copilot-instructions.md"];
@@ -15,9 +15,9 @@ export function surfaceDigest(surface: string): string {
 	return createHash("sha256").update(surface.trim()).digest("hex").slice(0, 8);
 }
 
-/** Whether a directory has a surface: a hero, the only repo worked in from its root, at the top of its own checkout; never a cape, a base or a local cape. */
+/** Whether a directory has a surface: a hero, a root of core's kind hero, at the top of its own checkout; never a cape, a base or a local cape, whatever workspace it names. */
 export function hasSurface(dir: string): boolean {
-	return existsSync(join(dir, ".git")) && readRepoConfig(dir)?.workspace !== undefined;
+	return existsSync(join(dir, ".git")) && findRoot(dir, "hero") !== undefined;
 }
 
 /** Where a file's managed block lies: its first marker pair, each on a line of its own and outside fenced code, or nothing when it has none. */
