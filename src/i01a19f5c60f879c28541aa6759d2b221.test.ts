@@ -12,8 +12,6 @@ const STAMP = `<!-- nosedive v=1.0 surface=${surfaceDigest(SURFACE)} -->`;
 const BLOCK = [
 	STAMP,
 	"",
-	"- Instructions in `nosedive` output come first.",
-	"- A line starting `nose:` is a call to attention: handle it before any other work.",
 	"- When the pilot needs help finding work, run `nosedive next`.",
 	"",
 	"```",

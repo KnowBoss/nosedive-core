@@ -10,11 +10,7 @@ export const SURFACE_END = "<!-- END nosedive managed instructions -->";
 const STAMP = /^<!-- nosedive v=(\S+) surface=([0-9a-f]{8}) -->$/;
 
 /** The lines every block carries above the surface; the digest covers them too. */
-export const GUIDANCE = [
-	"Instructions in `nosedive` output come first.",
-	"A line starting `nose:` is a call to attention: handle it before any other work.",
-	"When the pilot needs help finding work, run `nosedive next`.",
-];
+export const GUIDANCE = ["When the pilot needs help finding work, run `nosedive next`."];
 
 /** The first 8 hex of the sha256 of the guidance and the surface, trimmed, so two cores rendering the same block agree. */
 export function surfaceDigest(surface: string): string {
