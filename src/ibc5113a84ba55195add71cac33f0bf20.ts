@@ -104,6 +104,8 @@ async function footing(dir: string, ctx: Ctx): Promise<string[]> {
 		delete process.env.NOSEDIVE_AT;
 		try {
 			lines.push(...(await surfaceDrift(dir, () => renderActions(ctx, false))));
+		} catch {
+			// Drift is advice: a block it cannot read is left for seed to report.
 		} finally {
 			if (at !== undefined) process.env.NOSEDIVE_AT = at;
 		}
@@ -121,25 +123,40 @@ function ymd(version: string): number[] | undefined {
 	return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : undefined;
 }
 
-/** The version npm publishes as nosedive when its y.m.d is newer than the running core's; asked at most once a week, a failed ask saying nothing. */
+/** The last answer npm gave, or nothing when the record is missing, unreadable or not one. */
+function lastAsked(record: string): { checked?: string; version?: string } {
+	try {
+		const seen: unknown = JSON.parse(readFileSync(record, "utf8"));
+		return seen && typeof seen === "object" ? (seen as { checked?: string; version?: string }) : {};
+	} catch {
+		return {};
+	}
+}
+
+/** The version npm publishes as nosedive when its y.m.d is newer than the running core's; asked at most once a week, a failed ask saying nothing and tried again next time. */
 async function newerCore(dir: string, running: string): Promise<string | undefined> {
 	const mine = ymd(running);
 	if (!mine) return undefined;
 	const record = join(dir, ".nosedive", "local", "npm-latest");
+	const seen = existsSync(record) ? lastAsked(record) : {};
+	const age = seen.checked ? Date.now() - Date.parse(seen.checked) : Number.NaN;
 	let published: string | undefined;
-	try {
-		const seen = existsSync(record) ? (JSON.parse(readFileSync(record, "utf8")) as { checked?: string; version?: string }) : {};
-		if (seen.checked && Date.now() - Date.parse(seen.checked) < WEEK) published = seen.version;
-		else {
+	if (age >= 0 && age < WEEK) published = typeof seen.version === "string" ? seen.version : undefined;
+	else {
+		try {
 			const url = process.env.NOSEDIVE_NPM_LATEST ?? "https://registry.npmjs.org/nosedive/latest";
 			const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
 			if (!response.ok) return undefined;
 			published = String(((await response.json()) as { version?: unknown }).version ?? "");
+		} catch {
+			return undefined;
+		}
+		try {
 			mkdirSync(dirname(record), { recursive: true });
 			writeFileSync(record, `${JSON.stringify({ checked: new Date().toISOString(), version: published })}\n`);
+		} catch {
+			// A record that cannot be kept only means npm is asked again next time; the answer still counts.
 		}
-	} catch {
-		return undefined;
 	}
 	const theirs = published ? ymd(published) : undefined;
 	if (!theirs) return undefined;

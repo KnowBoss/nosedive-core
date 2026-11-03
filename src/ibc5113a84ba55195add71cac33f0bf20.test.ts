@@ -1,6 +1,6 @@
 // next
 import assert from "node:assert/strict";
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
@@ -195,5 +195,29 @@ test("says nothing when npm cannot be asked, and asks again next time; a core ru
 	} finally {
 		if (before === undefined) delete process.env.NOSEDIVE_NPM_LATEST;
 		else process.env.NOSEDIVE_NPM_LATEST = before;
+	}
+});
+
+test("a record it cannot read or keep, or dated ahead, never stops the check: npm is asked again, and its answer still counts", async () => {
+	const npm = await npmServing("2026.12.1");
+	const before = process.env.NOSEDIVE_NPM_LATEST;
+	process.env.NOSEDIVE_NPM_LATEST = npm.url;
+	try {
+		const bridge = await tempBridge("next-npm-record");
+		const record = join(bridge, ".nosedive", "local", "npm-latest");
+		writeFileSync(record, "{trunc");
+		assert.match((await nextAs("2026.11.3", bridge)).err, /nosedive 2026\.12\.1 is published/, "a corrupt record is asked past");
+		assert.match(readFileSync(record, "utf8"), /"version":"2026\.12\.1"/, "and rewritten");
+		writeFileSync(record, `${JSON.stringify({ checked: new Date(Date.now() + 30 * 86400000).toISOString(), version: "2000.1.1" })}\n`);
+		assert.match((await nextAs("2026.11.3", bridge)).err, /nosedive 2026\.12\.1 is published/, "a date ahead of now is no recent ask");
+		assert.equal(npm.asks(), 2);
+		rmSync(record);
+		mkdirSync(record);
+		assert.match((await nextAs("2026.11.3", bridge)).err, /nosedive 2026\.12\.1 is published/, "a record it cannot write still warns from what npm said");
+		assert.equal(npm.asks(), 3);
+	} finally {
+		if (before === undefined) delete process.env.NOSEDIVE_NPM_LATEST;
+		else process.env.NOSEDIVE_NPM_LATEST = before;
+		await npm.close();
 	}
 });
