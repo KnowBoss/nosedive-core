@@ -20,7 +20,9 @@ export function hasCoAuthor(message: string): boolean {
 /** The message with the nosedive co-author trailer, which joins the message's trailers; a message that has one is returned as it is. */
 export function i01a19005c31172b68871d4842563d310(message: string, version: string): string {
 	if (hasCoAuthor(message)) return message;
-	const result = spawnSync("git", ["interpret-trailers", "--if-exists", "add", "--trailer", coAuthor(version)], { encoding: "utf8", input: message });
+	// Git before 2.44 puts the trailer straight under a last line that has no newline, with no blank line, so it would join the subject.
+	const input = message.endsWith("\n") ? message : `${message}\n`;
+	const result = spawnSync("git", ["interpret-trailers", "--if-exists", "add", "--trailer", coAuthor(version)], { encoding: "utf8", input });
 	if (result.status !== 0) throw new Error(`git interpret-trailers failed: ${(result.stderr || result.error?.message || "").trim()}`);
 	return result.stdout;
 }
