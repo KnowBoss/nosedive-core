@@ -230,12 +230,15 @@ export function lock(dir: string): void {
 	assert.equal(npm.status, 0, npm.stderr);
 }
 
-/** Declares open kinds in a hero, as its own, so crud can write docs of them. */
+/** Declares open kinds in a hero, as its own, so crud can write docs of them: passing work, each saying when one of it is done. */
 export async function declareKinds(hero: string, ...names: string[]): Promise<void> {
-	for (const name of names) ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], hero, "schema:\n  type: object\n  additionalProperties: true\n"));
+	for (const name of names) {
+		const path = ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], hero, "schema:\n  type: object\n  additionalProperties: true\n"));
+		ok(await run(["crud", path.replace(/^.*\/|\.md$/g, ""), "--section", "Done when", "-"], hero, `A ${name} is done when it is.\n`));
+	}
 }
 
-/** Declares an open, durable kind in a hero, as its own. */
+/** Declares an open, durable kind in a hero, as its own: its doc has no Done when. */
 export async function declareDurable(hero: string, name: string): Promise<void> {
-	ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], hero, "schema:\n  type: object\n  additionalProperties: true\ndurable: true\n"));
+	ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], hero, "schema:\n  type: object\n  additionalProperties: true\n"));
 }

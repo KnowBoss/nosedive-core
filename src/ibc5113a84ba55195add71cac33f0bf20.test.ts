@@ -1,6 +1,6 @@
 // next
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { git, gitRepo, ok, run, tempBridge, tempDir } from "../test/harness.ts";
@@ -26,9 +26,9 @@ test("says nothing is left to do when no leaf is work", async () => {
 test("lists the non-durable leaves the feats reach under the doc that reaches them, and docs a kind's next rels link", async () => {
 	const bridge = await tempBridge("next-leaves");
 	const root = rootOf(bridge);
-	await kind(bridge, "keep", "durable: true\n");
-	await kind(bridge, "step", "durable: false\n", "It is landed or bailed.");
-	await kind(bridge, "ask", "durable: false\nnext:\n  - open.spec\n", "It is answered.");
+	await kind(bridge, "keep", "");
+	await kind(bridge, "step", "", "It is landed or bailed.");
+	await kind(bridge, "ask", "next:\n  - open.spec\n", "It is answered.");
 	const feat = ok(await run(["crud", "core:memo", "the feat", "--name", "feat"], bridge));
 	const one = ok(await run(["crud", "step", "one", "--name", "one"], bridge));
 	const two = ok(await run(["crud", "step", "two", "--name", "two"], bridge));
@@ -64,12 +64,32 @@ test("lists the non-durable leaves the feats reach under the doc that reaches th
 	);
 });
 
-test("prints a generic Done when for a kind whose doc has none", async () => {
+test("passes over a doc whose kind's doc has no Done when, since that kind is durable", async () => {
 	const bridge = await tempBridge("next-no-done-when");
-	await kind(bridge, "step", "durable: false\n");
+	await kind(bridge, "step", "");
 	const step = ok(await run(["crud", "step", "one", "--name", "one"], bridge));
 	await link(bridge, rootOf(bridge), step, "work.feat");
-	assert.match(ok(await run(["next"], bridge)), /\n {4}done when: its kind does not say; read the doc$/);
+	assert.equal(ok(await run(["next"], bridge)), "nothing left to do");
+});
+
+test("lists a doc whose kind's Done when section is empty, saying so", async () => {
+	const bridge = await tempBridge("next-empty-done-when");
+	const path = ok(await run(["crud", "core:kind", "a step", "--name", "step", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: true\n"));
+	appendFileSync(join(bridge, path), "\n## Done when\n");
+	const step = ok(await run(["crud", "step", "one", "--name", "one"], bridge));
+	await link(bridge, rootOf(bridge), step, "work.feat");
+	assert.match(ok(await run(["next"], bridge)), /\n {4}done when: its kind's Done when section is empty; read the doc$/);
+});
+
+test("crud says when an edit of a kind's Done when makes it durable or not", async () => {
+	const bridge = await tempBridge("next-done-when-flips");
+	const path = ok(await run(["crud", "core:kind", "a step", "--name", "step", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: true\n"));
+	const added = await run(["crud", idOf(path), "--section", "Done when", "-"], bridge, "It is landed.\n");
+	assert.match(added.err, /kind step is no longer durable, since its doc now says when a doc of it is done/);
+	const reworded = await run(["crud", idOf(path), "--section", "Done when", "-"], bridge, "It is landed or bailed.\n");
+	assert.doesNotMatch(reworded.err, /durable/, "rewording it changes nothing");
+	const removed = await run(["crud", idOf(path), "--section", "Done when", "-"], bridge, "");
+	assert.match(removed.err, /kind step is now durable, since its doc no longer says when a doc of it is done/);
 });
 
 test("fetches origin first, and still lists but exits 1 when the hero is behind its trunk", async () => {

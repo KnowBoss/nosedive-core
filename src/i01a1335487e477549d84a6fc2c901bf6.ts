@@ -13,7 +13,7 @@ export type CapeSource = {
 	docs: Record<string, CapeDoc>;
 	/** Each action's and function's entrypoint: its doc id, export name and file. */
 	entries: { id: string; name: string; file: string }[];
-	/** Each kind the repo declares: its name, to its declaration's meta (schema, durable) and links. */
+	/** Each kind the repo declares: its name, to its declaration's meta (schema, doneWhen) and links. */
 	kinds: Record<string, unknown>;
 };
 
@@ -39,7 +39,7 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = fal
 		const version = versions ? kindVersion(repoDir, file, meta.schema) : undefined;
 		// Whether the version is on the trunk is recorded with it: a trunk only grows, so the answer stays true for whoever wears this build.
 		const doneWhen = doneWhenOf(doc.body);
-		kinds[String(doc.fm.name)] = { ...meta, links: doc.fm.links ?? [], id: doc.fm.id, file, digest: schemaDigest(meta.schema), ...(doneWhen ? { doneWhen } : {}), ...(version ? { version, published: onTrunk(repoDir, version) } : {}) };
+		kinds[String(doc.fm.name)] = { ...meta, links: doc.fm.links ?? [], id: doc.fm.id, file, digest: schemaDigest(meta.schema), ...(doneWhen !== undefined ? { doneWhen } : {}), ...(version ? { version, published: onTrunk(repoDir, version) } : {}) };
 	};
 	// The kinds a repo keeps in .nosedive/kinds/ are as much its own as those in its kb.
 	const kindsDir = join(repoDir, ".nosedive", "kinds");
@@ -160,10 +160,26 @@ export function schemaDigest(schema: unknown): string {
 	return createHash("sha256").update(canonical(schema ?? null)).digest("hex").slice(0, 12);
 }
 
-/** The first line of a kind doc's `## Done when` section, which says when a doc of that kind is done. */
+/**
+ * The first line of a kind doc's `## Done when` section, which says when a doc of that kind is done: empty when the section is,
+ * undefined when the doc has none, which makes the kind durable. The heading is matched in any case.
+ */
 export function doneWhenOf(body: string): string | undefined {
-	const section = /^##\s+Done when\s*$([\s\S]*?)(?=^#{1,2}\s|(?![\s\S]))/m.exec(body)?.[1];
-	return section?.split("\n").map((line) => line.trim()).find(Boolean);
+	const section = /^##[ \t]+done[ \t]+when[ \t]*$([\s\S]*?)(?=^#{1,2}\s|(?![\s\S]))/im.exec(body)?.[1];
+	if (section === undefined) return undefined;
+	return section.split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+}
+
+/** What is amiss with a kind doc's Done when: a heading that looks like one but is not read as one, or a section that says nothing. */
+export function doneWhenSlips(body: string): string[] {
+	const slips: string[] = [];
+	const said = doneWhenOf(body);
+	for (const line of body.split("\n")) {
+		const near = /^(#{1,6})\s*done\s*when\b.*$/i.exec(line.trim());
+		if (near && !/^##[ \t]+done[ \t]+when[ \t]*$/i.test(line)) slips.push(`its heading "${line.trim()}" is not read as a Done when section, which is \`## Done when\``);
+	}
+	if (said === "") slips.push("its Done when section is empty: say when a doc of it is done");
+	return slips;
 }
 
 function canonical(value: unknown): string {

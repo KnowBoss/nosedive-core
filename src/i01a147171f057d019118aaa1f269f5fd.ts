@@ -11,8 +11,7 @@ import { i01a18e40518e7f15a2066909dca2be43 as listKinds } from "./i01a18e40518e7
 /** A kind's meta, with its links, which name the gates its docs pass through, and who owns it. */
 export type KindMeta = {
 	schema?: unknown;
-	durable?: boolean;
-	/** The first line of its doc's `## Done when` section. */
+	/** The first line of its doc's `## Done when` section, empty when the section is; absent when the doc has none, which makes the kind durable. */
 	doneWhen?: string;
 	/** Rels by which a walked doc linking a doc of this kind makes `next` list it. */
 	next?: string[];
@@ -33,6 +32,14 @@ export type KindMeta = {
 	/** The doc that registers that repo with the repo asked, which a feat's scope names a work branch for. */
 	repoDocId?: string;
 };
+
+/**
+ * Whether docs of a kind are kept, not passing work: a kind is durable when its doc does not say when one of it is done, in a
+ * `## Done when` section. A doc whose kind nothing declares is never durable.
+ */
+export function isDurable(kind: KindMeta | undefined): boolean {
+	return kind !== undefined && kind.doneWhen === undefined;
+}
 
 /**
  * The kind a spelling names in a repo's terms: a bare name is the repo's own kind, and `<short>:<name>`, `<long>:<name>` or
