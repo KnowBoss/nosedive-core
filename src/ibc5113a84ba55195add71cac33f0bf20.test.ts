@@ -1,9 +1,14 @@
 // next
 import assert from "node:assert/strict";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { test } from "node:test";
 import { git, gitRepo, ok, run, tempBridge, tempDir } from "../test/harness.ts";
+import { i01a1336a958f71c7beec4db3195c7966 as launch, type Cape, type Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+// @ts-expect-error the shared loader is plain JavaScript
+import { sourceCape } from "../scripts/source-cape.mjs";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 const rootOf = (bridge: string) => /roots:\r?\n {2}- (\S+)/.exec(readFileSync(join(bridge, ".nosedive", "config.yaml"), "utf8"))![1]!;
@@ -121,4 +126,74 @@ test("lists the hero as it is, saying so, when origin cannot be fetched", async 
 	assert.equal(result.code, 0);
 	assert.equal(result.out, "nothing left to do");
 	assert.match(result.err, /could not fetch origin, so this lists the hero as it is: /);
+});
+
+/** Runs next as a core of the given version would, with npm's latest served by a local server that counts its asks. */
+async function nextAs(version: string, cwd: string): Promise<{ code: number; err: string }> {
+	const core: Cape = { ...(await sourceCape()), version };
+	const err: string[] = [];
+	const ctx: Ctx = { cwd, capes: [core], out: () => {}, err: (text) => err.push(text), stdin: async () => "" };
+	const code = await launch(["next"], ctx);
+	return { code, err: err.join("\n") };
+}
+
+async function npmServing(version: string): Promise<{ url: string; asks: () => number; close: () => Promise<void> }> {
+	let asked = 0;
+	const server = createServer((_req, res) => {
+		asked += 1;
+		res.setHeader("content-type", "application/json");
+		res.end(JSON.stringify({ name: "nosedive", version }));
+	});
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+	const { port } = server.address() as AddressInfo;
+	return { url: `http://127.0.0.1:${port}/nosedive/latest`, asks: () => asked, close: () => new Promise((resolve) => server.close(() => resolve())) };
+}
+
+test("warns once a week's ask finds a newer y.m.d on npm, and says nothing of the same or an older one", async () => {
+	const npm = await npmServing("2026.12.1");
+	const before = process.env.NOSEDIVE_NPM_LATEST;
+	process.env.NOSEDIVE_NPM_LATEST = npm.url;
+	try {
+		const bridge = await tempBridge("next-npm-newer");
+		const first = await nextAs("2026.11.3-1793748529194", bridge);
+		assert.equal(first.code, 0, "advice never fails next");
+		assert.equal(first.err, "warning: nosedive 2026.12.1 is published; you run 2026.11.3-1793748529194: npm i -g nosedive");
+		assert.match(readFileSync(join(bridge, ".nosedive", "local", "npm-latest"), "utf8"), /"version":"2026\.12\.1"/, "the answer is recorded");
+		assert.match((await nextAs("2026.11.3-1", bridge)).err, /nosedive 2026\.12\.1 is published/, "and warned from the record");
+		assert.equal(npm.asks(), 1, "a week has not passed, so npm is asked once");
+		assert.equal((await nextAs("2026.12.1-5", bridge)).err, "", "the same y.m.d, whatever its build");
+		assert.equal((await nextAs("2027.1.1", bridge)).err, "", "an older one");
+
+		// A record older than a week is asked again.
+		writeFileSync(join(bridge, ".nosedive", "local", "npm-latest"), `${JSON.stringify({ checked: new Date(Date.now() - 8 * 86400000).toISOString(), version: "2026.12.1" })}\n`);
+		await nextAs("2026.11.3", bridge);
+		assert.equal(npm.asks(), 2);
+	} finally {
+		if (before === undefined) delete process.env.NOSEDIVE_NPM_LATEST;
+		else process.env.NOSEDIVE_NPM_LATEST = before;
+		await npm.close();
+	}
+});
+
+test("says nothing when npm cannot be asked, and asks again next time; a core run from source is never checked", async () => {
+	const before = process.env.NOSEDIVE_NPM_LATEST;
+	process.env.NOSEDIVE_NPM_LATEST = "http://127.0.0.1:9/nosedive/latest";
+	try {
+		const bridge = await tempBridge("next-npm-offline");
+		const offline = await nextAs("2026.11.3", bridge);
+		assert.equal(offline.code, 0);
+		assert.equal(offline.err, "");
+		assert.equal(existsSync(join(bridge, ".nosedive", "local", "npm-latest")), false, "a failed ask is not recorded, so the next run tries again");
+		const npm = await npmServing("2030.1.1");
+		process.env.NOSEDIVE_NPM_LATEST = npm.url;
+		try {
+			assert.equal((await nextAs("source", bridge)).err, "", "no y.m.d to compare");
+			assert.equal(npm.asks(), 0);
+		} finally {
+			await npm.close();
+		}
+	} finally {
+		if (before === undefined) delete process.env.NOSEDIVE_NPM_LATEST;
+		else process.env.NOSEDIVE_NPM_LATEST = before;
+	}
 });

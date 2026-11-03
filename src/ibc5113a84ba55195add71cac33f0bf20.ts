@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { relative } from "node:path";
-import type { Args, Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { renderActions, type Args, type Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { hasSurface, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
 import { isDurable, kindOfDoc, type KindMeta } from "./i01a147171f057d019118aaa1f269f5fd.ts";
@@ -15,6 +17,7 @@ export async function ibc5113a84ba55195add71cac33f0bf20(_args: Args, ctx: Ctx): 
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");
 	const gap = trunkGap(bridge.dir, ctx);
 	if (gap) ctx.err(`warning: the hero lacks ${gap.missing} commits origin's trunk has: rebase onto ${gap.trunk} before trusting this list`);
+	for (const line of await footing(bridge.dir, ctx)) ctx.err(line);
 
 	const walk = featWalk(bridge);
 	const kindGroups = listKinds(bridge, ctx.capes);
@@ -90,4 +93,58 @@ function trunkGap(dir: string, ctx: Ctx): { trunk: string; missing: number } | u
 	if (!trunk) throw new Error("origin names no trunk: its HEAD points at no branch");
 	const missing = Number(git("rev-list", "--count", `HEAD..${trunk}`).stdout.trim());
 	return missing > 0 ? { trunk, missing } : undefined;
+}
+
+/** The hero's footing, as warnings that never fail next: blocks that drift from this core's surface, and a newer core on npm, asked once a week. */
+async function footing(dir: string, ctx: Ctx): Promise<string[]> {
+	const lines: string[] = [];
+	if (hasSurface(dir)) {
+		// Seed writes the primary root's surface, so drift compares against that, whatever --at names.
+		const at = process.env.NOSEDIVE_AT;
+		delete process.env.NOSEDIVE_AT;
+		try {
+			lines.push(...(await surfaceDrift(dir, () => renderActions(ctx, false))));
+		} finally {
+			if (at !== undefined) process.env.NOSEDIVE_AT = at;
+		}
+	}
+	const newer = await newerCore(dir, ctx.capes[0]!.version);
+	if (newer) lines.push(`warning: nosedive ${newer} is published; you run ${ctx.capes[0]!.version}: npm i -g nosedive`);
+	return lines;
+}
+
+const WEEK = 7 * 24 * 60 * 60 * 1000;
+
+/** A version's y.m.d as numbers, or nothing for one that is not y.m.d, as a source run's. */
+function ymd(version: string): number[] | undefined {
+	const match = /^(\d+)\.(\d+)\.(\d+)(?:-|$)/.exec(version);
+	return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : undefined;
+}
+
+/** The version npm publishes as nosedive when its y.m.d is newer than the running core's; asked at most once a week, a failed ask saying nothing. */
+async function newerCore(dir: string, running: string): Promise<string | undefined> {
+	const mine = ymd(running);
+	if (!mine) return undefined;
+	const record = join(dir, ".nosedive", "local", "npm-latest");
+	let published: string | undefined;
+	try {
+		const seen = existsSync(record) ? (JSON.parse(readFileSync(record, "utf8")) as { checked?: string; version?: string }) : {};
+		if (seen.checked && Date.now() - Date.parse(seen.checked) < WEEK) published = seen.version;
+		else {
+			const url = process.env.NOSEDIVE_NPM_LATEST ?? "https://registry.npmjs.org/nosedive/latest";
+			const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+			if (!response.ok) return undefined;
+			published = String(((await response.json()) as { version?: unknown }).version ?? "");
+			mkdirSync(dirname(record), { recursive: true });
+			writeFileSync(record, `${JSON.stringify({ checked: new Date().toISOString(), version: published })}\n`);
+		}
+	} catch {
+		return undefined;
+	}
+	const theirs = published ? ymd(published) : undefined;
+	if (!theirs) return undefined;
+	for (let index = 0; index < 3; index += 1) {
+		if (theirs[index]! !== mine[index]!) return theirs[index]! > mine[index]! ? published : undefined;
+	}
+	return undefined;
 }

@@ -75,10 +75,10 @@ test("drift names each marked file whose stamp shows another surface or none, wi
 	writeFileSync(join(dir, "AGENTS.md"), `${SURFACE_BEGIN}\n${BLOCK}\n${SURFACE_END}\n`);
 	writeFileSync(join(dir, "CLAUDE.md"), `${SURFACE_BEGIN}\nhand-written, no stamp\n${SURFACE_END}\n`);
 	writeFileSync(join(dir, "GEMINI.md"), "no markers\n");
-	assert.deepEqual(await surfaceDrift(dir, async () => SURFACE), ["CLAUDE.md's agent instructions do not match this nosedive: run nosedive seed"]);
+	assert.deepEqual(await surfaceDrift(dir, async () => SURFACE), ["warning: CLAUDE.md's agent instructions do not match this nosedive: run nosedive seed"]);
 	assert.deepEqual(await surfaceDrift(dir, async () => `${SURFACE}  next  Lists what is left\n`), [
-		"AGENTS.md's agent instructions do not match this nosedive: run nosedive seed",
-		"CLAUDE.md's agent instructions do not match this nosedive: run nosedive seed",
+		"warning: AGENTS.md's agent instructions do not match this nosedive: run nosedive seed",
+		"warning: CLAUDE.md's agent instructions do not match this nosedive: run nosedive seed",
 	]);
 	const unmarked = tempDir("agent-surface-empty");
 	writeFileSync(join(unmarked, "CLAUDE.md"), "# Mine\n");
@@ -103,22 +103,21 @@ test("the block's lines end as the file's do", async () => {
 	assert.deepEqual(await surfaceDrift(dir, async () => SURFACE), []);
 });
 
-test("launch reports drift on stderr before an action runs, never for seed, and says nothing once seed has written the surface", async () => {
-	const hero = gitRepo("agent-surface-launch");
+test("next warns of drift on stderr, other commands say nothing of it, and seed's rewrite quiets it", async () => {
+	const hero = gitRepo("agent-surface-next");
 	ok(await run(["seed", "--workspace"], hero));
 	assert.equal(git(["log", "-1", "--format=%s"], hero), `seed: ${hero.split("/").at(-1)} agent surface written`);
-	const clean = await run(["mint"], hero);
-	assert.equal(clean.err, "", "the block seed wrote matches the surface");
+	assert.equal((await run(["next"], hero)).err, "", "the block seed wrote matches the surface");
 	writeFileSync(join(hero, "AGENTS.md"), readFileSync(join(hero, "AGENTS.md"), "utf8").replace(/surface=[0-9a-f]{8}/, "surface=00000000"));
-	const drifted = await run(["mint"], hero);
-	assert.equal(drifted.code, 0);
-	assert.match(drifted.out, /^[0-9a-f-]{36}$/, "stdout stays the action's");
-	assert.equal(drifted.err, "AGENTS.md's agent instructions do not match this nosedive: run nosedive seed");
+	const drifted = await run(["next"], hero);
+	assert.equal(drifted.code, 0, "advice never fails next");
+	assert.equal(drifted.out, "nothing left to do", "stdout stays the list");
+	assert.equal(drifted.err, "warning: AGENTS.md's agent instructions do not match this nosedive: run nosedive seed");
+	assert.equal((await run(["mint"], hero)).err, "", "launch no longer checks drift (drift-in-next)");
 	const reseeded = await run(["seed"], hero);
-	assert.equal(reseeded.err, "", "seed reports no drift: it rewrites the block");
 	assert.equal(reseeded.code, 0);
 	assert.equal(git(["status", "--porcelain"], hero), "", "the hand edit is undone, and with HEAD's block back there is nothing to commit");
-	assert.equal((await run(["mint"], hero)).err, "");
+	assert.equal((await run(["next"], hero)).err, "");
 });
 
 test("seed prints the hint when instruction files exist but none is marked, and writes no surface for a local cape", async () => {
@@ -149,16 +148,16 @@ test("seed writes but never commits a file holding the pilot's uncommitted edits
 	assert.doesNotMatch(git(["log", "--format=%s"], hero), /agent surface written/);
 });
 
-test("launch reports no drift for --at another root, nor inside a local cape holding a marked file", async () => {
+test("next reports no drift for --at another root, nor inside a local cape holding a marked file", async () => {
 	const hero = await tempBridge("agent-surface-at");
 	await registerRepo(hero, "greet-cape", greetCapeRepo());
 	setCapes(hero, ["greet-cape"]);
 	ok(await run(["--at", "tools/spec", "seed", "--root-kind", "cape"], hero));
 	ok(await run(["seed"], hero));
 	assert.notEqual(ok(await run(["--at", "spec", "help", "--more"], hero)), ok(await run(["help", "--more"], hero)), "the hero wears greet-cape and its local cape does not");
-	assert.equal((await run(["--at", "spec", "mint"], hero)).err, "", "drift compares the primary root's surface, which seed writes");
+	assert.equal((await run(["--at", "spec", "next"], hero)).err, "", "drift compares the primary root's surface, which seed writes");
 	writeFileSync(join(hero, "tools", "spec", "CLAUDE.md"), `${SURFACE_BEGIN}\n${SURFACE_END}\n`);
-	assert.equal((await run(["mint"], join(hero, "tools", "spec"))).err, "", "a local cape has no surface of its own");
+	assert.equal((await run(["next"], join(hero, "tools", "spec"))).err, "", "a local cape has no surface of its own");
 });
 
 test("seed writes no surface for a cape, with a workspace or not, nor a base: only a hero gets one", async () => {
@@ -174,5 +173,5 @@ test("seed writes no surface for a cape, with a workspace or not, nor a base: on
 	git(["commit", "-qm", "marked"], base);
 	ok(await run(["seed"], base));
 	assert.equal(readFileSync(join(base, "CLAUDE.md"), "utf8"), `${SURFACE_BEGIN}\n${SURFACE_END}\n`, "a base is not worked in from its root, marked or not");
-	assert.equal((await run(["mint"], base)).err, "", "nor is it reported");
+	assert.equal((await run(["next"], base)).err, "", "nor is it reported");
 });

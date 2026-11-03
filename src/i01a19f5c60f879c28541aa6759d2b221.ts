@@ -109,6 +109,6 @@ export async function surfaceDrift(dir: string, render: () => Promise<string>): 
 	const digest = surfaceDigest(await render());
 	return marked.flatMap(({ file, found }) => {
 		const stamp = found.lines.slice(found.begin + 1, found.end).map((line) => STAMP.exec(line.replace(/\r$/, "").trim())).find(Boolean);
-		return stamp?.[2] === digest ? [] : [`${file}'s agent instructions do not match this nosedive: run nosedive seed`];
+		return stamp?.[2] === digest ? [] : [`warning: ${file}'s agent instructions do not match this nosedive: run nosedive seed`];
 	});
 }
