@@ -9,12 +9,9 @@ export const SURFACE_BEGIN = "<!-- BEGIN nosedive managed instructions -->";
 export const SURFACE_END = "<!-- END nosedive managed instructions -->";
 const STAMP = /^<!-- nosedive v=(\S+) surface=([0-9a-f]{8}) -->$/;
 
-/** The lines every block carries above the surface; the digest covers them too. */
-export const GUIDANCE = ["When the pilot needs help finding work, run `nosedive next`."];
-
-/** The first 8 hex of the sha256 of the guidance and the surface, trimmed, so two cores rendering the same block agree. */
+/** The first 8 hex of the sha256 of the surface, trimmed, so two cores rendering the same surface agree. */
 export function surfaceDigest(surface: string): string {
-	return createHash("sha256").update(`${GUIDANCE.join("\n")}\n\n${surface.trim()}`).digest("hex").slice(0, 8);
+	return createHash("sha256").update(surface.trim()).digest("hex").slice(0, 8);
 }
 
 /** Whether a directory has a surface of its own: the top of its git checkout, not a local cape inside a hero's. */
@@ -48,7 +45,7 @@ function block(surface: string, version: string): string[] {
 	const body = surface.trim();
 	const longest = Math.max(0, ...(body.match(/`+/g) ?? []).map((run) => run.length));
 	const fence = "`".repeat(Math.max(3, longest + 1));
-	return [`<!-- nosedive v=${version} surface=${surfaceDigest(body)} -->`, "", ...GUIDANCE.map((line) => `- ${line}`), "", fence, ...body.split("\n"), fence];
+	return [`<!-- nosedive v=${version} surface=${surfaceDigest(body)} -->`, "", fence, ...body.split("\n"), fence];
 }
 
 /**
