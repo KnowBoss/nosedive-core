@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { relative } from "node:path";
 import { CORE_OWNER, scopeEntries, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
-import { doneWhenOf, doneWhenSlips } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { dropWhenOf, dropWhenSlips } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc, kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import type { KbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
@@ -32,7 +32,7 @@ export type KbEdit = {
 
 /**
  * `version` is the core's, named in the co-author trailer of its commits; `capes` turn on the durable-link check; `warn` is told
- * of a kind doc whose Done when is amiss, or whose edit makes its kind durable or no longer durable.
+ * of a kind doc whose Drop when is amiss, or whose edit makes its kind durable or no longer durable.
  */
 export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, capes?: Cape[], warn?: (warning: string) => void): KbEdit {
 	const bridge = findBridge(cwd);
@@ -79,36 +79,42 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 	};
 }
 
-/** What a kind doc's edit says about its Done when, which decides whether its kind is durable. */
+/** What a kind doc's edit says about its Drop when, which decides whether its kind is durable. */
 function kindDocWarnings(doc: EditedDoc): string[] {
 	const holder = readRepoConfig(doc.repoDir)?.id;
 	const after = { fm: doc.yaml.toJS() as Record<string, unknown>, path: doc.path };
 	const kind = docKind(after, holder);
 	if (kind.owner !== CORE_OWNER || kind.name !== "kind") return [];
 	const name = `kind ${String(after.fm.name ?? doc.id)}`;
-	const warnings = doneWhenSlips(doc.body).map((slip) => `${name}: ${slip}`);
+	const warnings = dropWhenSlips(doc.body).map((slip) => `${name}: ${slip}`);
 	const before = readKbDoc(doc.text, doc.path);
 	const wasKind = (() => {
 		const was = docKind({ fm: before.fm, path: doc.path }, holder);
 		return was.owner === CORE_OWNER && was.name === "kind";
 	})();
-	const durable = doneWhenOf(doc.body) === undefined;
-	if (wasKind && (doneWhenOf(before.body) === undefined) !== durable) {
-		warnings.push(durable ? `${name} is now durable, since its doc no longer says when a doc of it is done` : `${name} is no longer durable, since its doc now says when a doc of it is done`);
+	const durable = dropWhenOf(doc.body) === undefined;
+	if (wasKind && (dropWhenOf(before.body) === undefined) !== durable) {
+		warnings.push(durable ? `${name} is now durable, since its doc no longer says how a doc of it is dropped` : `${name} is no longer durable, since its doc now says how a doc of it is dropped`);
 	}
 	return warnings;
 }
 
 type Linked = { fm: Record<string, unknown>; path: string; repoDir: string };
 
-/** A durable doc hangs only off a root or another durable doc; only the `.feat` links an edit adds are checked. */
+/** A durable doc hangs only off a root or another durable doc, and a spec only off a durable doc; only the links an edit adds are checked. */
 function refuseDurableUnderWork(bridge: Bridge, capes: Cape[], changed: EditedDoc[], find: (id: string) => Linked | undefined): void {
 	const durable = (doc: Linked) => isDurable(kindOfDoc(doc, bridge, capes).kind);
 	const isRoot = (doc: Linked) => [...bridge.roots, ...(readRepoConfig(doc.repoDir)?.roots ?? [])].some((root) => root.id === String(doc.fm.id));
 	const label = (doc: Linked) => `${String(doc.fm.kind)} ${String(doc.fm.name)}`;
 	for (const doc of changed) {
-		const before = new Set(linkedIds(readKbDoc(doc.text, doc.path)).map(({ id, rel }) => `${id} ${String(rel)}`));
+		const was = linkedIds(readKbDoc(doc.text, doc.path));
+		const before = new Set(was.map(({ id, rel }) => `${id} ${String(rel)}`));
+		// A spec the doc already linked may change its rel, as answering or superseding does; only a new one is checked.
+		const specced = new Set(was.filter(({ rel }) => typeof rel === "string" && rel.endsWith(".spec")).map(({ id }) => id));
 		for (const { id, rel } of linkedIds({ fm: doc.yaml.toJS() as Record<string, unknown> })) {
+			if (typeof rel === "string" && rel.endsWith(".spec") && !specced.has(id) && !durable(doc) && !isRoot(doc)) {
+				throw new Error(`${label(doc)} is not durable, so it cannot hold specs: a spec hangs off the durable doc it shapes, and work links to what it needs (specs-on-durable)`);
+			}
 			if (typeof rel !== "string" || !rel.endsWith(".feat") || before.has(`${id} ${rel}`)) continue;
 			const other = find(id);
 			if (!other) continue;

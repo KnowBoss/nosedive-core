@@ -101,7 +101,7 @@ export function i01a18e8044c97daeb0498ee7ad07bf43(dir: string, ctx: MigrationCtx
 		}
 		const capes = worn.owners.filter((owner) => name in owner.kinds);
 		if (capes.length > 1) ctx.out(`canonical-kinds: ${name} is declared by more than one cape (${capes.map((each) => each.name).join(", ")}), so it was not given to either`);
-		const declared = core.kinds[name] as { schema?: unknown; doneWhen?: string } | undefined;
+		const declared = core.kinds[name] as { schema?: unknown; dropWhen?: string } | undefined;
 		changed.add(mintKind(hero, name, named, declared));
 		ctx.out(`canonical-kinds: declared kind ${name} here, ${declared ? "as core declares it" : "open"}, for ${plural}${declared ? "" : ": it needs a definition"}`);
 	}
@@ -145,10 +145,10 @@ function wornKinds(hero: Bridge, ctx: MigrationCtx): { owners: Owner[]; unbuilt:
 }
 
 /**
- * Declares a kind of this name in the repo's `.nosedive/kinds/`: as core declares it when `declared` says how, its Done when copied
- * when core's has one, else open, asking the pilot to define it, and with a Done when that says so, which keeps it not durable. Returns its path.
+ * Declares a kind of this name in the repo's `.nosedive/kinds/`: as core declares it when `declared` says how, its Drop when copied
+ * when core's has one, else open, asking the pilot to define it, and with a Drop when that says so, which keeps it not durable. Returns its path.
  */
-function mintKind(hero: Bridge, name: string, named: Doc[], declared?: { schema?: unknown; doneWhen?: string }): string {
+function mintKind(hero: Bridge, name: string, named: Doc[], declared?: { schema?: unknown; dropWhen?: string }): string {
 	const seen = new Map<string, unknown>();
 	for (const doc of named) {
 		const meta = doc.fm.meta;
@@ -156,11 +156,11 @@ function mintKind(hero: Bridge, name: string, named: Doc[], declared?: { schema?
 		for (const [field, value] of Object.entries(meta)) if (!seen.has(field)) seen.set(field, value);
 	}
 	const minted = mintKbDoc(hero.kindsDir!, { kind: "kind", name, gist: `Found in use by the canonical-kinds migration, and ${declared ? "copied from core" : "not yet defined"}`, meta: { schema: declared ? declared.schema : { type: "object" } } });
-	// Core's durable kinds say no Done when; one not yet defined is passing work until the pilot says otherwise.
-	const doneWhen = declared ? declared.doneWhen : "Not yet defined: ask the pilot.";
+	// Core's durable kinds say no Drop when; one not yet defined is passing work until the pilot says otherwise.
+	const dropWhen = declared ? declared.dropWhen : "Not yet defined: ask the pilot.";
 	const fields = seen.size > 0 ? [...seen].map(([field, value]) => `- \`${field}\`: \`${sample(value)}\``).join("\n") : "No doc of it carries meta.";
 	const text = readFileSync(minted.path, "utf8");
-	writeFileSync(minted.path, `${text}\nThe canonical-kinds migration found docs of kind ${name} in this repo and no kind declaring it, so it declared this one, ${declared ? "as core declares it" : "with an open schema"}, to keep them valid. Pilot: say what ${name} is for${declared ? "." : ", and close its schema."}\n\n## Meta seen in use\n\n${fields}\n${doneWhen === undefined ? "" : `\n## Done when\n\n${doneWhen}\n`}`);
+	writeFileSync(minted.path, `${text}\nThe canonical-kinds migration found docs of kind ${name} in this repo and no kind declaring it, so it declared this one, ${declared ? "as core declares it" : "with an open schema"}, to keep them valid. Pilot: say what ${name} is for${declared ? "." : ", and close its schema."}\n\n## Meta seen in use\n\n${fields}\n${dropWhen === undefined ? "" : `\n## Drop when\n\n${dropWhen}\n`}`);
 	return minted.path;
 }
 

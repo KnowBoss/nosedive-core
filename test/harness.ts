@@ -234,11 +234,11 @@ export function lock(dir: string): void {
 export async function declareKinds(hero: string, ...names: string[]): Promise<void> {
 	for (const name of names) {
 		const path = ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], hero, "schema:\n  type: object\n  additionalProperties: true\n"));
-		ok(await run(["crud", path.replace(/^.*\/|\.md$/g, ""), "--section", "Done when", "-"], hero, `A ${name} is done when it is.\n`));
+		ok(await run(["crud", path.replace(/^.*\/|\.md$/g, ""), "--section", "Drop when", "-"], hero, `A ${name} is dropped once it is done.\n`));
 	}
 }
 
-/** Declares an open, durable kind in a hero, as its own: its doc has no Done when. */
+/** Declares an open, durable kind in a hero, as its own: its doc has no Drop when. */
 export async function declareDurable(hero: string, name: string): Promise<void> {
 	ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], hero, "schema:\n  type: object\n  additionalProperties: true\n"));
 }

@@ -66,3 +66,16 @@ test("keeps a durable doc unless --hard", async () => {
 	ok(await run(["crud", "--drop", idOf(path), "--hard"], bridge));
 	assert.equal(existsSync(join(bridge, path)), false);
 });
+
+test("refusing a linked doc of a droppable kind, says what its kind's Drop when asks (drop-when)", async () => {
+	const bridge = await tempBridge("crud-drop-terms");
+	await declareKinds(bridge, "goal");
+	const goal = ok(await run(["crud", "goal", "passing", "work"], bridge));
+	const note = ok(await run(["crud", "core:memo", "a", "note"], bridge));
+	ok(await run(["crud", idOf(note), "--links", "-"], bridge, `${goal}:\n  rel: see\n`));
+	const refused = await run(["crud", "--drop", idOf(goal)], bridge);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, /is still linked, so it was not dropped:\n {2}\S+ links it as see\n\nA goal is dropped when:\n {2}A goal is dropped once it is done\.$/);
+	const memo = await run(["crud", "--drop", idOf(note)], bridge);
+	assert.doesNotMatch(memo.err, /dropped when/, "a durable kind says no Drop when");
+});

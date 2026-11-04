@@ -14,9 +14,9 @@ const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 const rootOf = (bridge: string) => /roots:\r?\n {2}- (\S+)/.exec(readFileSync(join(bridge, ".nosedive", "config.yaml"), "utf8"))![1]!;
 
 /** Declares a kind of the hero's own, with its Done when when given. */
-async function kind(bridge: string, name: string, meta: string, doneWhen?: string): Promise<void> {
+async function kind(bridge: string, name: string, meta: string, dropWhen?: string): Promise<void> {
 	const path = ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], bridge, `schema:\n  type: object\n  additionalProperties: true\n${meta}`));
-	if (doneWhen) ok(await run(["crud", idOf(path), "--section", "Done when", "-"], bridge, `${doneWhen}\n`));
+	if (dropWhen) ok(await run(["crud", idOf(path), "--section", "Done when", "-"], bridge, `${dropWhen}\n`));
 }
 
 async function link(bridge: string, from: string, to: string, rel: string): Promise<void> {
@@ -57,14 +57,12 @@ test("lists the non-durable leaves the feats reach under the doc that reaches th
 		[
 			`${rootName}  ${root}`,
 			`  step loose  ${loose}`,
-			"    done when: It is landed or bailed.",
 			`feat  ${feat}`,
 			`  step one  ${one}`,
-			"    done when: It is landed or bailed.",
 			`  step two  ${two}`,
-			"    done when: It is landed or bailed.",
 			`  ask question  ${question}`,
-			"    done when: It is answered.",
+			"",
+			"pick one; its kind's Drop when, which crud --drop quotes when it refuses, says what dropping it takes; then: nosedive crud --drop <quid>",
 		].join("\n"),
 	);
 });
@@ -77,24 +75,26 @@ test("passes over a doc whose kind's doc has no Done when, since that kind is du
 	assert.equal(ok(await run(["next"], bridge)), "nothing left to do");
 });
 
-test("lists a doc whose kind's Done when section is empty, saying so", async () => {
+test("lists a doc whose kind's Drop when section is empty, printing no done condition for it or any", async () => {
 	const bridge = await tempBridge("next-empty-done-when");
 	const path = ok(await run(["crud", "core:kind", "a step", "--name", "step", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: true\n"));
-	appendFileSync(join(bridge, path), "\n## Done when\n");
+	appendFileSync(join(bridge, path), "\n## Drop when\n");
 	const step = ok(await run(["crud", "step", "one", "--name", "one"], bridge));
 	await link(bridge, rootOf(bridge), step, "work.feat");
-	assert.match(ok(await run(["next"], bridge)), /\n {4}done when: its kind's Done when section is empty; read the doc$/);
+	const out = ok(await run(["next"], bridge));
+	assert.match(out, /\n {2}step one {2}\S+\n\npick one; its kind's Drop when, which crud --drop quotes when it refuses, says what dropping it takes; then: nosedive crud --drop <quid>$/);
+	assert.doesNotMatch(out, /done when/, "what done looks like is read once one is picked (next-lists-droppable)");
 });
 
-test("crud says when an edit of a kind's Done when makes it durable or not", async () => {
+test("crud says when an edit of a kind's Drop when makes it durable or not", async () => {
 	const bridge = await tempBridge("next-done-when-flips");
 	const path = ok(await run(["crud", "core:kind", "a step", "--name", "step", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: true\n"));
-	const added = await run(["crud", idOf(path), "--section", "Done when", "-"], bridge, "It is landed.\n");
-	assert.match(added.err, /kind step is no longer durable, since its doc now says when a doc of it is done/);
-	const reworded = await run(["crud", idOf(path), "--section", "Done when", "-"], bridge, "It is landed or bailed.\n");
+	const added = await run(["crud", idOf(path), "--section", "Drop when", "-"], bridge, "It is landed.\n");
+	assert.match(added.err, /kind step is no longer durable, since its doc now says how a doc of it is dropped/);
+	const reworded = await run(["crud", idOf(path), "--section", "Drop when", "-"], bridge, "It is landed or bailed.\n");
 	assert.doesNotMatch(reworded.err, /durable/, "rewording it changes nothing");
-	const removed = await run(["crud", idOf(path), "--section", "Done when", "-"], bridge, "");
-	assert.match(removed.err, /kind step is now durable, since its doc no longer says when a doc of it is done/);
+	const removed = await run(["crud", idOf(path), "--section", "Drop when", "-"], bridge, "");
+	assert.match(removed.err, /kind step is now durable, since its doc no longer says how a doc of it is dropped/);
 });
 
 test("fetches origin first, and still lists but exits 1 when the hero is behind its trunk", async () => {

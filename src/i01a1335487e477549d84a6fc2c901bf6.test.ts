@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource, doneWhenOf, doneWhenSlips, namedExports, schemaDigest } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource, dropWhenOf, dropWhenSlips, namedExports, schemaDigest } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { repoDir } from "../scripts/source-cape.mjs";
 import { CANONICAL, git, gitRepo, ok, run, tempDir } from "../test/harness.ts";
@@ -61,31 +61,32 @@ test("reads the kinds a repo keeps in .nosedive/kinds/ as well as its kb's", () 
 	assert.deepEqual((kinds.idea as { next?: string[] }).next, ["open.spec"]);
 });
 
-test("records the first line of a kind doc's Done when section, and nothing for a doc without one", () => {
+test("records a kind doc's Drop when section whole, read from a legacy Done when too, and nothing for a doc without one", () => {
 	const dir = tempDir("describe-done-when");
 	mkdirSync(join(dir, ".nosedive", "kinds"), { recursive: true });
 	mkdirSync(join(dir, "kb"));
 	writeFileSync(join(dir, ".nosedive", "kinds", "01a175e2-0000-7000-8000-000000000001.md"), "---\nkind: kind\nid: 01a175e2-0000-7000-8000-000000000001\nname: idea\n---\n\n# Idea\n\n## Done when\n\n  It is built or let go.\nMore on that.\n\n## Later\n\nnot this\n");
 	writeFileSync(join(dir, ".nosedive", "kinds", "01a175e2-0000-7000-8000-000000000002.md"), "---\nkind: kind\nid: 01a175e2-0000-7000-8000-000000000002\nname: goal\n---\n\n# Goal\n\n### Done when\n\nnot a section of its own\n");
 	const { kinds } = describeCapeSource(dir);
-	assert.equal((kinds.idea as { doneWhen?: string }).doneWhen, "It is built or let go.");
-	assert.equal("doneWhen" in (kinds.goal as object), false);
+	assert.equal((kinds.idea as { dropWhen?: string }).dropWhen, "It is built or let go.\nMore on that.", "for crud --drop to quote, up to the next heading");
+	assert.equal("dropWhen" in (kinds.goal as object), false);
 });
 
 test("reads a Done when heading in any case, and records an empty section as empty, not as none", () => {
-	assert.equal(doneWhenOf("# Idea\n\n## Done When\n\nIt ships.\n"), "It ships.");
-	assert.equal(doneWhenOf("# Idea\n\n## done when\n\n## Later\n\nnot this\n"), "");
-	assert.equal(doneWhenOf("# Idea\n\n## Done when\n"), "");
-	assert.equal(doneWhenOf("# Idea\n\n### Done when\n\nIt ships.\n"), undefined);
-	assert.equal(doneWhenOf("# Idea\n\n## Done when:\n\nIt ships.\n"), undefined);
+	assert.equal(dropWhenOf("# Idea\n\n## Done When\n\nIt ships.\n"), "It ships.");
+	assert.equal(dropWhenOf("# Idea\n\n## Drop when\n\nIt ships.\n\n## Done when\n\nOld.\n"), "It ships.", "Drop when first");
+	assert.equal(dropWhenOf("# Idea\n\n## done when\n\n## Later\n\nnot this\n"), "");
+	assert.equal(dropWhenOf("# Idea\n\n## Done when\n"), "");
+	assert.equal(dropWhenOf("# Idea\n\n### Done when\n\nIt ships.\n"), undefined);
+	assert.equal(dropWhenOf("# Idea\n\n## Done when:\n\nIt ships.\n"), undefined);
 });
 
 test("names a heading that looks like Done when but is not read as one, and an empty section", () => {
-	assert.deepEqual(doneWhenSlips("# Idea\n\n## Done when\n\nIt ships.\n"), []);
-	assert.deepEqual(doneWhenSlips("# Idea\n\nNo section, so durable.\n"), []);
-	assert.deepEqual(doneWhenSlips("# Idea\n\n### Done when\n\nIt ships.\n"), ['its heading "### Done when" is not read as a Done when section, which is `## Done when`']);
-	assert.deepEqual(doneWhenSlips("# Idea\n\n##Done when\n\nIt ships.\n"), ['its heading "##Done when" is not read as a Done when section, which is `## Done when`']);
-	assert.deepEqual(doneWhenSlips("# Idea\n\n## Done when\n"), ["its Done when section is empty: say when a doc of it is done"]);
+	assert.deepEqual(dropWhenSlips("# Idea\n\n## Done when\n\nIt ships.\n"), []);
+	assert.deepEqual(dropWhenSlips("# Idea\n\nNo section, so durable.\n"), []);
+	assert.deepEqual(dropWhenSlips("# Idea\n\n### Done when\n\nIt ships.\n"), ['its heading "### Done when" is not read as a Drop when section, which is `## Drop when`']);
+	assert.deepEqual(dropWhenSlips("# Idea\n\n##Drop when\n\nIt ships.\n"), ['its heading "##Drop when" is not read as a Drop when section, which is `## Drop when`']);
+	assert.deepEqual(dropWhenSlips("# Idea\n\n## Drop when\n"), ["its Drop when section is empty: say how a doc of it is dropped"]);
 });
 
 test("counts a doc as an action only when its kind is core's: a canonical scope says so, and a repo's own kind of that name is another", async () => {

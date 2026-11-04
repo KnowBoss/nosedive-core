@@ -62,17 +62,12 @@ export async function ibc5113a84ba55195add71cac33f0bf20(_args: Args, ctx: Ctx): 
 		lines.push(`${String(parent.fm.name)}  ${at(parent)}`);
 		for (const doc of docs.values()) {
 			const found = kindOf(doc);
-			lines.push(`  ${spell(found)} ${String(doc.fm.name)}  ${at(doc)}`, `    done when: ${doneWhenLine(found.kind)}`);
+			lines.push(`  ${spell(found)} ${String(doc.fm.name)}  ${at(doc)}`);
 		}
 	}
-	ctx.out(lines.length > 0 ? lines.join("\n") : "nothing left to do");
+	// What done looks like is read once one is picked (next-lists-droppable); working it ends in dropping it.
+	ctx.out(lines.length > 0 ? [...lines, "", "pick one; its kind's Drop when, which crud --drop quotes when it refuses, says what dropping it takes; then: nosedive crud --drop <quid>"].join("\n") : "nothing left to do");
 	if (gap) throw new Error(`the hero is behind ${gap.trunk}`);
-}
-
-/** A listed doc's kind is not durable, so it has a Done when, which says nothing only when its section is empty, or no declaration at all. */
-function doneWhenLine(kind: KindMeta | undefined): string {
-	if (!kind) return "its kind is not declared; read the doc";
-	return kind.doneWhen || "its kind's Done when section is empty; read the doc";
 }
 
 /** How far the hero's HEAD is behind origin's trunk after fetching it; nothing when it has no origin or is not behind. */

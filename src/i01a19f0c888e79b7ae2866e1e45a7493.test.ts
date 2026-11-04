@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { parse } from "yaml";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a19f0c888e79b7ae2866e1e45a7493 as durableFromDoneWhen, UNSAID_DONE_WHEN } from "./i01a19f0c888e79b7ae2866e1e45a7493.ts";
-import { doneWhenOf } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { dropWhenOf } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 import { CANONICAL, gitRepo } from "../test/harness.ts";
@@ -52,11 +52,11 @@ test("drops meta.durable, keeping each kind as durable as it was, and gives a Do
 	assert.deepEqual(new Set(durableFromDoneWhen(dir, ctx)), new Set([keep, memo, step, legacy]));
 	for (const path of [keep, memo, step, legacy]) assert.equal("durable" in fm(path).meta, false, path);
 	assert.deepEqual(fm(step).meta.next, ["open.spec"], "the rest of its meta is kept");
-	assert.equal(doneWhenOf(readFileSync(keep, "utf8")), undefined, "keep stays durable");
-	assert.equal(doneWhenOf(readFileSync(memo, "utf8")), "It is settled.", "memo's own Done when is kept");
-	assert.equal(doneWhenOf(readFileSync(step, "utf8")), UNSAID_DONE_WHEN, "step stays passing work");
+	assert.equal(dropWhenOf(readFileSync(keep, "utf8")), undefined, "keep stays durable");
+	assert.equal(dropWhenOf(readFileSync(memo, "utf8")), "It is settled.", "memo's own Done when is kept");
+	assert.equal(dropWhenOf(readFileSync(step, "utf8")), UNSAID_DONE_WHEN, "step stays passing work");
 	assert.match(readFileSync(step, "utf8"), /## Later\n\nKept as it is\.\n\n## Done when\n\nNot yet said: ask the pilot\.\n$/, "appended after the rest of its body");
-	assert.equal(doneWhenOf(readFileSync(legacy, "utf8")), UNSAID_DONE_WHEN, "a kind doc of core's in a root's kb too");
+	assert.equal(dropWhenOf(readFileSync(legacy, "utf8")), UNSAID_DONE_WHEN, "a kind doc of core's in a root's kb too");
 	assert.equal(readFileSync(plain, "utf8"), plainBefore, "a kind doc without the flag is left as it is");
 	assert.equal(readFileSync(note, "utf8"), noteBefore, "a doc of another kind is not a kind doc");
 	assert.match(said.join("\n"), /kind keep stays durable, having no Done when/);

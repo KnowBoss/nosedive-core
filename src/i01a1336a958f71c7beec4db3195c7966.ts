@@ -52,7 +52,7 @@ export type Cape = {
 	version: string;
 	docs: Record<string, CapeDoc>;
 	index: Record<string, unknown>;
-	/** Each kind the cape declares: its name, to its declaration's meta (schema, doneWhen) and links. */
+	/** Each kind the cape declares: its name, to its declaration's meta (schema, dropWhen) and links. */
 	kinds: Record<string, unknown>;
 	/** The values its source files export besides their default functions, which a cape that imports them from it is given. */
 	named?: Record<string, unknown>;

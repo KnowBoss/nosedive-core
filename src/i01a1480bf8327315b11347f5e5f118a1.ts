@@ -60,7 +60,14 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	}
 	if (blockers.length > 0) {
 		const head = one ? `${docs[0]!.label} is still linked, so it was not dropped` : `docs outside the list still link to these, so none was dropped`;
-		throw new Error(`${head}:\n  ${blockers.join("\n  ")}`);
+		// What dropping one takes, as each droppable kind among them says it (drop-when).
+		const said = new Map<string, string>();
+		for (const { doc } of docs) {
+			const { kind } = kindOfDoc(doc, bridge, capes);
+			if (kind?.dropWhen && !said.has(kind.name)) said.set(kind.name, kind.dropWhen);
+		}
+		const terms = [...said].map(([name, text]) => `\n\nA ${name} is dropped when:\n  ${text.split("\n").join("\n  ")}`).join("");
+		throw new Error(`${head}:\n  ${blockers.join("\n  ")}${terms}`);
 	}
 
 	if (!hard) {

@@ -11,8 +11,8 @@ import { i01a18e40518e7f15a2066909dca2be43 as listKinds } from "./i01a18e40518e7
 /** A kind's meta, with its links, which name the gates its docs pass through, and who owns it. */
 export type KindMeta = {
 	schema?: unknown;
-	/** The first line of its doc's `## Done when` section, empty when the section is; absent when the doc has none, which makes the kind durable. */
-	doneWhen?: string;
+	/** Its doc's `## Drop when` section, trimmed (or a legacy `## Done when`), empty when the section is; absent when the doc has none, which makes the kind durable. */
+	dropWhen?: string;
 	/** Rels by which a walked doc linking a doc of this kind makes `next` list it. */
 	next?: string[];
 	links?: unknown;
@@ -35,10 +35,10 @@ export type KindMeta = {
 
 /**
  * Whether docs of a kind are kept, not passing work: a kind is durable when its doc does not say when one of it is done, in a
- * `## Done when` section. A doc whose kind nothing declares is never durable.
+ * `## Drop when` section. A doc whose kind nothing declares is never durable.
  */
 export function isDurable(kind: KindMeta | undefined): boolean {
-	return kind !== undefined && kind.doneWhen === undefined;
+	return kind !== undefined && kind.dropWhen === undefined;
 }
 
 /**

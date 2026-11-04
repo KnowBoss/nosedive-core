@@ -17,7 +17,7 @@ export type CapeBuild = {
 	coreVersion: string;
 	/** The top-level user actions it provides: name to gist. */
 	actions: Record<string, string>;
-	/** The kinds it declares: name to declaration (schema, doneWhen, links, version); missing from builds older than kinds. */
+	/** The kinds it declares: name to declaration (schema, dropWhen, links, version); missing from builds older than kinds. */
 	kinds?: Record<string, unknown>;
 	/** The capes it imports, by repo name: their ids. */
 	needs: Record<string, string>;

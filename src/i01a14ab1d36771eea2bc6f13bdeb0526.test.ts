@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { i01a133588bcc7f8bae725ff70d8f6800 as updateKbDocField } from "./i01a133588bcc7f8bae725ff70d8f6800.ts";
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
-import { checkedOut, declareDurable, git, ok, run, tempBridge, tempDir, kbOf, kbPath } from "../test/harness.ts";
+import { checkedOut, declareDurable, declareKinds, git, ok, run, tempBridge, tempDir, kbOf, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 const WORKSPACE_DOC = "01a14ab4-cb92-7dba-bd33-79535603579d";
@@ -132,4 +132,24 @@ test("leaves a link the doc held before the edit alone", async () => {
 	writeFileSync(path, readFileSync(path, "utf8").replace(/\n---\n/, `\nlinks:\n  - ${memo}:\n      rel: parent.feat\n---\n`));
 	git(["commit", "-qam", "held"], bridge);
 	ok(await run(["crud", idOf(kept), "--gist", "still kept"], bridge));
+});
+
+test("refuses a new .spec link from a doc that is not durable, takes one from a durable doc, and lets a spec already linked change its rel (specs-on-durable)", async () => {
+	const { bridge } = await keepingBridge("edit-specs-on-durable");
+	await declareKinds(bridge, "goal");
+	const goal = ok(await run(["crud", "goal", "work"], bridge));
+	const memo = ok(await run(["crud", "core:memo", "what", "lasts"], bridge));
+	const spec = ok(await run(["crud", "keep", "a", "decision"], bridge));
+	const refused = await run(["crud", idOf(goal), "--links", "-"], bridge, `${spec}:\n  rel: closed.spec\n`);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, /goal \S+ is not durable, so it cannot hold specs: a spec hangs off the durable doc it shapes, and work links to what it needs \(specs-on-durable\)/);
+	assert.doesNotMatch(readFileSync(join(bridge, goal), "utf8"), /closed\.spec/, "nothing was written");
+	ok(await run(["crud", idOf(memo), "--links", "-"], bridge, `${spec}:\n  rel: closed.spec\n`));
+
+	// A spec a goal held from before the rule is answered or superseded in place.
+	const text = readFileSync(join(bridge, goal), "utf8").replace(/\n---\n/, `\nlinks:\n  - ${spec}:\n      rel: open.spec\n---\n`);
+	writeFileSync(join(bridge, goal), text);
+	git(["add", goal], bridge);
+	git(["commit", "-qm", "an old spec"], bridge);
+	ok(await run(["crud", idOf(goal), "--links", "-"], bridge, `${spec}:\n  rel: closed.spec\n`));
 });
