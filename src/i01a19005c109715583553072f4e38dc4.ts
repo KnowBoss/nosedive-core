@@ -1,8 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
-import { i01a1901e263b7209a4b5f39a71c568b3 as featWalk, heldDives, linkedIds } from "./i01a1901e263b7209a4b5f39a71c568b3.ts";
+import { i01a1901e263b7209a4b5f39a71c568b3 as featWalk, linkedIds } from "./i01a1901e263b7209a4b5f39a71c568b3.ts";
 
 const FEAT_OR_SPEC = /\.(feat|spec)$/;
 
@@ -16,30 +15,25 @@ export function i01a19005c109715583553072f4e38dc4(bridge: Bridge, action: string
 	return subjectLine(featNameOf(bridge, ids), action, what);
 }
 
-/** Who holds a dive from a checkout of the hero: `<email>#<hash of its path, branch and email>`; nothing when git lacks an email or the checkout a branch. */
-export function holderToken(dir: string): string | undefined {
-	const git = (...args: string[]) => spawnSync("git", args, { cwd: dir, encoding: "utf8" }).stdout.trim();
-	const [email, top, branch] = [git("config", "user.email"), git("rev-parse", "--show-toplevel"), git("symbolic-ref", "-q", "--short", "HEAD")];
-	if (!email || !top || !branch) return undefined;
-	return `${email}#${createHash("sha256").update(`${top}/${branch}/${email}`).digest("hex").slice(0, 12)}`;
+const QUID_LAST = /(?:^|\/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+
+/** The feat the hero's branch names: the quid its last path segment is, when the feat tree holds it, as a work loop's branch names the feat it works. */
+function branchFeat(bridge: Bridge): string | undefined {
+	const branch = spawnSync("git", ["symbolic-ref", "-q", "--short", "HEAD"], { cwd: bridge.dir, encoding: "utf8" }).stdout.trim();
+	return QUID_LAST.exec(branch)?.[1];
 }
 
-/** The name of the feat to group a commit under: the held dive's, else the first the touched docs other than roots have; nothing when none is found, several dives are held, or a doc will not read. */
+/** The name of the feat to group a commit under: the one the hero's branch names, else the first the touched docs other than roots have; nothing when none is found or a doc will not read. */
 export function featNameOf(bridge: Bridge, ids: string[]): string | undefined {
 	try {
 		const walk = featWalk(bridge);
+		// A feat is named by its own name, whatever its kind: core knows feats by the role of the links reaching them.
 		const nameOf = (id: string): string | undefined => {
-			const doc = walk.docs.get(id);
-			// A dive belongs to its feat.
-			if (doc?.fm.kind === "dive") return nameOf(String((doc.fm.meta as { feat?: unknown } | undefined)?.feat));
-			const name = doc?.fm.name;
+			const name = walk.docs.get(id)?.fm.name;
 			return name === undefined ? undefined : String(name);
 		};
-		const token = holderToken(bridge.dir);
-		const held = token ? heldDives(bridge, token, walk) : [];
-		if (held.length > 1) return undefined;
-		const heldFeat = held[0] && nameOf(String((held[0].fm.meta as { feat?: unknown }).feat));
-		if (heldFeat) return heldFeat;
+		const onBranch = branchFeat(bridge);
+		if (onBranch && walk.feats.has(onBranch)) return nameOf(onBranch);
 		for (const id of ids) {
 			if (walk.feats.has(id)) return nameOf(id);
 			// A root's .feat links go down to the feats it holds.

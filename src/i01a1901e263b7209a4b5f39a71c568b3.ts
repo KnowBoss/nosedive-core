@@ -67,19 +67,6 @@ export function linkedIds(doc: { fm: Record<string, unknown> }): { id: string; r
 	);
 }
 
-/** Every dive the walk reached that is not over: a doc of kind `dive` with no `meta.outcome`. */
-export function openDives(bridge: Bridge, walk: FeatWalk = i01a1901e263b7209a4b5f39a71c568b3(bridge)): HeroDoc[] {
-	return [...walk.feats.keys()].flatMap((id) => {
-		const doc = walk.docs.get(id);
-		return doc && doc.fm.kind === "dive" && !(doc.fm.meta as { outcome?: unknown } | undefined)?.outcome ? [doc] : [];
-	});
-}
-
-/** The open dives whose `meta.diver` is the holder token. */
-export function heldDives(bridge: Bridge, token: string, walk?: FeatWalk): HeroDoc[] {
-	return openDives(bridge, walk).filter((doc) => (doc.fm.meta as { diver?: unknown } | undefined)?.diver === token);
-}
-
 function inHero(bridge: Bridge, id: string): HeroDoc | undefined {
 	const dirs = [...(bridge.kindsDir ? [bridge.kindsDir] : []), ...(bridge.reposDir ? [bridge.reposDir] : []), ...bridge.roots.map((root) => root.dir), bridge.kbDir];
 	for (const kbDir of new Set(dirs)) {

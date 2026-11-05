@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { holderToken, subjectLine } from "./i01a19005c109715583553072f4e38dc4.ts";
+import { subjectLine } from "./i01a19005c109715583553072f4e38dc4.ts";
 import { git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
@@ -78,43 +78,33 @@ async function dive(bridge: string, feat: string, n: number, meta: { diver: stri
 	if (meta.linked !== false) ok(await run(["crud", idOf(feat), "--links", "-"], bridge, `${kbPath(bridge, id)}: {rel: dives.feat}\n`));
 }
 
-test("the feat of the dive this worktree holds wins, for a mint too; an over dive holds nothing", async () => {
-	const { bridge, noteId, feat } = await heroWithFeat("subject-held");
-	const token = holderToken(bridge)!;
-	assert.match(token, /^core@example\.com#[0-9a-f]{12}$/);
+test("the feat the hero's branch names wins, for a mint too, by its own name whatever its kind", async () => {
+	const { bridge, noteId, feat } = await heroWithFeat("subject-branch");
 	const other = ok(await run(["crud", "core:memo", "other", "--name", "other"], bridge));
 	ok(await run(["crud", findBridge(bridge)!.root!, "--links", "-"], bridge, `${other}: {rel: work.feat}\n`));
-	await dive(bridge, other, 1, { diver: token });
-	ok(await run(["crud", noteId, "--gist", "held"], bridge));
-	assert.equal(subject(bridge), "feat(other): crud gist");
+	// A dive is a feat by its dives.feat link; core reads neither its kind nor its meta.
+	await dive(bridge, other, 1, { diver: "anyone" });
+	git(["switch", "-q", "-c", "nosedive/0123456789ab/01a19005-0000-7000-8000-000000000001"], bridge);
+	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
+	assert.equal(subject(bridge), "feat(ideas.000001): crud gist");
 	ok(await run(["crud", "core:memo", "fresh"], bridge));
-	assert.equal(subject(bridge), "feat(other): crud core:memo");
-	ok(await run(["crud", idOf(feat), "--gist", "held too"], bridge));
-	assert.equal(subject(bridge), "feat(other): crud gist", "over the doc's own feat");
+	assert.equal(subject(bridge), "feat(ideas.000001): crud core:memo");
+	ok(await run(["crud", idOf(feat), "--gist", "its own feat"], bridge));
+	assert.equal(subject(bridge), "feat(ideas.000001): crud gist", "over the doc's own feat");
 
-	await dive(bridge, other, 1, { diver: token, outcome: "landed", linked: false });
-	ok(await run(["crud", noteId, "--gist", "free"], bridge));
-	assert.equal(subject(bridge), "crud: gist");
+	git(["switch", "-q", "-c", `topic/${idOf(other)}`], bridge);
+	ok(await run(["crud", noteId, "--gist", "any branch ending in a feat's quid"], bridge));
+	assert.equal(subject(bridge), "feat(other): crud gist");
 });
 
-test("a dive held by another worktree's token, or reachable by no feat's link, is no one's here", async () => {
-	const { bridge, noteId, feat } = await heroWithFeat("subject-not-held");
-	await dive(bridge, feat, 1, { diver: "core@example.com#000000000000" });
-	ok(await run(["crud", noteId, "--gist", "theirs"], bridge));
-	assert.equal(subject(bridge), "crud: gist");
-	await dive(bridge, feat, 2, { diver: holderToken(bridge)!, linked: false });
+test("a branch naming a quid no feat's link reaches, or none, names no feat", async () => {
+	const { bridge, noteId, feat } = await heroWithFeat("subject-branch-none");
+	await dive(bridge, feat, 2, { diver: "anyone", linked: false });
+	git(["switch", "-q", "-c", "nosedive/0123456789ab/01a19005-0000-7000-8000-000000000002"], bridge);
 	ok(await run(["crud", noteId, "--gist", "unlinked"], bridge));
-	assert.equal(subject(bridge), "crud: gist", "a dive no feat links is not found by reading the kb");
-});
-
-test("two held dives make the subject plain, even for a doc with a feat of its own", async () => {
-	const { bridge, feat, featId } = await heroWithFeat("subject-two-held");
-	const token = holderToken(bridge)!;
-	await dive(bridge, feat, 1, { diver: token });
-	ok(await run(["crud", featId, "--gist", "one"], bridge));
-	assert.equal(subject(bridge), "feat(ideas): crud gist");
-	await dive(bridge, feat, 2, { diver: token });
-	ok(await run(["crud", featId, "--gist", "two"], bridge));
+	assert.equal(subject(bridge), "crud: gist", "a doc no feat links is not found by reading the kb");
+	git(["switch", "-q", "-c", "plain"], bridge);
+	ok(await run(["crud", noteId, "--gist", "plain"], bridge));
 	assert.equal(subject(bridge), "crud: gist");
 });
 
