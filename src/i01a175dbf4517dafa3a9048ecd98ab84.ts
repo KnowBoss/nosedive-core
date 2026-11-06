@@ -9,6 +9,7 @@ import { i01a18e8044c97daeb0498ee7ad07bf43 as canonicalKinds } from "./i01a18e80
 import { i01a1928d0d6873538e60181957211490 as heroSelf } from "./i01a1928d0d6873538e60181957211490.ts";
 import { i01a19f0c888e79b7ae2866e1e45a7493 as durableFromDoneWhen } from "./i01a19f0c888e79b7ae2866e1e45a7493.ts";
 import { i01a1a7181a447bbb991c9a0f584f2549 as dropWhen } from "./i01a1a7181a447bbb991c9a0f584f2549.ts";
+import { i01a1b15ad92b7f44ae1b3f41e24eb3ef as legacyRepoMeta } from "./i01a1b15ad92b7f44ae1b3f41e24eb3ef.ts";
 
 /** What a migration may ask of core: the capes it is running with, and a way to say something. */
 export type MigrationCtx = Pick<Ctx, "capes" | "out">;
@@ -23,6 +24,7 @@ export const MIGRATIONS: Migration[] = [
 	{ id: "01a1928d-0d68-7353-8e60-181957211490", name: "hero-self", run: heroSelf },
 	{ id: "01a19f0c-888e-79b7-ae28-66e1e45a7493", name: "durable-from-done-when", run: durableFromDoneWhen },
 	{ id: "01a1a718-1a44-7bbb-991c-9a0f584f2549", name: "drop-when", run: dropWhen },
+	{ id: "01a1b15a-d92b-7f44-ae1b-3f41e24eb3ef", name: "legacy-repo-meta", run: legacyRepoMeta },
 ];
 
 export function i01a175dbf4517dafa3a9048ecd98ab84(dir: string, ctx: MigrationCtx, chain = MIGRATIONS): string[] {
