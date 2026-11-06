@@ -21,6 +21,7 @@ import { i01a175dbf4517dafa3a9048ecd98ab84 as runMigrations, MIGRATIONS } from "
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
+import { i01a1b30d4b537775a4e1260cd7fb9067 as runCapeMigrations } from "./i01a1b30d4b537775a4e1260cd7fb9067.ts";
 
 /** Relative to .nosedive/: built capes, and what this checkout remembers for itself. */
 const NOSEDIVE_IGNORES = ["cache/", "capes/", "local/"];
@@ -229,6 +230,8 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		}
 	}
 	migrateAgain();
+	// Each worn cape's own migrations run after core's, against what core's left (cape-migration-order).
+	for (const name of await runCapeMigrations(dir, ctx)) ctx.out(`migrated ${repo}: ${name}`);
 	try {
 		await writeSurface();
 	} catch (err) {

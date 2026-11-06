@@ -37,7 +37,8 @@ export function i01a175dbf4517dafa3a9048ecd98ab84(dir: string, ctx: MigrationCtx
 	const upTo = typeof last === "string" ? chain.findIndex((each) => each.id === last) : -1;
 	if (typeof last === "string" && upTo < 0) throw newerCore(configPath, last);
 	const ran = [...new Set([...chain.slice(0, upTo + 1).map((each) => each.id), ...listed])];
-	for (const id of ran) if (!chain.some((each) => each.id === id)) throw newerCore(configPath, id);
+	// `<cape repo id>:<migration id>` is a cape's, which run-cape-migrations runs (cape-migration-ids).
+	for (const id of ran) if (!id.includes(":") && !chain.some((each) => each.id === id)) throw newerCore(configPath, id);
 
 	const pending = chain.filter((each) => !ran.includes(each.id));
 	const listAlone = () => {
