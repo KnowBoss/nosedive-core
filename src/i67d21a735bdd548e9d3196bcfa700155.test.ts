@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
+import { parseDocument } from "yaml";
 import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
@@ -189,8 +190,12 @@ test("migrates an older config first, its backlog becoming its one root, and say
 	writeFileSync(config, `kb: ./kb\nbacklog: ${root}\n`);
 	git(["add", "-A"], dir);
 	git(["commit", "-qm", "older"], dir);
-	assert.match(ok(await run(["seed", "--no-capes"], dir)), new RegExp(`^migrated ${basename(dir)}: baseline$`, "m"));
-	assert.equal(readFileSync(config, "utf8"), `id: ${root}\nroots:\n  - kb/${root}.md\nmigrations:\n${LISTED}`);
+	const said = ok(await run(["seed", "--no-capes"], dir));
+	assert.match(said, new RegExp(`^migrated ${basename(dir)}: legacy-capes\nmigrated ${basename(dir)}: baseline$`, "m"));
+	// A legacy hero now wears the work and legacy capes, which --no-capes does not build, so canonical-kinds waits for them.
+	assert.match(said, /^canonical-kinds: waiting for nosedive-work, nosedive-legacy to build/m);
+	const after = parseDocument(readFileSync(config, "utf8")).toJS() as Record<string, unknown>;
+	assert.deepEqual(after, { migrations: MIGRATIONS.slice(0, 2).map((migration) => migration.id), id: root, roots: [`kb/${root}.md`] });
 	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), /\nkind: base\n/);
 	assert.match(git(["log", "--format=%s"], dir), /\nmigrate: baseline\n/);
 	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], dir)), /migrated/, "once");
