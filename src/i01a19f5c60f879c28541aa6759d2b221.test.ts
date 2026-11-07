@@ -4,13 +4,15 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, SURFACE_BEGIN, SURFACE_END, surfaceDigest, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
+import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, FENCE_LINE, SURFACE_BEGIN, SURFACE_END, surfaceDigest, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
 const SURFACE = "Usage: nosedive [--at <target>] <action> [<args>]\n\ncore\n  seed  Makes a bridge\n";
 const STAMP = `<!-- nosedive v=1.0 surface=${surfaceDigest(SURFACE)} -->`;
 const BLOCK = [
 	STAMP,
+	"",
+	FENCE_LINE,
 	"",
 	"```",
 	SURFACE.trim(),
@@ -41,6 +43,16 @@ test("stamps core's version and the digest of the surface, the first 8 hex of it
 	writeFileSync(join(dir, "AGENTS.md"), `${SURFACE_BEGIN}\n${SURFACE_END}\n`);
 	writeAgentSurface(dir, SURFACE, "2026.11.3-1");
 	assert.equal(readFileSync(join(dir, "AGENTS.md"), "utf8").split("\n")[1], `<!-- nosedive v=2026.11.3-1 surface=${surfaceDigest(SURFACE)} -->`);
+});
+
+test("the fence line comes before the surface, telling an agent with legacy nosedive to stop", () => {
+	const dir = tempDir("agent-surface-fence-line");
+	writeFileSync(join(dir, "AGENTS.md"), `${SURFACE_BEGIN}\n${SURFACE_END}\n`);
+	writeAgentSurface(dir, SURFACE, "1.0");
+	const lines = readFileSync(join(dir, "AGENTS.md"), "utf8").split("\n");
+	assert.equal(lines[3], FENCE_LINE);
+	assert.match(FENCE_LINE, /`Usage: nosedive <command>`, you have legacy nosedive/);
+	assert.equal(lines[5], "```");
 });
 
 test("fences the surface with more backticks than any run in it", () => {

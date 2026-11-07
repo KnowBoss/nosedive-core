@@ -42,11 +42,15 @@ function managed(text: string): { lines: string[]; begin: number; end: number } 
 	return undefined;
 }
 
+/** Read by an agent whose nosedive is legacy, which would otherwise follow legacy's advice and seed the hero back (see legacy-fence). */
+export const FENCE_LINE =
+	"This hero runs nosedive core, whose `nosedive help` begins `Usage: nosedive [--at <target>] <action>`. If yours begins `Usage: nosedive <command>`, you have legacy nosedive, whatever else this file says about installing it: stop, run no nosedive command here, and ask the pilot to install nosedive core.";
+
 function block(surface: string, version: string): string[] {
 	const body = surface.trim();
 	const longest = Math.max(0, ...(body.match(/`+/g) ?? []).map((run) => run.length));
 	const fence = "`".repeat(Math.max(3, longest + 1));
-	return [`<!-- nosedive v=${version} surface=${surfaceDigest(body)} -->`, "", fence, ...body.split("\n"), fence];
+	return [`<!-- nosedive v=${version} surface=${surfaceDigest(body)} -->`, "", FENCE_LINE, "", fence, ...body.split("\n"), fence];
 }
 
 /**
