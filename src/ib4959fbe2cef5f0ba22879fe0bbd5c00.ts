@@ -28,9 +28,13 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 	const [core, ...capes] = ctx.capes as [Cape, ...Cape[]];
 	const base = await buildBase(bridge, core);
 	if (base && !capes.includes(base)) capes.unshift(base);
-	for (const { build } of configuredCapes(bridge, core)) {
-		if (build && !capes.some((cape) => cape.id === build.id)) capes.push(await loadCape(bridge.dir, build, core));
+	// A worn cape with no build for this core has no gates here, and says so rather than seeming to have none (unbuilt-said).
+	const unbuilt: string[] = [];
+	for (const { build, name } of configuredCapes(bridge, core)) {
+		if (!build) unbuilt.push(name);
+		else if (!capes.some((cape) => cape.id === build.id)) capes.push(await loadCape(bridge.dir, build, core));
 	}
+	const missing = unbuilt.map((name) => `\n\n${name}\n  not built: run \`nosedive seed\`, until then its gates are missing`).join("");
 	const all = [core, ...capes];
 
 	// pass knows no sect itself: its gates' usages say what it takes.
@@ -44,7 +48,7 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 				: [],
 		),
 	);
-	const listing = groupedListing(usages, bridge, all);
+	const listing = groupedListing(usages, bridge, all) + missing;
 	if (argv.length === 0 || argv[0] === "--help") {
 		ctx.out([Object.values(core.docs).find((candidate) => candidate.name === "pass")!.gist, "", listing || "  (no gate declares a usage)"].join("\n"));
 		return;

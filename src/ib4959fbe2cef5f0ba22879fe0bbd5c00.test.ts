@@ -76,6 +76,16 @@ test("the commit names the feat of the doc passed, and ends with nosedive's co-a
 	assert.equal(git(["log", "-1", "--format=%(trailers:only,unfold)"], bridge).trim(), "Co-Authored-By: nosedive source <noreply@nosedive.dev>");
 });
 
+test("a worn cape with no build for this core is listed as not built, not left out", async () => {
+	const bridge = await tempBridge("pass-unbuilt");
+	await registerRepo(bridge, "stamp-cape", stampCapeRepo());
+	setCapes(bridge, ["stamp-cape"]);
+	const listed = ok(await run(["pass"], bridge));
+	assert.match(listed, /\nstamp-cape\n {2}not built: run `nosedive seed`, until then its gates are missing/);
+	const refused = await run(["pass", "--stamp", "01a14b36-0000-7000-8000-000000000000"], bridge);
+	assert.match(refused.err, /no gate usage matches[^]*stamp-cape\n {2}not built/);
+});
+
 test("fails fast, and writes nothing when a gate fails", async () => {
 	const { bridge, memo, path } = await stampBridge("pass-refuse");
 	const before = readFileSync(join(bridge, path), "utf8");
