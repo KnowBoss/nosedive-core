@@ -135,6 +135,23 @@ test("builds the capes a root other than the primary wears, so they run there (s
 	assert.match((await run(["greet", "ann"], bridge)).err, /unknown action: greet/, "the primary wears it not");
 });
 
+test("scaffolds a cape's missing code files in one commit, and no hero's (seed-scaffolds-capes)", async () => {
+	const dir = gitRepo("seed-scaffolds");
+	ok(await run(["seed", "--root-kind", "cape"], dir));
+	const id = "01a1335b-f253-7b80-ab64-d2f9a03c9634";
+	writeFileSync(join(kbOf(dir), `${id}.md`), `---\nkind: action\nid: ${id}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\nscopes:\n  - ${CORE}:\n      canonical: true\n---\n`);
+	git(["add", "-A"], dir);
+	git(["commit", "-qm", "an action doc"], dir);
+	const out = ok(await run(["seed"], dir));
+	assert.match(out, new RegExp(`scaffolded ${basename(dir)}:\\n {2}created src/i${id.replace(/-/g, "")}\\.ts\\n`));
+	assert.equal(git(["log", "-1", "--format=%s"], dir), `seed: ${basename(dir)} scaffolded`);
+	assert.equal(git(["status", "--porcelain"], dir), "", "all of it committed");
+	assert.doesNotMatch(ok(await run(["seed"], dir)), /scaffolded/, "nothing left to scaffold");
+
+	const hero = await tempBridge("seed-scaffolds-hero");
+	assert.doesNotMatch(ok(await run(["seed"], hero)), /scaffolded/);
+});
+
 test("builds a pinned commit once, of a cape, and --no-capes builds nothing", async () => {
 	const bridge = await tempBridge("seed-pinned");
 	const repo = greetCapeRepo();

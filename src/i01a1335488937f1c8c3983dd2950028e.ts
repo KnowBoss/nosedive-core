@@ -24,7 +24,7 @@ export function i01a1335488937f1c8c3983dd2950028e(repoDir: string): string[] {
 		if (clash) problems.push(`${label}: name also used by ${docPath(clash)}`);
 		names.set(doc.name, entry.id);
 		if (codeSection(doc.body, doc, entry.name).trim() !== doc.body.trim()) {
-			problems.push(`${label}: its ## Code section is missing or stale; run scaf`);
+			problems.push(`${label}: its ## Code section is missing or stale; run seed`);
 		}
 
 		const entryFile = `src/${entry.name}.ts`;

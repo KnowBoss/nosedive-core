@@ -22,6 +22,7 @@ import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a76
 import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import { i01a1b30d4b537775a4e1260cd7fb9067 as runCapeMigrations } from "./i01a1b30d4b537775a4e1260cd7fb9067.ts";
+import { i01a133547f5f7c45a3fb2ac0e3a7678e as scaffoldCape } from "./i01a133547f5f7c45a3fb2ac0e3a7678e.ts";
 
 /** Relative to .nosedive/: built capes, and what this checkout remembers for itself. */
 const NOSEDIVE_IGNORES = ["cache/", "capes/", "local/"];
@@ -176,6 +177,13 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		ctx.out(registered ? `registered ${repo}` : `seeded ${repo}`);
 	} else {
 		ctx.out(`${repo} is already seeded`);
+	}
+
+	// A cape's code files exist as soon as its docs call for them (seed-scaffolds-capes).
+	if (findRoot(dir, "cape")) {
+		const scaffolded = scaffoldCape(dir);
+		if (scaffolded.written.length > 0) commitFiles(top, scaffolded.written.map((file) => join(dir, file)), `seed: ${repo} scaffolded`, ctx.capes[0]!.version);
+		if (scaffolded.lines.join() !== "nothing to scaffold") ctx.out([`scaffolded ${repo}:`, ...scaffolded.lines.map((line) => `  ${line}`)].join("\n"));
 	}
 
 	// Each root's body is its tree, rendered from its links.
