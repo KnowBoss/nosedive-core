@@ -51,8 +51,8 @@ export function i01a1335488937f1c8c3983dd2950028e(repoDir: string): string[] {
 			const test = `src/i${usage.id}.test.ts`;
 			expected.add(impl);
 			exportingSource(repoDir, impl, `i${usage.id}`, usageLabel, problems);
-			// A gate's usage is a test, so it has none of its own.
-			if (!gate) {
+			// A gate's usage is a test, so it has none of its own; a crud gate's is behaviour, and has its tests (see crud-gates).
+			if (!gate || gateUsage(usage.text)?.when) {
 				expected.add(test);
 				if (!existsSync(join(repoDir, test))) problems.push(`${usageLabel}: missing ${test}`);
 			}

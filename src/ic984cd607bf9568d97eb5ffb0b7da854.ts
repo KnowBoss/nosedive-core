@@ -128,6 +128,8 @@ function scaffold(repoDir: string, group: Group): string[] {
 				// A gate's usage impl takes the pass's GateCtx, and is a test itself.
 				if (gateUsage(usage.text)) {
 					write(`src/i${usage.id}.ts`, gateStub(`i${usage.id}`, usage.text, types));
+					// A crud gate is behaviour, not a check, so it has tests of its own.
+					if (gateUsage(usage.text)!.when) write(`src/i${usage.id}.test.ts`, testStub(usage.text));
 					continue;
 				}
 				write(`src/i${usage.id}.ts`, implStub(`i${usage.id}`, usage.text, types));
