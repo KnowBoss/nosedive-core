@@ -43,8 +43,11 @@ export async function i01a1337c81b57799820f96a757b791d0(
 		log(`cape ${repo.name}: using ${repo.dir ? "local cape" : "workspace checkout"} ${dir}`);
 		commit = git(dir, "rev-parse", "HEAD");
 	} else {
-		if (existsSync(dir)) git(dir, "fetch", "-q", "origin");
-		else git(bridge.dir, "clone", "-q", repo.remote, dir);
+		if (existsSync(dir)) {
+			// The repo doc says where the cape is now; a clone keeps whatever origin it was made with.
+			git(dir, "remote", "set-url", "origin", repo.remote);
+			git(dir, "fetch", "-q", "origin");
+		} else git(bridge.dir, "clone", "-q", repo.remote, dir);
 		const target = COMMIT.test(ref) ? ref : `origin/${ref || trunk(dir)}`;
 		commit = git(dir, "rev-parse", `${target}^{commit}`);
 		git(dir, "checkout", "-q", "--detach", commit);

@@ -97,6 +97,22 @@ test("builds the capes a cape imports first, and runs across them", async () => 
 	assert.match(ok(await run(["wave", "bo"], bridge)), /^hello bo /);
 });
 
+test("fetches a cape from the origin its repo doc names now, not the one its clone was made with", async () => {
+	const first = greetCapeRepo();
+	const dir = await tempBridge("build-cape-origin");
+	const id = await registerRepo(dir, "greet-cape", first);
+	const bridge = findBridge(dir)!;
+	await buildCape(bridge, findRepoDoc(bridge, "greet-cape"), "", core);
+	const moved = join(dir, "..", `${id}-moved.git`);
+	git(["clone", "-q", "--bare", first, moved], dir);
+	const only = git(["commit-tree", "-p", "HEAD", "-m", "only on the new origin", "HEAD^{tree}"], first);
+	git(["push", "-q", moved, `${only}:refs/heads/main`], first);
+	const doc = join(dir, ".nosedive", "repos", `${id}.md`);
+	writeFileSync(doc, readFileSync(doc, "utf8").replace(JSON.stringify(first), JSON.stringify(moved)));
+	const cape = await buildCape(findBridge(dir)!, findRepoDoc(findBridge(dir)!, "greet-cape"), only, core);
+	assert.equal(cape.commit, only);
+});
+
 test("refuses a repo whose root is not a cape", async () => {
 	await assert.rejects((await build(greetCapeRepo({ plain: true }))).built(), /greet-cape is not a cape: it has no root/);
 });
