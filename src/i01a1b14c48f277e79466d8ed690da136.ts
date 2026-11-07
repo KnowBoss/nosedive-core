@@ -13,14 +13,14 @@ export const LEGACY_CAPES = [
 		name: "nosedive-work",
 		gist: "The cape holding feat, dive, jump, pack, bail, land and merge",
 		origin: "https://github.com/KnowBoss/nosedive-work.git",
-		commit: "0923731abe60080cb1903da91d87d3962dc56ce0",
+		commit: "1fec3a9edc34431416b6402e796694dd2e533a66",
 	},
 	{
 		id: "01a1b13e-111d-73de-8f7d-41b47af07703",
 		name: "nosedive-legacy",
 		gist: "The cape holding legacy nosedive's test, hydrate-repo.workspace, dehydrate-repo.workspace, record.gate and note",
 		origin: "https://github.com/KnowBoss/nosedive-legacy.git",
-		commit: "458d22bb6e74fa823389264467a5320229d353ea",
+		commit: "7dc20c6fcb7eed960e763b162465599b84954615",
 	},
 ];
 
