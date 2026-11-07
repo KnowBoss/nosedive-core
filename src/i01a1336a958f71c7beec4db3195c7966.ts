@@ -73,6 +73,8 @@ export type GateCtx = {
 	edit: KbEdit;
 	/** Applies one crud edit, named as its flag, in the pass's edit: `crud(quid, "meta", { trunk: "main" })`. */
 	crud(quid: string, key: string, value: unknown): void;
+	/** Mints a doc into a kb directory for the pass, as mint-kb-doc does, ready for `crud`; removed again if the pass fails. */
+	mint(kbDir: string, doc: { kind: string; gist: string; name?: string; title?: string }): { id: string; name: string; path: string };
 	out(text: string): void;
 	err(text: string): void;
 };

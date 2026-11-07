@@ -1,5 +1,6 @@
-import { existsSync, statSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { existsSync, statSync, unlinkSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import type { Args, Cape, CapeDoc, Ctx, GateCtx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import { i01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./i01a1335482437c9eb145885f65f12aa1.ts";
@@ -13,6 +14,7 @@ import { i01a14b30eb0e72e28934c918000a26ac as loadCape } from "./i01a14b30eb0e72
 import { i01a14b30ecc07ea18999d6255d636e39 as crudEdit } from "./i01a14b30ecc07ea18999d6255d636e39.ts";
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 import { i01a14fb79db47f8b94d5196027008697 as buildBase } from "./i01a14fb79db47f8b94d5196027008697.ts";
+import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
 
 const ANY = "any doc";
 const QUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
@@ -90,6 +92,35 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 		throw new Error(`no ${sect} gate ${name} passes through takes \`pass ${argv.join(" ")}\` for a ${kind}; their usages:\n${theirs.join("\n")}`);
 	}
 
+	// Whatever fails from here on, the docs gates minted go again (gate-mints-roll-back).
+	const minted: string[] = [];
+	const mint: GateCtx["mint"] = (kbDir, fields) => {
+		const made = mintKbDoc(kbDir, fields);
+		minted.push(made.path);
+		// The pass's edit finds only docs git tracks.
+		const added = spawnSync("git", ["add", "-N", "--", made.path], { cwd: kbDir, encoding: "utf8" });
+		if (added.status !== 0) throw new Error(`git add -N ${made.path}: ${(added.stderr || added.stdout).trim()}`);
+		return made;
+	};
+	try {
+		await runGates(runs, matched, key, { core, capes, bridge, doc, edit, mint }, ctx);
+		const written = edit.commit({ action: "pass", what: sect });
+		if (written.length > 0) ctx.out(written.join("\n"));
+	} catch (error) {
+		for (const path of minted) {
+			spawnSync("git", ["rm", "--cached", "-q", "-f", "--", path], { cwd: dirname(path) });
+			try {
+				unlinkSync(path);
+			} catch {
+				// The pass's own error is the one to report.
+			}
+		}
+		throw error;
+	}
+}
+
+async function runGates(runs: Usage[], matched: Map<Usage, Args>, key: string, shared: Pick<GateCtx, "core" | "capes" | "bridge" | "doc" | "edit" | "mint">, ctx: Ctx): Promise<void> {
+	const { core, capes, bridge, doc, edit, mint } = shared;
 	for (const usage of runs) {
 		const args = { ...matched.get(usage)! };
 		delete args[key];
@@ -100,6 +131,7 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 			doc,
 			args,
 			edit,
+			mint,
 			crud: (target, field, value) => crudEdit(edit, target, field, value, ctx),
 			out: ctx.out,
 			err: ctx.err,
@@ -113,8 +145,6 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 		}
 		ctx.out(`gate ${usage.doc.name}: passed`);
 	}
-	const written = edit.commit({ action: "pass", what: sect });
-	if (written.length > 0) ctx.out(written.join("\n"));
 }
 
 /** The gate usages under each kind that links their gate as `<sect>.gate`, by the kind's spelling, then the rest under `any doc`. */

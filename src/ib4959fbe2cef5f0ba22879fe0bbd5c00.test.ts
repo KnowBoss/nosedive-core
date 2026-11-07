@@ -35,7 +35,7 @@ function stampCapeRepo(): string {
 		".nosedive/config.yaml": `roots:\n  - kb/${ROOT}.md\n`,
 		[`kb/${ROOT}.md`]: `---\nkind: cape\nid: ${ROOT}\nname: stamp-cape\n${CANONICAL}---\n`,
 		...gate(STAMP, "stamp", "pass --stamp <quid> [--loud]", '\tctx.crud(ctx.doc.id, "gist", ctx.args.loud ? "STAMPED" : "stamped");\n\tctx.crud(ctx.doc.id, "section", { heading: "Stamp", text: `by ${ctx.doc.fm.kind}, with ${Object.keys(ctx.args).join(" and ")}` });\n\tctx.out("stamping");'),
-		...gate(REFUSE, "refuse", "pass --stamp <quid> [--refuse]", '\tif (ctx.args.refuse) throw new Error("asked to refuse");'),
+		...gate(REFUSE, "refuse", "pass --stamp <quid> [--refuse]", '\tif (!ctx.args.refuse) return;\n\tctx.mint(ctx.doc.kbDir, { kind: "memo", gist: "minted before refusing" });\n\tthrow new Error("asked to refuse");'),
 	};
 	for (const [file, text] of Object.entries(files)) {
 		mkdirSync(join(dir, dirname(file)), { recursive: true });
@@ -80,11 +80,13 @@ test("fails fast, and writes nothing when a gate fails", async () => {
 	const { bridge, memo, path } = await stampBridge("pass-refuse");
 	const before = readFileSync(join(bridge, path), "utf8");
 	const head = git(["rev-parse", "HEAD"], bridge);
+	const status = git(["status", "--porcelain"], bridge);
 	const refused = await run(["pass", "--stamp", memo, "--refuse"], bridge);
 	assert.equal(refused.code, 1);
 	assert.match(refused.err, /gate refuse failed, so nothing was written: asked to refuse/);
 	assert.equal(readFileSync(join(bridge, path), "utf8"), before);
 	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+	assert.equal(git(["status", "--porcelain"], bridge), status, "the doc the gate minted is gone, from the index too");
 });
 
 test("lists its gates' usages, and refuses argv none matches or a doc that links no gate in the sect", async () => {
