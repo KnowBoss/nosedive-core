@@ -21,7 +21,8 @@ export type Ctx = {
 	capes: Cape[];
 };
 
-export type Args = Record<string, string | string[] | boolean | undefined>;
+/** An option family's values, `--meta:<key> <value>`, are keyed by the family's name and colon (`meta:`), each key's value by its key. */
+export type Args = Record<string, string | string[] | boolean | Record<string, string> | undefined>;
 
 /** `gate` is set when pass calls a gate: what its usage impl takes. */
 export type ActionCall = { usage: string; args: Args; ctx: Ctx; gate?: GateCtx };

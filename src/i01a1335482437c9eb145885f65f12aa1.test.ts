@@ -32,6 +32,18 @@ test("refuses no match and more than one, listing the usages", () => {
 	assert.throws(() => matchUsage(["x <a>", "x <b>"], ["x", "1"]), /matches more than one usage/);
 });
 
+test("an option family gathers each of its keys and values, in order, inline or not", () => {
+	const usages = ["crud <kind> <gist>... [--meta:<path> <value>]... [--section:<path> <source>]..."];
+	assert.deepEqual(matchUsage(usages, ["crud", "dive", "a", "b", "--meta:feat", "f", "--section:Brief", "-", "--meta:x.y=1"]), {
+		index: 0,
+		args: { "meta:": { feat: "f", "x.y": "1" }, "section:": { Brief: "-" }, kind: "dive", gist: ["a", "b"] },
+	});
+	assert.deepEqual(matchUsage(usages, ["crud", "dive", "a"]).args, { "meta:": {}, "section:": {}, kind: "dive", gist: ["a"] });
+	assert.throws(() => matchUsage(usages, ["crud", "dive", "a", "--meta:feat", "f", "--meta:feat", "g"]), /no usage matches/, "a key given twice");
+	assert.throws(() => matchUsage(usages, ["crud", "dive", "a", "--meta:", "f"]), /no usage matches/, "a family with no key");
+	assert.throws(() => matchUsage(usages, ["crud", "dive", "a", "--meta:feat"]), /no usage matches/, "a key with no value");
+});
+
 test("a usage ending in <argv>... takes the rest of the command line, options too", () => {
 	const usages = ["pass [<argv>...]"];
 	assert.deepEqual(matchUsage(usages, ["pass", "--home", "q", "--sync"]), { index: 0, args: { argv: ["--home", "q", "--sync"] } });

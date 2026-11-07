@@ -3,7 +3,9 @@ import type { Args } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 type Element =
 	| { kind: "literal"; word: string; optional: boolean }
 	| { kind: "positional"; key: string; repeat: boolean; optional: boolean }
-	| { kind: "option"; flag: string; key: string; takesValue: boolean; optional: boolean };
+	| { kind: "option"; flag: string; key: string; takesValue: boolean; optional: boolean }
+	/** `--meta:<key> <value>`: any number of `--meta:<some key> <value>`, gathered by key under `meta:`. */
+	| { kind: "family"; prefix: string; key: string; optional: boolean };
 
 export function i01a1335482437c9eb145885f65f12aa1(usages: string[], argv: string[]): { index: number; args: Args } {
 	const matches = usages.flatMap((usage, index) => {
@@ -29,8 +31,15 @@ function parseUsage(usage: string): Element[] {
 		else if (token === "]") depth -= 1;
 		else if (token === "...") {
 			const last = elements.at(-1);
+			// A family repeats already; its `...` only says so.
+			if (last?.kind === "family") continue;
 			if (last?.kind !== "positional") throw new Error(`\`...\` must follow an <argument> in: ${usage}`);
 			last.repeat = true;
+		} else if (/^--[a-z0-9-]+:<.+>$/.test(token)) {
+			if (!/^<.+>$/.test(tokens[i + 1] ?? "")) throw new Error(`${token} must be followed by its <value> in: ${usage}`);
+			i += 1;
+			const prefix = token.slice(0, token.indexOf(":") + 1);
+			elements.push({ kind: "family", prefix, key: `${keyOf(prefix.slice(0, -1))}:`, optional });
 		} else if (token.startsWith("--")) {
 			const [flag, inline] = token.split("=", 2) as [string, string | undefined];
 			const takesValue = inline !== undefined || /^<.+>$/.test(tokens[i + 1] ?? "");
@@ -55,11 +64,13 @@ function keyOf(token: string): string {
 
 function matchOne(elements: Element[], argv: string[]): Args | undefined {
 	const options = elements.filter((element) => element.kind === "option");
+	const families = elements.filter((element) => element.kind === "family");
 	const args: Args = {};
 	for (const option of options) args[option.key] = option.takesValue ? undefined : false;
+	for (const family of families) args[family.key] = {};
 	// A usage ending in `<argv>...`, with no options, takes the rest of the command line as it is.
 	const last = elements.at(-1);
-	const raw = last?.kind === "positional" && last.repeat && last.key === "argv" && options.length === 0;
+	const raw = last?.kind === "positional" && last.repeat && last.key === "argv" && options.length === 0 && families.length === 0;
 
 	const positionals: string[] = [];
 	for (let i = 0; i < argv.length; i += 1) {
@@ -69,6 +80,16 @@ function matchOne(elements: Element[], argv: string[]): Args | undefined {
 			continue;
 		}
 		const [flag, inline] = token.split("=", 2) as [string, string | undefined];
+		const family = families.find((candidate) => flag.startsWith(candidate.prefix) && flag.length > candidate.prefix.length);
+		if (family) {
+			const keyed = args[family.key] as Record<string, string>;
+			const name = flag.slice(family.prefix.length);
+			const value = inline ?? argv[i + 1];
+			if (value === undefined || name in keyed) return undefined;
+			keyed[name] = value;
+			if (inline === undefined) i += 1;
+			continue;
+		}
 		const option = options.find((candidate) => candidate.flag === flag);
 		if (!option || args[option.key] !== undefined && args[option.key] !== false) return undefined;
 		if (!option.takesValue) {
@@ -86,8 +107,9 @@ function matchOne(elements: Element[], argv: string[]): Args | undefined {
 	if (options.some((option) => !option.optional && (args[option.key] === undefined || args[option.key] === false))) {
 		return undefined;
 	}
+	if (families.some((family) => !family.optional && Object.keys(args[family.key] as object).length === 0)) return undefined;
 
-	const sequence = elements.filter((element) => element.kind !== "option");
+	const sequence = elements.filter((element) => element.kind !== "option" && element.kind !== "family");
 	const bound = bind(sequence, positionals, 0, 0);
 	if (!bound) return undefined;
 	for (const element of sequence) if (element.kind === "positional") args[element.key] = bound[element.key];
