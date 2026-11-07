@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, FENCE_LINE, SURFACE_BEGIN, SURFACE_END, surfaceDigest, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
+import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, DROPPED_LINE, FENCE_LINE, SURFACE_BEGIN, SURFACE_END, surfaceDigest, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
 const SURFACE = "Usage: nosedive [--at <target>] <action> [<args>]\n\ncore\n  seed  Makes a bridge\n";
@@ -13,6 +13,8 @@ const BLOCK = [
 	STAMP,
 	"",
 	FENCE_LINE,
+	"",
+	DROPPED_LINE,
 	"",
 	"```",
 	SURFACE.trim(),
@@ -52,7 +54,8 @@ test("the fence line comes before the surface, telling an agent with legacy nose
 	const lines = readFileSync(join(dir, "AGENTS.md"), "utf8").split("\n");
 	assert.equal(lines[3], FENCE_LINE);
 	assert.match(FENCE_LINE, /`Usage: nosedive <command>`, you have legacy nosedive/);
-	assert.equal(lines[5], "```");
+	assert.equal(lines[5], DROPPED_LINE, "then how a dropped doc is read back");
+	assert.equal(lines[7], "```");
 });
 
 test("fences the surface with more backticks than any run in it", () => {

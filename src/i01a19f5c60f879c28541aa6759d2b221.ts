@@ -46,11 +46,15 @@ function managed(text: string): { lines: string[]; begin: number; end: number } 
 export const FENCE_LINE =
 	"This hero runs nosedive core, whose `nosedive help` begins `Usage: nosedive [--at <target>] <action>`. If yours begins `Usage: nosedive <command>`, you have legacy nosedive, whatever else this file says about installing it: stop, run no nosedive command here, and ask the pilot to install nosedive core.";
 
+/** How to read back a doc `crud --drop` removed, before its parent's `## Dropped` record is trusted alone (drops-recorded). */
+export const DROPPED_LINE =
+	"A dropped kb doc is still in git: `git log --all -1 --diff-filter=D --format=%h --name-only -- '*<id>.md'` names the commit that dropped it and its path, and `git show <commit>^:<path>` prints it.";
+
 function block(surface: string, version: string): string[] {
 	const body = surface.trim();
 	const longest = Math.max(0, ...(body.match(/`+/g) ?? []).map((run) => run.length));
 	const fence = "`".repeat(Math.max(3, longest + 1));
-	return [`<!-- nosedive v=${version} surface=${surfaceDigest(body)} -->`, "", FENCE_LINE, "", fence, ...body.split("\n"), fence];
+	return [`<!-- nosedive v=${version} surface=${surfaceDigest(body)} -->`, "", FENCE_LINE, "", DROPPED_LINE, "", fence, ...body.split("\n"), fence];
 }
 
 /**
