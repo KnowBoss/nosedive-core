@@ -4,12 +4,14 @@ import { i01a1480bf8327315b11347f5e5f118a1 as dropKbDocs } from "./i01a1480bf832
 import { gateDrop } from "./i01a1b453a16c799bb9ce20fad1a9075b.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** A line may be a doc's path, as `next` prints it (listed-paths-accepted). */
+const LISTED = /^(?:.*[\\/])?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.md$/;
 
 /** `sure` drops those that hang from no doc, as `crud --drop-list <source> --sure` does. */
 export async function i4d86421616655ccebfcb884e0f35ff56(source: string, hard: boolean, ctx: Ctx, sure = false): Promise<void> {
 	const ids = (await readText(source, ctx))
 		.split(/\r?\n/)
-		.map((line) => line.trim().toLowerCase())
+		.map((line) => line.trim().toLowerCase().replace(LISTED, "$1"))
 		.filter(Boolean);
 	const bad = ids.filter((id) => !QUID.test(id));
 	if (bad.length > 0) throw new Error(`--drop-list takes one quid per line, not: ${bad.join(", ")}`);

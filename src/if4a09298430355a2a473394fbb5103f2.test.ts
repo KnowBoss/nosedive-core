@@ -26,5 +26,15 @@ test("says where it looked when the doc is nowhere", async () => {
 test("refuses what is not a quid", async () => {
 	const result = await run(["crud", "nope"], tempDir("crud-read-bad"));
 	assert.equal(result.code, 1);
-	assert.match(result.err, /not a quid: nope/);
+	assert.match(result.err, /not a quid: nope \(give a quid, or a path ending <quid>\.md\)/);
+	assert.match((await run(["crud", "kb/nope.md"], tempDir("crud-read-bad-path"))).err, /not a quid: kb\/nope\.md/);
+});
+
+test("takes a doc's path as next prints it, for its quid, its edits too (listed-paths-accepted)", async () => {
+	const bridge = await tempBridge("crud-read-path");
+	const path = ok(await run(["crud", "core:memo", "read", "me"], bridge));
+	assert.match(ok(await run(["crud", path], bridge)), /# read me$/);
+	assert.match(ok(await run(["crud", path.toUpperCase().replace(/\.MD$/, ".md")], bridge)), /# read me$/, "in any case");
+	assert.equal(ok(await run(["crud", path, "--gist", "renamed"], bridge)), path);
+	assert.match(ok(await run(["crud", path.replace(/\//g, "\\")], bridge)), /\ngist: "renamed"\n/, "a Windows path too");
 });

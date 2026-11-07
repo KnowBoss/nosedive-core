@@ -26,6 +26,7 @@ import { i859f923b4af35dfe968bad37c2bbdfe1 } from "./i859f923b4af35dfe968bad37c2
 import { id9fb53df0d40519da77bfe4bc92d4355 } from "./id9fb53df0d40519da77bfe4bc92d4355.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LISTED = /^(?:.*[\\/])?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.md$/i;
 const SLUG = /^[a-z0-9][a-z0-9.-]*$/;
 
 export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promise<void> {
@@ -124,9 +125,11 @@ async function single(ctx: Ctx, name: string | string[], apply: (edit: KbEdit) =
 	}
 }
 
+/** A quid, or a doc's path ending `<quid>.md`, as `next` prints it (listed-paths-accepted). */
 function quid(value: unknown): string {
-	if (!QUID.test(String(value))) throw new Error(`not a quid: ${String(value)}`);
-	return String(value).toLowerCase();
+	const id = String(value).replace(LISTED, "$1");
+	if (!QUID.test(id)) throw new Error(`not a quid: ${String(value)} (give a quid, or a path ending <quid>.md)`);
+	return id.toLowerCase();
 }
 
 function slug(value: unknown, what: string): string {
