@@ -75,6 +75,10 @@ export type GateCtx = {
 	crud(quid: string, key: string, value: unknown): void;
 	/** Mints a doc into a kb directory for the pass, as mint-kb-doc does, ready for `crud`; removed again if the pass fails. */
 	mint(kbDir: string, doc: { kind: string; gist: string; name?: string; title?: string }): { id: string; name: string; path: string };
+	/** For a crud gate: when it runs, and the doc as it was and as it will be, either missing for a mint or a drop (see crud-gates). */
+	when?: "before" | "after";
+	before?: { fm: Record<string, unknown>; body: string };
+	after?: { fm: Record<string, unknown>; body: string };
 	out(text: string): void;
 	err(text: string): void;
 };

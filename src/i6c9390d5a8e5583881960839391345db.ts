@@ -12,6 +12,8 @@ import { i01a138b2b8ef7e8097e19d599ba39bcc as checkMeta } from "./i01a138b2b8ef7
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
 import { i01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "./i01a13354850c7ba3ba5b8ac41a7b6b11.ts";
 import { i01a19005c109715583553072f4e38dc4 as commitSubject } from "./i01a19005c109715583553072f4e38dc4.ts";
+import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
+import { discardMinted, gateEdit } from "./i01a1b453a16c799bb9ce20fad1a9075b.ts";
 
 const KIND_OF_KINDS = "01a138b2-b8e9-7f63-9068-f1439b9cb8c9";
 const REPO_KIND = "01a138b2-b8eb-79e8-9d77-6e8379ec18e3";
@@ -36,9 +38,30 @@ export async function i6c9390d5a8e5583881960839391345db(
 	const holder = docKind({ fm: { kind: kind.name }, path: join(kbDir, "doc.md") }).owner;
 	const scopes = kind.owner !== holder ? [{ [kind.owner]: { canonical: true, ...pinOf(kind, bridge) } }] : undefined;
 	const minted = mintKbDoc(kbDir, { kind: kind.name, gist: doc.gist, name: doc.name, meta: meta as Record<string, unknown>, scopes });
-	// git finds the repo holding the doc from its directory, a checkout's included.
-	commitFiles(kbDir, [minted.path], commitSubject(bridge, "crud", doc.kind), ctx.capes[0]!.version);
+	// Its kind's crud gates see it minted and may shape it; whatever fails, it goes again (see crud-gates).
+	const discard = [minted.path];
+	try {
+		spawnSync("git", ["add", "-N", "--", minted.path], { cwd: kbDir });
+		const edit = editKbDocs(ctx.cwd, ctx.capes[0]!.version, ctx.capes, (warning) => ctx.err(`nosedive: ${warning}`));
+		// A doc minted into a plain directory of the hero is in no root, so no later crud finds it either, and it has no gates.
+		const mintedDoc = located(() => edit.doc(minted.id));
+		if (mintedDoc) await gateEdit(edit, ctx, [mintedDoc], discard);
+		if (mintedDoc && edit.touched().length > 0) edit.commit({ action: "crud", what: doc.kind }, [mintedDoc]);
+		// git finds the repo holding the doc from its directory, a checkout's included.
+		else commitFiles(kbDir, [minted.path], commitSubject(bridge, "crud", doc.kind), ctx.capes[0]!.version);
+	} catch (error) {
+		discardMinted(discard);
+		throw error;
+	}
 	ctx.out(relative(bridge.dir, minted.path).replace(/\\/g, "/"));
+}
+
+function located<T>(find: () => T): T | undefined {
+	try {
+		return find();
+	} catch {
+		return undefined;
+	}
 }
 
 /** A repo is written only with a name unique where it goes, and an origin git reaches. */

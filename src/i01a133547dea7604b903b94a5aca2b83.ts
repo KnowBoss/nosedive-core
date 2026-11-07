@@ -19,6 +19,7 @@ import { i5225ca8db7b85be197b4b22ee341b5f1 } from "./i5225ca8db7b85be197b4b22ee3
 import { i2ad1fc06c83d538e8d38e574e99974af } from "./i2ad1fc06c83d538e8d38e574e99974af.ts";
 import { i717f85b924b35f32b24a8cfaf9c0241f } from "./i717f85b924b35f32b24a8cfaf9c0241f.ts";
 import { i4d86421616655ccebfcb884e0f35ff56 } from "./i4d86421616655ccebfcb884e0f35ff56.ts";
+import { discardMinted, gateEdit } from "./i01a1b453a16c799bb9ce20fad1a9075b.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG = /^[a-z0-9][a-z0-9.-]*$/;
@@ -82,12 +83,19 @@ export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 	}
 }
 
-/** Applies one edit, named as its flag, and commits it. */
-function single(ctx: Ctx, name: string, apply: (edit: KbEdit) => void): void {
+/** Applies one edit, named as its flag, runs the crud gates of what it touched, and commits it all (see crud-gates). */
+async function single(ctx: Ctx, name: string, apply: (edit: KbEdit) => void): Promise<void> {
 	const edit = editKbDocs(ctx.cwd, ctx.capes[0]!.version, ctx.capes, (warning) => ctx.err(`nosedive: ${warning}`));
 	apply(edit);
 	edit.edits.push(name);
-	ctx.out(edit.commit().join("\n"));
+	const discard: string[] = [];
+	try {
+		await gateEdit(edit, ctx, [], discard);
+		ctx.out(edit.commit().join("\n"));
+	} catch (error) {
+		discardMinted(discard);
+		throw error;
+	}
 }
 
 function quid(value: unknown): string {

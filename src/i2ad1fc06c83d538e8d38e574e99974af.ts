@@ -4,6 +4,7 @@ import { checkDocMeta } from "./i01a138b2b8ef7e8097e19d599ba39bcc.ts";
 import { kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i01a14b30ecc07ea18999d6255d636e39 as crudEdit } from "./i01a14b30ecc07ea18999d6255d636e39.ts";
+import { discardMinted, gateEdit } from "./i01a1b453a16c799bb9ce20fad1a9075b.ts";
 
 export async function i2ad1fc06c83d538e8d38e574e99974af(source: string, ctx: Ctx): Promise<void> {
 	const items = await readSource(source, ctx);
@@ -31,5 +32,12 @@ export async function i2ad1fc06c83d538e8d38e574e99974af(source: string, ctx: Ctx
 			throw new Error(`--batch ${doc.id}: ${(error as Error).message}`);
 		}
 	}
-	ctx.out(edit.commit().join("\n"));
+	const discard: string[] = [];
+	try {
+		await gateEdit(edit, ctx, [], discard);
+		ctx.out(edit.commit().join("\n"));
+	} catch (error) {
+		discardMinted(discard);
+		throw error;
+	}
 }

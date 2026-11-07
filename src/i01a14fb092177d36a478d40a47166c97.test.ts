@@ -10,3 +10,10 @@ test("reads the sect and kind a gate usage starts with, any kind for <quid>, and
 	assert.equal(gateUsage("crud <quid>"), undefined);
 	assert.equal(gateUsage("pass --ready <device>x"), undefined);
 });
+
+test("reads a hook gate's sect, kind and when", () => {
+	assert.deepEqual(gateUsage("after crud dive"), { sect: "crud", kind: "dive", when: "after" });
+	assert.deepEqual(gateUsage("before crud work:dive"), { sect: "crud", kind: "work:dive", when: "before" });
+	assert.equal(gateUsage("after crud <quid>"), undefined);
+	assert.equal(gateUsage("during crud dive"), undefined);
+});

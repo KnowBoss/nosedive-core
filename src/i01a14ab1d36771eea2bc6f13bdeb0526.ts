@@ -24,8 +24,13 @@ export type KbEdit = {
 	change(doc: EditedDoc): void;
 	/** The crud edits applied, by name, in order; they name the commit's `what` unless it is given one. */
 	edits: string[];
-	/** Writes the changed docs, commits each repo's (as `subject` when given: `crud <edits>` by default), and returns their paths relative to the bridge. */
-	commit(subject?: { action: string; what: string }): string[];
+	/** The docs marked to be written so far, in the order they were first marked. */
+	touched(): EditedDoc[];
+	/**
+	 * Writes the changed docs, commits each repo's (as `subject` when given: `crud <edits>` by default), and returns their paths relative
+	 * to the bridge. `include` names docs already on disk, as one just minted, to commit with them whether or not they changed.
+	 */
+	commit(subject?: { action: string; what: string }, include?: EditedDoc[]): string[];
 	/** When set, kind and meta edits leave their schema check to the caller, collecting the docs here. */
 	unchecked?: Set<EditedDoc>;
 };
@@ -57,9 +62,12 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 		change(doc) {
 			changed.add(doc);
 		},
-		commit(given) {
+		touched() {
+			return [...changed];
+		},
+		commit(given, include = []) {
 			if (capes) refuseDurableUnderWork(bridge, capes, [...changed], (id) => docs.get(id) ?? locateKbDoc(bridge, id));
-			const byRepo = new Map<string, { doc: EditedDoc; text: string }[]>();
+			const byRepo = new Map<string, { doc: EditedDoc; write: boolean }[]>();
 			for (const doc of changed) {
 				// A doc is refused only as it would be written, so an edit can repair one.
 				scopeEntries(doc.fm.scopes);
@@ -67,14 +75,18 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 				const text = `---\n${doc.yaml.toString({ lineWidth: 0 })}---\n${doc.body}`;
 				if (text === doc.text) continue;
 				if (warn) for (const warning of kindDocWarnings(doc)) warn(warning);
-				byRepo.set(doc.repoDir, [...(byRepo.get(doc.repoDir) ?? []), { doc, text }]);
+				byRepo.set(doc.repoDir, [...(byRepo.get(doc.repoDir) ?? []), { doc, write: true }]);
+			}
+			for (const doc of include) {
+				const written = byRepo.get(doc.repoDir) ?? [];
+				if (!written.some((each) => each.doc === doc)) byRepo.set(doc.repoDir, [...written, { doc, write: false }]);
 			}
 			for (const [repoDir, written] of byRepo) {
-				for (const { doc } of written) writeKbDoc(doc.path, doc.yaml, doc.body);
+				for (const { doc, write } of written) if (write) writeKbDoc(doc.path, doc.yaml, doc.body);
 				const { action, what } = given ?? { action: "crud", what: [...new Set(edits)].join(", ") || "edit" };
 				commitFiles(repoDir, written.map(({ doc }) => doc.path), commitSubject(bridge, action, what, written.map(({ doc }) => doc.id)), version);
 			}
-			return [...changed].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));
+			return [...new Set([...include, ...changed])].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));
 		},
 	};
 }

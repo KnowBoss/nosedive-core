@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, statSync, unlinkSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
+import { existsSync, statSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import type { Args, Cape, CapeDoc, Ctx, GateCtx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import { i01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./i01a1335482437c9eb145885f65f12aa1.ts";
@@ -15,6 +15,7 @@ import { i01a14b30ecc07ea18999d6255d636e39 as crudEdit } from "./i01a14b30ecc07e
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 import { i01a14fb79db47f8b94d5196027008697 as buildBase } from "./i01a14fb79db47f8b94d5196027008697.ts";
 import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
+import { discardMinted } from "./i01a1b453a16c799bb9ce20fad1a9075b.ts";
 
 const ANY = "any doc";
 const QUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
@@ -111,14 +112,7 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 		const written = edit.commit({ action: "pass", what: sect });
 		if (written.length > 0) ctx.out(written.join("\n"));
 	} catch (error) {
-		for (const path of minted) {
-			spawnSync("git", ["rm", "--cached", "-q", "-f", "--", path], { cwd: dirname(path) });
-			try {
-				unlinkSync(path);
-			} catch {
-				// The pass's own error is the one to report.
-			}
-		}
+		discardMinted(minted);
 		throw error;
 	}
 }
