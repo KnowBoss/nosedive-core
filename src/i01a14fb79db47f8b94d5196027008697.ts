@@ -10,6 +10,7 @@ import { i01a1335488937f1c8c3983dd2950028e as checkCapeSource } from "./i01a1335
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { i01a151913e5772088ae93b14a4a3f120 as installCapePackages } from "./i01a151913e5772088ae93b14a4a3f120.ts";
 import { i01a14fb7a14b7f85b7dc8bb894d6e76b as bundleCape } from "./i01a14fb7a14b7f85b7dc8bb894d6e76b.ts";
+import { capeImports } from "./i01a1337c81b57799820f96a757b791d0.ts";
 
 type Loaded = { __nosediveCore?: Cape; __nosediveBase?: Record<string, Cape> };
 
@@ -30,6 +31,10 @@ export async function i01a14fb79db47f8b94d5196027008697(bridge: Bridge, core: Ca
 	for (const file of existsSync(assets) ? (readdirSync(assets, { recursive: true }) as string[]).sort() : []) {
 		if (statSync(join(assets, file)).isFile()) hash.update(`\0assets/${file}\0`).update(readFileSync(join(assets, file)));
 	}
+	// Imports resolve as a cape's do (one-build-path): any cape imported is built first, and its build is part of the id.
+	const name = String(root.fm.name);
+	const { sources, needs } = await capeImports(bridge, bridge.dir, name, source, core, [], () => undefined);
+	for (const need of Object.values(needs).sort()) hash.update(`\0${need}`);
 	const id = namespacedUuid(hash.digest("hex"), core.id);
 
 	const capes = join(bridge.dir, ".nosedive", "capes");
@@ -37,12 +42,11 @@ export async function i01a14fb79db47f8b94d5196027008697(bridge: Bridge, core: Ca
 	// Keyed by file, not id: two bases with the same code are still two builds.
 	const loaded = ((globalThis as Loaded).__nosediveBase ??= {});
 	if (loaded[outfile]) return loaded[outfile];
-	const name = String(root.fm.name);
 	if (!existsSync(outfile)) {
 		const problems = checkCapeSource(bridge.dir);
 		if (problems.length > 0) throw new Error(`${name}'s own actions do not check out:\n  ${problems.join("\n  ")}`);
 		installCapePackages(bridge.dir);
-		await bundleCape(bridge.dir, source, { id, owner: bridge.id, shortName: name, name, commit: "", version: "working tree", core: core.id, needs: {} }, [{ specifier: "nosedive-core", capeId: core.id, ids: Object.keys(core.docs) }], outfile);
+		await bundleCape(bridge.dir, source, { id, owner: bridge.id, shortName: name, name, commit: "", version: "working tree", core: core.id, needs }, sources, outfile);
 		// Only the newest build of a base is kept.
 		for (const file of readdirSync(capes)) if (file.startsWith("base-") && file !== `base-${id}.js`) rmSync(join(capes, file), { recursive: true, force: true });
 	}

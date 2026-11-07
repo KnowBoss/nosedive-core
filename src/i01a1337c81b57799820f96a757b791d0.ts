@@ -71,33 +71,7 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	const owner = readRepoConfig(dir)?.id;
 	const shortName = String(root.fm.name);
 
-	// Each cape it imports is built first, at the ref this bridge uses for it.
-	const sources = new Map<string, Source>();
-	const needs: Record<string, string> = {};
-	for (const [specifier, { ids, names }] of bareImports(dir)) {
-		if (specifier === CORE) {
-			sources.set(specifier, { specifier, capeId: core.id, label: `core ${core.version}`, docs: core.docs, ids, names });
-			continue;
-		}
-		const dependency = tryFindRepoDoc(bridge, specifier);
-		if (!dependency) continue;
-		const built = await i01a1337c81b57799820f96a757b791d0(bridge, dependency, refFor(bridge, specifier), core, [...building, repo.name], log);
-		const docs = describeCapeSource(built.source ?? join(bridge.dir, ".nosedive", "capes", "src", dependency.id)).docs;
-		sources.set(specifier, { specifier, capeId: built.id, label: `${specifier} ${built.version}`, docs, ids, names });
-		needs[specifier] = built.id;
-	}
-	const linked = Object.values(source.docs).flatMap((doc) => linksOf(doc.text));
-	for (const { specifier, label, docs, ids, names } of sources.values()) {
-		for (const name of names) {
-			if (specifier === CORE && core.named && !(name in core.named)) throw new Error(`${repo.name} imports ${name} from ${specifier}, which ${label} does not export`);
-		}
-		for (const id of ids) {
-			if (!docs[id]) throw new Error(`${repo.name} imports ${id} from ${specifier}, which ${label} does not have`);
-			if (!linked.some((link) => link.includes(id))) {
-				throw new Error(`${repo.name} imports ${docs[id]!.name} (${id}) without linking it from its action doc`);
-			}
-		}
-	}
+	const { sources, needs } = await capeImports(bridge, dir, repo.name, source, core, building, log);
 
 	// A local cape lives in the hero's git, whose every commit would otherwise make it a new build.
 	const hash = createHash("sha256").update(repo.dir ? "" : commit);
@@ -123,7 +97,7 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	const version = workspace ? "working tree" : `${date.getUTCFullYear()}.${date.getUTCMonth() + 1}.${date.getUTCDate()}-${millis}`;
 
 	installCapePackages(dir);
-	await bundleCape(dir, source, { id, owner, shortName, name: repo.name, commit, version, core: core.id, needs }, [...sources.values()], outfile);
+	await bundleCape(dir, source, { id, owner, shortName, name: repo.name, commit, version, core: core.id, needs }, sources, outfile);
 
 	const actions = Object.fromEntries(
 		Object.values(source.docs)
@@ -133,6 +107,49 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	const build = { id, owner, shortName, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString(), ...(workspace ? { source: dir } : {}) };
 	capeManifest(bridge.dir, build);
 	return { ...build, fresh: true };
+}
+
+/**
+ * What a cape's source, or a hero's own actions, import, ready to bundle: core with the ids and names taken, and each cape
+ * imported built first at the ref this bridge uses for it; refuses an import its target lacks or its docs do not link.
+ * Builds of capes and of a hero's own actions both go through it, so both take the same imports (one-build-path).
+ */
+export async function capeImports(
+	bridge: Bridge,
+	dir: string,
+	name: string,
+	source: { docs: Record<string, { text: string }> },
+	core: Cape,
+	building: string[],
+	log: (text: string) => void,
+): Promise<{ sources: Source[]; needs: Record<string, string> }> {
+	const sources = new Map<string, Source>();
+	const needs: Record<string, string> = {};
+	for (const [specifier, { ids, names }] of bareImports(dir)) {
+		if (specifier === CORE) {
+			sources.set(specifier, { specifier, capeId: core.id, label: `core ${core.version}`, docs: core.docs, ids, names });
+			continue;
+		}
+		const dependency = tryFindRepoDoc(bridge, specifier);
+		if (!dependency) continue;
+		const built = await i01a1337c81b57799820f96a757b791d0(bridge, dependency, refFor(bridge, specifier), core, [...building, name], log);
+		const docs = describeCapeSource(built.source ?? join(bridge.dir, ".nosedive", "capes", "src", dependency.id)).docs;
+		sources.set(specifier, { specifier, capeId: built.id, label: `${specifier} ${built.version}`, docs, ids, names });
+		needs[specifier] = built.id;
+	}
+	const linked = Object.values(source.docs).flatMap((doc) => linksOf(doc.text));
+	for (const { specifier, label, docs, ids, names } of sources.values()) {
+		for (const imported of names) {
+			if (specifier === CORE && core.named && !(imported in core.named)) throw new Error(`${name} imports ${imported} from ${specifier}, which ${label} does not export`);
+		}
+		for (const id of ids) {
+			if (!docs[id]) throw new Error(`${name} imports ${id} from ${specifier}, which ${label} does not have`);
+			if (!linked.some((link) => link.includes(id))) {
+				throw new Error(`${name} imports ${docs[id]!.name} (${id}) without linking it from its action doc`);
+			}
+		}
+	}
+	return { sources: [...sources.values()], needs };
 }
 
 /** Every bare specifier a cape's source imports values from, with the action ids and the other names it takes. */

@@ -40,6 +40,13 @@ test("runs a base's own commands, built from its working tree, lists them under 
 	assert.equal(readdirSync(join(bridge, ".nosedive", "capes")).filter((file) => file.startsWith("base-")).length, 1, "only the newest build is kept");
 });
 
+test("takes core's named exports, as a cape's build does", async () => {
+	const bridge = await helloBase("base-named");
+	const name = `i${usageId("hello <who>", HELLO)}`;
+	writeFileSync(join(bridge, implOf(HELLO, "hello <who>")), `import { featTree } from "nosedive-core";\n\nexport async function ${name}(args: any, ctx: any) {\n\tctx.out(\`\${typeof featTree} \${args.who}\`);\n}\n`);
+	assert.equal(ok(await run(["hello", "ann"], bridge)), "function ann");
+});
+
 test("passes a doc through the base's own gates, which are no commands", async () => {
 	const bridge = await helloBase("base-ready");
 	const memo = ok(await run(["crud", "core:memo", "a", "memo"], bridge)).replace(/^.*\/|\.md$/g, "");
