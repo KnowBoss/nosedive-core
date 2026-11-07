@@ -24,6 +24,8 @@ function noteCapeRepo(): string {
 			[`kb/${id}.md`]: `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${name}"\nmeta:\n  usages:\n    - ${text}\n${CANONICAL}---\n${codeSection(`\n# ${name}\n`, doc, `i${hex}`)}`,
 			[`src/i${hex}.ts`]: `import { i${usage.id} } from "./i${usage.id}.ts";\n\nexport function i${hex}(call: any) {\n\tif (call.usage === "u${usage.id}") return i${usage.id}(call.gate);\n}\n`,
 			[`src/i${usage.id}.ts`]: `export function i${usage.id}(ctx: any) {\n${code}\n}\n`,
+			// A crud gate has tests of its own, as any behaviour does.
+			[`src/i${usage.id}.test.ts`]: `import { test } from "node:test";\n\ntest("${name}", () => {});\n`,
 		};
 	};
 	const files: Record<string, string> = {
