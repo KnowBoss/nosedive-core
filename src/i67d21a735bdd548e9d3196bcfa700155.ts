@@ -220,7 +220,21 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 	const core = ctx.capes[0]!;
 	const bridgeAt = findBridge(dir)!;
 	const failed: string[] = [];
-	for (const cape of configuredCapes(bridgeAt, core)) {
+	// Every root's capes, the active root's first, each built once: a cape only another root wears is rebuilt too (seed-builds-every-roots-capes).
+	const rootIds = [bridgeAt.activeRoot, ...bridgeAt.roots.map((root) => root.id).filter((id) => id !== bridgeAt.activeRoot)];
+	const seen = new Set<string>();
+	const capes = rootIds.flatMap((root) => {
+		try {
+			return configuredCapes({ ...bridgeAt, activeRoot: root }, core).filter((cape) => {
+				const key = `${cape.repo?.id ?? cape.name}@${cape.ref}`;
+				return !seen.has(key) && seen.add(key);
+			});
+		} catch (err) {
+			failed.push(`the capes of root ${root}: ${err instanceof Error ? err.message : String(err)}`);
+			return [];
+		}
+	});
+	for (const cape of capes) {
 		try {
 			const built = await buildCape(bridgeAt, cape.repo ?? findRepoDoc(bridgeAt, cape.name), cape.ref, core, [], ctx.out);
 			if (!built.fresh) ctx.out(`cape ${cape.spec} is built`);

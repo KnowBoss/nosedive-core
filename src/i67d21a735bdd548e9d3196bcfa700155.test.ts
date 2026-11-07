@@ -118,6 +118,23 @@ test("builds the capes config names, so their actions run", async () => {
 	assert.doesNotMatch(git(["status", "--porcelain", "--untracked-files=all"], bridge), /capes/, "built capes stay out of git");
 });
 
+test("builds the capes a root other than the primary wears, so they run there (seed-builds-every-roots-capes)", async () => {
+	const bridge = await tempBridge("seed-capes-every-root");
+	const repo = greetCapeRepo();
+	const id = await registerRepo(bridge, "greet-cape", repo);
+	ok(await run(["--at", "docs", "seed", "--root-kind", "base"], bridge));
+	// Worn by the second root alone, by hand, so nothing but seed builds it.
+	const path = join(bridge, "docs", "kb", `${basename(git(["ls-files", "docs/kb"], bridge), ".md")}.md`);
+	writeFileSync(path, readFileSync(path, "utf8").replace(/\n---\n/, `\nlinks:\n  - .nosedive/repos/${id}.md:\n      rel: .cape\n---\n`));
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "the docs root wears greet-cape"], bridge);
+	assert.match((await run(["--at", "docs", "greet", "ann"], bridge)).err, /greet-cape\n {2}not built: run `nosedive seed`/);
+	const commit = git(["rev-parse", "HEAD"], repo);
+	assert.match(ok(await run(["seed"], bridge)), new RegExp(`built cape greet-cape \\S+ \\(${commit.slice(0, 7)}\\): greet`));
+	assert.match(ok(await run(["--at", "docs", "greet", "ann"], bridge)), /^hello ann [0-9a-f-]{36}$/);
+	assert.match((await run(["greet", "ann"], bridge)).err, /unknown action: greet/, "the primary wears it not");
+});
+
 test("builds a pinned commit once, of a cape, and --no-capes builds nothing", async () => {
 	const bridge = await tempBridge("seed-pinned");
 	const repo = greetCapeRepo();
