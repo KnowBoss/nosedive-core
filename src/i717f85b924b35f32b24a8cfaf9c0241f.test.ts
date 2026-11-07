@@ -81,3 +81,19 @@ test("keeps a durable doc unless --hard", async () => {
 	ok(await run(["crud", "--drop", idOf(path), "--sure", "--hard"], bridge));
 	assert.equal(existsSync(join(bridge, path)), false);
 });
+
+test("drops a doc its root's rendered tree lists, rendering the tree again in the drop's commit (drops-rerender-tree)", async () => {
+	const { bridge, parent, child, read } = await hung("crud-drop-rendered");
+	const root = readRepoConfig(bridge)!.root!;
+	ok(await run(["crud", root, "--links", "-"], bridge, `${kbPath(bridge, idOf(parent))}:\n  rel: ideas.feat\n`));
+	ok(await run(["seed"], bridge));
+	const rootPath = kbPath(bridge, root);
+	assert.match(read(rootPath), new RegExp(`${idOf(child)}\.md`), "the tree lists the child");
+	ok(await run(["crud", idOf(parent), `--section:Dropped.${idOf(child)}`, "-"], bridge, "Done; its lessons are on the parent.\n"));
+	const head = git(["rev-parse", "HEAD"], bridge);
+	ok(await run(["crud", "--drop", idOf(child)], bridge));
+	assert.doesNotMatch(read(rootPath), new RegExp(idOf(child)), "gone from the tree");
+	assert.match(read(rootPath), new RegExp(`${idOf(parent)}\.md`), "its parent still listed");
+	assert.equal(git(["rev-list", "--count", `${head}..HEAD`], bridge), "1");
+	assert.equal(git(["status", "--porcelain"], bridge), "");
+});

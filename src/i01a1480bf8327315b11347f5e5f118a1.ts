@@ -12,6 +12,9 @@ import { isDurable, kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a19005c109715583553072f4e38dc4 as commitSubject } from "./i01a19005c109715583553072f4e38dc4.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import { readSection } from "./i794ab6e0060f5ede8b0148203fe6df81.ts";
+import { nestedRoot } from "./i01a1934563e77ed886f06d04416385ef.ts";
+import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
+import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
 
 type Listed = ReturnType<typeof listKbDocs>[number];
 
@@ -50,6 +53,9 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	const parents = new Map<string, Map<string, { id: string; label: string; body: string }>>(docs.map(({ id }) => [id, new Map()]));
 	const hangsFrom = (id: string, doc: { fm: Record<string, unknown>; body: string; path: string }) =>
 		parents.get(id)!.set(doc.path, { id: String(doc.fm.id), label: `${String(doc.fm.kind)} ${String(doc.fm.name)}`, body: doc.body });
+	// A root seed renders has its tree for a body, so a link there is seed's to remove: the drop renders it again (drops-rerender-tree).
+	const rendered = new Map(bridge.roots.filter((root) => !nestedRoot(bridge, root)).map((root) => [root.id, root]));
+	const rerender = new Set<string>();
 	for (const [index, kbDir] of kbDirs.entries()) {
 		if (!existsSync(kbDir)) continue;
 		// A doc git does not track (ignored, or never added) is no part of the kb's history, so it cannot block.
@@ -79,7 +85,11 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 					}
 				}
 			});
-			for (const id of dropping) if (other.body.includes(`${id}.md`)) block(id, `${at(other.path)} links it in its body: remove that link first`);
+			for (const id of dropping) {
+				if (!other.body.includes(`${id}.md`)) continue;
+				if (rendered.has(String(other.fm.id))) rerender.add(String(other.fm.id));
+				else block(id, `${at(other.path)} links it in its body: remove that link first`);
+			}
 		}
 	}
 	for (const repoDir of repoDirs) {
@@ -138,9 +148,10 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	}
 
 	const byRepo = new Map<string, string[]>();
-	const add = (repoDir: string, path: string) => byRepo.set(repoDir, [...(byRepo.get(repoDir) ?? []), path]);
+	const add = (repoDir: string, path: string) => byRepo.set(repoDir, [...new Set([...(byRepo.get(repoDir) ?? []), path])]);
 	for (const entry of docs) add(entry.doc.repoDir, entry.doc.path);
 	for (const [other, { repoDir }] of unlinks) add(repoDir, other.path);
+	for (const id of rerender) add(bridge.dir, rendered.get(id)!.path);
 	// Named before the docs and links go, since their links are how a feat is found.
 	const subjects = new Map([...byRepo.keys()].map((repoDir) => [repoDir, commitSubject(bridge, "crud", "drop", [...dropping])]));
 	for (const entry of docs) rmSync(entry.doc.path);
@@ -148,6 +159,13 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 		for (const position of positions.sort((a, b) => b - a)) other.yaml.deleteIn(["links", position]);
 		if ((other.yaml.get("links") as { items?: unknown[] } | undefined)?.items?.length === 0) other.yaml.delete("links");
 		writeKbDoc(other.path, other.yaml, other.body);
+	}
+	// Rendered once the docs and their links are gone, as seed would render it.
+	const others = [...(bridge.kindsDir ? [bridge.kindsDir] : []), ...(bridge.reposDir ? [bridge.reposDir] : []), ...bridge.roots.map((root) => root.dir)];
+	for (const id of rerender) {
+		const root = rendered.get(id)!;
+		const doc = findKbDoc(root.dir, id);
+		if (doc) writeKbDoc(doc.path, doc.yaml, renderTree(root.dir, doc, others));
 	}
 	for (const [repoDir, paths] of byRepo) commitFiles(repoDir, paths, subjects.get(repoDir)!, capes[0]!.version);
 	return docs.map(({ doc }) => at(doc.path));
