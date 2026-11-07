@@ -22,8 +22,10 @@ export async function ib1271b71723d57c39b4dd36252311704(ctx: GateCtx): Promise<v
 	// The repo doc's name is the hero's own for the cape; its short name is its root's, which the hero does not choose.
 	if (!root) throw new Error(`${name} is no cape: it has no cape root`);
 	const key = relative(bridge.dir, doc.path).replace(/\\/g, "/");
-	// Re-attaching leaves the rel, and any sect it names, as it is.
-	ctx.crud(bridge.activeRoot, "links", { [key]: { ...(worn ? {} : { rel: ".cape" }), ...(ref ? { ref } : {}), commit } });
+	// Re-attaching leaves the rel, and any sect it names, as it is. A link keyed by an older path of the repo doc, as legacy's `kb/<id>.md`,
+	// is the same link: it is repinned and rekeyed to where the doc is now, never doubled (attach-cape-repins-moved-link).
+	const moved = worn && worn.key !== key ? { [worn.key]: null, [key]: { ...worn.link } } : {};
+	ctx.crud(bridge.activeRoot, "links", { ...moved, [key]: { ...moved[key], ...(worn ? {} : { rel: ".cape" }), ...(ref ? { ref } : {}), commit } });
 	ctx.out(`${worn ? "re-attached" : "attached"} ${ref ? `${name}@${ref}` : name} ${built.version} (${commit.slice(0, 7)})`);
 }
 

@@ -28,8 +28,11 @@ function localCape(bridge: Bridge, key: string): { id: string; name: string; dir
 	return found ? { id: found.id, name: found.name, dir: found.dir } : undefined;
 }
 
-/** The capes the target root wears: its links whose rel's role is `cape`, each to a repo doc; `ref` is what builds use, its `commit` pin when it has one, `follow` its own `ref`. */
-export function wornCapes(bridge: Bridge): { id: string; name: string; ref: string; follow: string; dir?: string }[] {
+/**
+ * The capes the target root wears: its links whose rel's role is `cape`, each to a repo doc; `ref` is what builds use, its `commit` pin
+ * when it has one, `follow` its own `ref`; `key` and `link` are the link as the root writes it.
+ */
+export function wornCapes(bridge: Bridge): { id: string; name: string; ref: string; follow: string; dir?: string; key: string; link: Record<string, unknown> }[] {
 	const base = bridge.roots.find((root) => root.id === bridge.activeRoot);
 	const doc = base ? findKbDoc(base.dir, base.id) : undefined;
 	const links = Array.isArray(doc?.fm.links) ? (doc.fm.links as unknown[]) : [];
@@ -40,11 +43,11 @@ export function wornCapes(bridge: Bridge): { id: string; name: string; ref: stri
 			const repo = id ? findKbDoc(bridge.reposDir ?? join(bridge.dir, ".nosedive", "repos"), id) : undefined;
 			if (!repo) {
 				const local = localCape(bridge, key);
-				if (local) return [{ ...local, ref: "", follow: "" }];
+				if (local) return [{ ...local, ref: "", follow: "", key, link: value }];
 				throw new Error(`the base ${String(doc!.fm.name)} wears ${key}, which is no repo doc or local cape`);
 			}
 			const follow = typeof value.ref === "string" ? value.ref : "";
-			return [{ id: id!, name: String(repo.fm.name), ref: typeof value.commit === "string" && COMMIT.test(value.commit) ? value.commit : follow, follow }];
+			return [{ id: id!, name: String(repo.fm.name), ref: typeof value.commit === "string" && COMMIT.test(value.commit) ? value.commit : follow, follow, key, link: value }];
 		}),
 	);
 }

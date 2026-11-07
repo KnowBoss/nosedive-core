@@ -84,6 +84,27 @@ test("pass --attach-cape pins the commit its ref resolves to, builds keep to it 
 	assert.equal(configuredCapes(findBridge(bridge)!, core)[0]!.spec, "greet-cape@next");
 });
 
+test("pass --attach-cape repins a cape link keyed by an older path of its repo doc, rekeying it, never doubling it (attach-cape-repins-moved-link)", async () => {
+	const bridge = await tempBridge("configured-capes-moved-link");
+	const repo = greetCapeRepo();
+	const id = await registerRepo(bridge, "greet-cape", repo);
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "register greet-cape"], bridge);
+	ok(await run(["pass", "--attach-cape", id], bridge));
+	const config = readRepoConfig(bridge)!;
+	const rootPath = config.roots.find((root) => root.id === config.root)!.path;
+	// As legacy's migration wrote it, before baseline moved repo docs to .nosedive/repos.
+	writeFileSync(rootPath, readFileSync(rootPath, "utf8").replace(`.nosedive/repos/${id}.md:`, `kb/${id}.md:`));
+	git(["commit", "-qam", "an old key"], bridge);
+	git(["commit", "-q", "--allow-empty", "-m", "moved on"], repo);
+	const second = git(["rev-parse", "HEAD"], repo);
+	assert.match(ok(await run(["pass", "--attach-cape", id, "--ref", "main"], bridge)), /re-attached greet-cape@main /);
+	const text = readFileSync(rootPath, "utf8");
+	assert.equal(text.split(id).length - 1, 1, "one link to the repo");
+	assert.match(text, new RegExp(`\\n {2}- \\.nosedive/repos/${id}\\.md:\\n {6}rel: \\.cape\\n {6}commit: ${second}\\n {6}ref: main\\n`));
+	assert.equal(configuredCapes(findBridge(bridge)!, core)[0]!.build!.commit, second, "and builds keep to the new pin");
+});
+
 test("pass --attach-cape takes whatever name the hero gave the repo, and refuses a repo that is no cape", async () => {
 	const bridge = await tempBridge("configured-capes-local-name");
 	const id = await registerRepo(bridge, "tools-from-acme", greetCapeRepo({ name: "greeter" }));
