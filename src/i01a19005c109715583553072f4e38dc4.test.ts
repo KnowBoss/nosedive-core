@@ -84,7 +84,7 @@ test("the feat the hero's branch names wins, for a mint too, by its own name wha
 	ok(await run(["crud", findBridge(bridge)!.root!, "--links", "-"], bridge, `${other}: {rel: work.feat}\n`));
 	// A dive is a feat by its dives.feat link; core reads neither its kind nor its meta.
 	await dive(bridge, other, 1, { diver: "anyone" });
-	git(["switch", "-q", "-c", "nosedive/0123456789ab/01a19005-0000-7000-8000-000000000001"], bridge);
+	git(["switch", "-q", "-c", "nosedive-0123456789ab-01a19005-0000-7000-8000-000000000001"], bridge);
 	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
 	assert.equal(subject(bridge), "feat(ideas.000001): crud gist");
 	ok(await run(["crud", "core:memo", "fresh"], bridge));

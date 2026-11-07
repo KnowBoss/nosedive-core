@@ -15,9 +15,9 @@ export function i01a19005c109715583553072f4e38dc4(bridge: Bridge, action: string
 	return subjectLine(featNameOf(bridge, ids), action, what);
 }
 
-const QUID_LAST = /(?:^|\/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+const QUID_LAST = /(?:^|[/-])([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
-/** The feat the hero's branch names: the quid its last path segment is, when the feat tree holds it, as a work loop's branch names the feat it works. */
+/** The feat the hero's branch names: the quid it ends with, after a slash or a dash, when the feat tree holds it, as a work loop's branch names the feat it works. */
 function branchFeat(bridge: Bridge): string | undefined {
 	const branch = spawnSync("git", ["symbolic-ref", "-q", "--short", "HEAD"], { cwd: bridge.dir, encoding: "utf8" }).stdout.trim();
 	return QUID_LAST.exec(branch)?.[1];
