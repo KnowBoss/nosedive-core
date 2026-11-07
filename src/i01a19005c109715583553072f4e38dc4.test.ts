@@ -65,6 +65,7 @@ test("a batch names its edits, once each in order, and a drop is a drop", async 
 	ok(await run(["crud", noteId, "--links", "-"], bridge, `${feat}: {rel: parent.feat}\n`));
 	ok(await run(["crud", "--batch", "-"], bridge, `- quid: ${noteId}\n  gist: one\n- quid: ${noteId}\n  body: text\n- quid: ${noteId}\n  gist: two\n`));
 	assert.equal(subject(bridge), "feat(ideas): crud gist, body");
+	ok(await run(["crud", idOf(feat), `--section:Dropped.${noteId}`, "-"], bridge, "Recorded.\n"));
 	ok(await run(["crud", "--drop", noteId, "--hard"], bridge));
 	assert.equal(subject(bridge), "feat(ideas): crud drop", "named by the links the doc had");
 });
@@ -127,7 +128,7 @@ test("every commit ends with the nosedive co-author, once", async () => {
 	assert.equal(coAuthors(bridge), 1, "a batch's");
 	const path = ok(await run(["crud", "core:memo", "fresh"], bridge));
 	assert.equal(coAuthors(bridge), 1, "a mint's");
-	ok(await run(["crud", "--drop", idOf(path), "--hard"], bridge));
+	ok(await run(["crud", "--drop", idOf(path), "--sure", "--hard"], bridge));
 	assert.equal(coAuthors(bridge), 1, "a drop's");
 	for (const rev of git(["rev-list", "HEAD"], bridge).split("\n")) assert.equal(coAuthors(bridge, rev), 1, `${git(["log", "-1", "--format=%s", rev], bridge)}`);
 });

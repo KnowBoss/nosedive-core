@@ -4,7 +4,7 @@ import { i01a1471723807d6e8ef228ad9472fff7 as readText } from "./i01a1471723807d
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs, type KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i5d22a1166ca0519c8dcb58f8989f3ac0 } from "./i5d22a1166ca0519c8dcb58f8989f3ac0.ts";
 import { if4a09298430355a2a473394fbb5103f2 } from "./if4a09298430355a2a473394fbb5103f2.ts";
-import { i6c9390d5a8e5583881960839391345db } from "./i6c9390d5a8e5583881960839391345db.ts";
+import { ie9ce704f3ee25e028d2fbff7cd47bfc8 } from "./ie9ce704f3ee25e028d2fbff7cd47bfc8.ts";
 import { i3ac641d4a9d757a48df1f1de031be120 } from "./i3ac641d4a9d757a48df1f1de031be120.ts";
 import { i7820a39cffb9511493085038a7e19447 } from "./i7820a39cffb9511493085038a7e19447.ts";
 import { i21be7cc759fb5c758e11cffdb2630902 } from "./i21be7cc759fb5c758e11cffdb2630902.ts";
@@ -20,6 +20,10 @@ import { i2ad1fc06c83d538e8d38e574e99974af } from "./i2ad1fc06c83d538e8d38e574e9
 import { i717f85b924b35f32b24a8cfaf9c0241f } from "./i717f85b924b35f32b24a8cfaf9c0241f.ts";
 import { i4d86421616655ccebfcb884e0f35ff56 } from "./i4d86421616655ccebfcb884e0f35ff56.ts";
 import { discardMinted, gateEdit } from "./i01a1b453a16c799bb9ce20fad1a9075b.ts";
+import { i4566acc2e53a5c9cb2f745468d21fa5b, keyedMeta } from "./i4566acc2e53a5c9cb2f745468d21fa5b.ts";
+import { ia2855cb936b2597b8666125991f0d31a, readSections } from "./ia2855cb936b2597b8666125991f0d31a.ts";
+import { i859f923b4af35dfe968bad37c2bbdfe1 } from "./i859f923b4af35dfe968bad37c2bbdfe1.ts";
+import { id9fb53df0d40519da77bfe4bc92d4355 } from "./id9fb53df0d40519da77bfe4bc92d4355.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG = /^[a-z0-9][a-z0-9.-]*$/;
@@ -31,11 +35,29 @@ export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 			return i5d22a1166ca0519c8dcb58f8989f3ac0(ctx);
 		case "uf4a09298430355a2a473394fbb5103f2": // crud <quid>
 			return if4a09298430355a2a473394fbb5103f2(quid(args.quid), ctx);
-		case "u6c9390d5a8e5583881960839391345db": // crud <kind> <gist>... [--name <name>] [--meta <source>]
-			return i6c9390d5a8e5583881960839391345db(
-				{ kind: capeKind(args.kind), gist: (args.gist as string[]).join(" "), name: optionalSlug(args.name), meta: args.meta as string | undefined },
+		case "ue9ce704f3ee25e028d2fbff7cd47bfc8": { // crud <kind> <gist>... [--name <name>] [--meta <source>] [--meta:<path> <value>]... [--section:<path> <source>]...
+			const sections = await readSections(args["section:"] as Record<string, string>, ctx, args.meta === "-" ? 1 : 0);
+			return ie9ce704f3ee25e028d2fbff7cd47bfc8(
+				{
+					kind: capeKind(args.kind),
+					gist: (args.gist as string[]).join(" "),
+					name: optionalSlug(args.name),
+					meta: args.meta as string | undefined,
+					keyed: keyedMeta(args["meta:"] as Record<string, string>),
+					sections,
+				},
 				ctx,
 			);
+		}
+		case "u4566acc2e53a5c9cb2f745468d21fa5b": { // crud <quid> --meta:<path> <value>... [--section:<path> <source>]...
+			const sections = await readSections(args["section:"] as Record<string, string>, ctx);
+			const meta = args["meta:"] as Record<string, string>;
+			return single(ctx, ["meta", ...(Object.keys(sections).length ? ["section"] : [])], (edit) => i4566acc2e53a5c9cb2f745468d21fa5b(edit, quid(args.quid), meta, sections, ctx));
+		}
+		case "ua2855cb936b2597b8666125991f0d31a": { // crud <quid> --section:<path> <source>...
+			const sections = await readSections(args["section:"] as Record<string, string>, ctx);
+			return single(ctx, "section", (edit) => ia2855cb936b2597b8666125991f0d31a(edit, quid(args.quid), sections));
+		}
 		case "u3ac641d4a9d757a48df1f1de031be120": { // crud <quid> --meta <source>
 			const patch = await readSource(String(args.meta), ctx);
 			return single(ctx, "meta", (edit) => i3ac641d4a9d757a48df1f1de031be120(edit, quid(args.quid), patch, ctx));
@@ -76,18 +98,22 @@ export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 			return i2ad1fc06c83d538e8d38e574e99974af(String(args.batch), ctx);
 		case "u717f85b924b35f32b24a8cfaf9c0241f": // crud --drop <quid> [--hard]
 			return i717f85b924b35f32b24a8cfaf9c0241f(quid(args.drop), args.hard === true, ctx);
+		case "u859f923b4af35dfe968bad37c2bbdfe1": // crud --drop <quid> --sure [--hard]
+			return i859f923b4af35dfe968bad37c2bbdfe1(quid(args.drop), args.hard === true, ctx);
 		case "u4d86421616655ccebfcb884e0f35ff56": // crud --drop-list <source> [--hard]
 			return i4d86421616655ccebfcb884e0f35ff56(String(args.dropList), args.hard === true, ctx);
+		case "ud9fb53df0d40519da77bfe4bc92d4355": // crud --drop-list <source> --sure [--hard]
+			return id9fb53df0d40519da77bfe4bc92d4355(String(args.dropList), args.hard === true, ctx);
 		default:
 			throw new Error(`crud has no impl for ${call.usage}`);
 	}
 }
 
 /** Applies one edit, named as its flag, runs the crud gates of what it touched, and commits it all (see crud-gates). */
-async function single(ctx: Ctx, name: string, apply: (edit: KbEdit) => void): Promise<void> {
+async function single(ctx: Ctx, name: string | string[], apply: (edit: KbEdit) => void): Promise<void> {
 	const edit = editKbDocs(ctx.cwd, ctx.capes[0]!.version, ctx.capes, (warning) => ctx.err(`nosedive: ${warning}`));
 	apply(edit);
-	edit.edits.push(name);
+	edit.edits.push(...[name].flat());
 	const discard: string[] = [];
 	try {
 		await gateEdit(edit, ctx, [], discard);

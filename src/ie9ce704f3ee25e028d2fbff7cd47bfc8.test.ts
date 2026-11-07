@@ -1,4 +1,4 @@
-// crud <kind> <gist>... [--name <name>] [--meta <source>]
+// crud <kind> <gist>... [--name <name>] [--meta <source>] [--meta:<path> <value>]... [--section:<path> <source>]...
 import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -163,4 +163,17 @@ test("keeps core's kinds and repos in .nosedive/, whatever the target, and mints
 	assert.match(there, /^clients\/acme\/[0-9a-f-]{36}\.md$/, "a root is named by its name");
 	ok(await run(["crud", there.replace(/^.*\/|\.md$/g, ""), "--gist", "found"], bridge));
 	assert.match((await run(["--at", "acme", "crud", "core:repo", "B", "--name", "b"], bridge)).err, /core's repos live in \.nosedive\/repos, where the hero reads them, whatever base is selected: drop --at/);
+});
+
+test("keyed meta overrides its source's keys, and sections are written, all in the mint's one commit", async () => {
+	const bridge = await tempBridge("crud-mint-keyed");
+	await declareKinds(bridge, "goal");
+	writeFileSync(join(bridge, "meta.yaml"), "feat: old\nkeep: 1\n");
+	const before = git(["rev-parse", "HEAD"], bridge);
+	const path = ok(await run(["crud", "goal", "a", "goal", "--meta", "meta.yaml", "--meta:feat", "new", "--meta:a.b", "2", "--section:Brief", "-"], bridge, "Do it.\n"));
+	const text = readFileSync(join(bridge, path), "utf8");
+	assert.match(text, /\nmeta:\n {2}feat: new\n {2}keep: 1\n {2}a:\n {4}b: 2\n/);
+	assert.match(text, /\n# a goal\n\n## Brief\n\nDo it\.\n$/);
+	assert.equal(git(["rev-list", "--count", `${before}..HEAD`], bridge), "1");
+	assert.match((await run(["crud", "goal", "b", "--meta", "-", "--section:Brief", "-"], bridge, "x: 1\n")).err, /only one source can be read from stdin/);
 });

@@ -5,7 +5,8 @@ import { gateDrop } from "./i01a1b453a16c799bb9ce20fad1a9075b.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-export async function i4d86421616655ccebfcb884e0f35ff56(source: string, hard: boolean, ctx: Ctx): Promise<void> {
+/** `sure` drops those that hang from no doc, as `crud --drop-list <source> --sure` does. */
+export async function i4d86421616655ccebfcb884e0f35ff56(source: string, hard: boolean, ctx: Ctx, sure = false): Promise<void> {
 	const ids = (await readText(source, ctx))
 		.split(/\r?\n/)
 		.map((line) => line.trim().toLowerCase())
@@ -14,5 +15,5 @@ export async function i4d86421616655ccebfcb884e0f35ff56(source: string, hard: bo
 	if (bad.length > 0) throw new Error(`--drop-list takes one quid per line, not: ${bad.join(", ")}`);
 	if (ids.length === 0) throw new Error("--drop-list found no quids to drop");
 	await gateDrop(ids, ctx);
-	ctx.out(dropKbDocs(ctx.cwd, ids, hard, ctx.capes).join("\n"));
+	ctx.out(dropKbDocs(ctx.cwd, ids, hard, ctx.capes, sure).join("\n"));
 }

@@ -10,9 +10,16 @@ import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8e
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { isDurable, kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a19005c109715583553072f4e38dc4 as commitSubject } from "./i01a19005c109715583553072f4e38dc4.ts";
+import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
+import { readSection } from "./i794ab6e0060f5ede8b0148203fe6df81.ts";
 
-/** Returns the dropped docs' paths relative to the bridge. */
-export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], hard: boolean, capes: Cape[]): string[] {
+type Listed = ReturnType<typeof listKbDocs>[number];
+
+/**
+ * Returns the dropped docs' paths relative to the bridge. A drop removes the `.feat` links to the docs it drops, from the docs they
+ * hang from, once one of those records it (drops-recorded); `sure` drops a doc that hangs from none.
+ */
+export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], hard: boolean, capes: Cape[], sure = false): string[] {
 	const bridge = findBridge(cwd);
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");
 	const at = (path: string) => relative(bridge.dir, path).replace(/\\/g, "/");
@@ -38,7 +45,12 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	}
 	const blockers: string[] = [];
 	const block = (id: string, why: string) => blockers.push(one ? why : `${labelOf.get(id)}: ${why}`);
-	for (const kbDir of kbDirs) {
+	// The links the drop removes, by the doc holding them, and the docs each dropped one hangs from.
+	const unlinks = new Map<Listed, { repoDir: string; at: number[] }>();
+	const parents = new Map<string, Map<string, { id: string; label: string; body: string }>>(docs.map(({ id }) => [id, new Map()]));
+	const hangsFrom = (id: string, doc: { fm: Record<string, unknown>; body: string; path: string }) =>
+		parents.get(id)!.set(doc.path, { id: String(doc.fm.id), label: `${String(doc.fm.kind)} ${String(doc.fm.name)}`, body: doc.body });
+	for (const [index, kbDir] of kbDirs.entries()) {
 		if (!existsSync(kbDir)) continue;
 		// A doc git does not track (ignored, or never added) is no part of the kb's history, so it cannot block.
 		const listed = spawnSync("git", ["ls-files"], { cwd: kbDir, encoding: "utf8" });
@@ -46,20 +58,67 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 		for (const other of listKbDocs(kbDir)) {
 			if (dropping.has(String(other.fm.id))) continue;
 			if (tracked && !tracked.has(basename(other.path))) continue;
-			for (const link of Array.isArray(other.fm.links) ? other.fm.links : []) {
+			(Array.isArray(other.fm.links) ? other.fm.links : []).forEach((link, position) => {
 				for (const [target, value] of Object.entries((link ?? {}) as Record<string, { rel?: unknown } | null>)) {
-					for (const id of dropping) if (target.includes(id)) block(id, `${at(other.path)} links it as ${String(value?.rel ?? "a link")}`);
+					for (const id of dropping) {
+						if (!target.includes(id)) continue;
+						const rel = String(value?.rel ?? "");
+						if (rel === "parent.feat") {
+							block(id, `${at(other.path)} hangs under it: drop it first`);
+							continue;
+						}
+						// Only the tree's links go with it; any other says something a drop must not undo unasked, as a worn cape's does.
+						if (!rel.endsWith(".feat")) {
+							block(id, `${at(other.path)} links it as ${rel || "a link"}: remove that link first`);
+							continue;
+						}
+						hangsFrom(id, other);
+						const entry = unlinks.get(other) ?? { repoDir: repoDirs[index]!, at: [] };
+						if (!entry.at.includes(position)) entry.at.push(position);
+						unlinks.set(other, entry);
+					}
 				}
-			}
-			for (const id of dropping) if (other.body.includes(id)) block(id, `${at(other.path)} mentions it in its body`);
+			});
+			for (const id of dropping) if (other.body.includes(`${id}.md`)) block(id, `${at(other.path)} links it in its body: remove that link first`);
 		}
 	}
 	for (const repoDir of repoDirs) {
 		const config = readRepoConfig(repoDir);
 		for (const root of config?.roots ?? []) if (dropping.has(root.id)) block(root.id, `${at(config!.configPath)} lists it among its roots`);
 	}
+	// A dropped doc hangs too from what its own parent.feat links name.
+	for (const { id, doc } of docs) {
+		for (const link of Array.isArray(doc.fm.links) ? doc.fm.links : []) {
+			for (const [target, value] of Object.entries((link ?? {}) as Record<string, { rel?: unknown } | null>)) {
+				if (value?.rel !== "parent.feat") continue;
+				const parentId = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(target)?.[1]?.toLowerCase();
+				const parent = parentId && locateKbDoc(bridge, parentId);
+				if (parent) hangsFrom(id, parent);
+			}
+		}
+	}
+	// What a dropped doc held is recorded, by whoever drops it, under `## Dropped` > `### <id>` on a doc it hangs from (drops-recorded).
+	for (const { id, doc } of docs) {
+		const from = [...parents.get(id)!.values()];
+		if (from.some((parent) => dropping.has(parent.id))) continue;
+		if (from.length === 0) {
+			if (!sure) block(id, `it hangs from no doc, so none can record what it held: \`nosedive crud --drop ${id} --sure\` drops it anyway`);
+			continue;
+		}
+		const gist = String(doc.fm.gist ?? "").trim();
+		const recorded = from.some((parent) => {
+			const text = readSection(parent.body, ["Dropped", id]);
+			return text !== undefined && text !== "" && text !== gist;
+		});
+		if (!recorded) {
+			block(
+				id,
+				`${from.map((parent) => parent.label).join(", ")} ${from.length === 1 ? "records" : "record"} nothing of what it held: read ${at(doc.path)}, check it against when it is dropped, then say what of it is kept, other than its gist: \`nosedive crud ${from[0]!.id} --section:Dropped.${id} -\``,
+			);
+		}
+	}
 	if (blockers.length > 0) {
-		const head = one ? `${docs[0]!.label} is still linked, so it was not dropped` : `docs outside the list still link to these, so none was dropped`;
+		const head = one ? `${docs[0]!.label} was not dropped` : `none of these was dropped`;
 		// What dropping one takes, as each droppable kind among them says it (drop-when).
 		const said = new Map<string, string>();
 		for (const { doc } of docs) {
@@ -78,11 +137,18 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 		}
 	}
 
-	const byRepo = new Map<string, typeof docs>();
-	for (const entry of docs) byRepo.set(entry.doc.repoDir, [...(byRepo.get(entry.doc.repoDir) ?? []), entry]);
-	// Named before the docs go, since their links are how a feat is found.
-	const subjects = new Map([...byRepo].map(([repoDir, dropped]) => [repoDir, commitSubject(bridge, "crud", "drop", dropped.map(({ id }) => id))]));
+	const byRepo = new Map<string, string[]>();
+	const add = (repoDir: string, path: string) => byRepo.set(repoDir, [...(byRepo.get(repoDir) ?? []), path]);
+	for (const entry of docs) add(entry.doc.repoDir, entry.doc.path);
+	for (const [other, { repoDir }] of unlinks) add(repoDir, other.path);
+	// Named before the docs and links go, since their links are how a feat is found.
+	const subjects = new Map([...byRepo.keys()].map((repoDir) => [repoDir, commitSubject(bridge, "crud", "drop", [...dropping])]));
 	for (const entry of docs) rmSync(entry.doc.path);
-	for (const [repoDir, dropped] of byRepo) commitFiles(repoDir, dropped.map(({ doc }) => doc.path), subjects.get(repoDir)!, capes[0]!.version);
+	for (const [other, { at: positions }] of unlinks) {
+		for (const position of positions.sort((a, b) => b - a)) other.yaml.deleteIn(["links", position]);
+		if ((other.yaml.get("links") as { items?: unknown[] } | undefined)?.items?.length === 0) other.yaml.delete("links");
+		writeKbDoc(other.path, other.yaml, other.body);
+	}
+	for (const [repoDir, paths] of byRepo) commitFiles(repoDir, paths, subjects.get(repoDir)!, capes[0]!.version);
 	return docs.map(({ doc }) => at(doc.path));
 }

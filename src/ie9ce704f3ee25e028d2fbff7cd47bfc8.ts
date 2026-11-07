@@ -14,18 +14,22 @@ import { i01a13354850c7ba3ba5b8ac41a7b6b11 as listKbDocs } from "./i01a13354850c
 import { i01a19005c109715583553072f4e38dc4 as commitSubject } from "./i01a19005c109715583553072f4e38dc4.ts";
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { discardMinted, gateEdit } from "./i01a1b453a16c799bb9ce20fad1a9075b.ts";
+import { i01a13354867d7a528cbad55b80708e50 as mergePatch } from "./i01a13354867d7a528cbad55b80708e50.ts";
+import { sectionPath, writeSection } from "./i794ab6e0060f5ede8b0148203fe6df81.ts";
 
 const KIND_OF_KINDS = "01a138b2-b8e9-7f63-9068-f1439b9cb8c9";
 const REPO_KIND = "01a138b2-b8eb-79e8-9d77-6e8379ec18e3";
 
-export async function i6c9390d5a8e5583881960839391345db(
-	doc: { kind: string; gist: string; name: string | undefined; meta: string | undefined },
+export async function ie9ce704f3ee25e028d2fbff7cd47bfc8(
+	doc: { kind: string; gist: string; name: string | undefined; meta: string | undefined; keyed?: Record<string, unknown>; sections?: Record<string, string> },
 	ctx: Ctx,
 ): Promise<void> {
 	const bridge = findBridge(ctx.cwd);
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");
-	const meta = doc.meta === undefined ? {} : await readSource(doc.meta, ctx);
-	if (meta === null || typeof meta !== "object" || Array.isArray(meta)) throw new Error("--meta takes a mapping");
+	const sourced = doc.meta === undefined ? {} : await readSource(doc.meta, ctx);
+	if (sourced === null || typeof sourced !== "object" || Array.isArray(sourced)) throw new Error("--meta takes a mapping");
+	// Keyed meta overrides the source's same keys, and a null removes one.
+	const meta = (mergePatch(sourced, doc.keyed ?? {}) ?? {}) as Record<string, unknown>;
 	const kind = findKind(doc.kind, bridge, ctx.capes);
 	if (!kind) throw doc.kind.includes(":") ? unknownKind(doc.kind, bridge, ctx.capes) : undeclaredKind(doc.kind, bridge, ctx.capes);
 	if (kind.id === KIND_OF_KINDS && doc.name === "kind") throw new Error("only core declares the kind named kind");
@@ -45,6 +49,12 @@ export async function i6c9390d5a8e5583881960839391345db(
 		const edit = editKbDocs(ctx.cwd, ctx.capes[0]!.version, ctx.capes, (warning) => ctx.err(`nosedive: ${warning}`));
 		// A doc minted into a plain directory of the hero is in no root, so no later crud finds it either, and it has no gates.
 		const mintedDoc = located(() => edit.doc(minted.id));
+		const sections = Object.entries(doc.sections ?? {});
+		if (sections.length > 0) {
+			if (!mintedDoc) throw new Error(`${relative(bridge.dir, minted.path).replace(/\\/g, "/")} is in no root of the hero, so crud cannot write its sections`);
+			for (const [path, text] of sections) writeSection(edit, minted.id, sectionPath(path), text);
+		}
+		// Its sections are written before its gates see it, so they see it whole.
 		if (mintedDoc) await gateEdit(edit, ctx, [mintedDoc], discard);
 		if (mintedDoc && edit.touched().length > 0) edit.commit({ action: "crud", what: doc.kind }, [mintedDoc]);
 		// git finds the repo holding the doc from its directory, a checkout's included.
