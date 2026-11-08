@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { test } from "node:test";
 import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, DROPPED_LINE, FENCE_LINE, SURFACE_BEGIN, SURFACE_END, surfaceDigest, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
@@ -121,7 +121,7 @@ test("the block's lines end as the file's do", async () => {
 test("next warns of drift on stderr, other commands say nothing of it, and seed's rewrite quiets it", async () => {
 	const hero = gitRepo("agent-surface-next");
 	ok(await run(["seed", "--workspace"], hero));
-	assert.equal(git(["log", "-1", "--format=%s"], hero), `seed: ${hero.split("/").at(-1)} agent surface written`);
+	assert.equal(git(["log", "-1", "--format=%s"], hero), `seed: ${basename(hero)} agent surface written`);
 	assert.equal((await run(["next"], hero)).err, "", "the block seed wrote matches the surface");
 	writeFileSync(join(hero, "AGENTS.md"), readFileSync(join(hero, "AGENTS.md"), "utf8").replace(/surface=[0-9a-f]{8}/, "surface=00000000"));
 	const drifted = await run(["next"], hero);
@@ -177,7 +177,7 @@ test("next reports no drift for --at another root, nor inside a local cape holdi
 
 test("seed writes no surface for a cape, with a workspace or not, nor a base: only a hero gets one", async () => {
 	const cape = gitRepo("agent-surface-cape");
-	assert.equal(ok(await run(["seed", "--root-kind", "cape"], cape)), `seeded ${cape.split("/").at(-1)}`);
+	assert.equal(ok(await run(["seed", "--root-kind", "cape"], cape)), `seeded ${basename(cape)}`);
 	assert.equal(existsSync(join(cape, "AGENTS.md")), false);
 	const core = gitRepo("agent-surface-core");
 	ok(await run(["seed", "--root-kind", "cape", "--workspace"], core));
