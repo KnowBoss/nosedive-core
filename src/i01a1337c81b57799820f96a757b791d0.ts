@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Cape, CapeDoc } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -38,6 +39,14 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	const local = repo.dir ?? (bridge.workspace ? join(bridge.workspace, repo.name) : undefined);
 	const workspace = local !== undefined && existsSync(local);
 	const dir = workspace ? local : join(bridge.dir, ".nosedive", "capes", "src", repo.id);
+	// A build shipped with this core of that very commit is taken as it is, with no clone (shipped-cape-builds).
+	if (!workspace && COMMIT.test(ref)) {
+		const shipped = takeShipped(bridge.dir, repo.id, ref, core);
+		if (shipped) {
+			log(`cape ${repo.name}: using the build shipped with this core`);
+			return { ...shipped, ref };
+		}
+	}
 	let commit: string;
 	if (workspace) {
 		log(`cape ${repo.name}: using ${repo.dir ? "local cape" : "workspace checkout"} ${dir}`);
@@ -107,6 +116,42 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	const build = { id, owner, shortName, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString(), ...(workspace ? { source: dir } : {}) };
 	capeManifest(bridge.dir, build);
 	return { ...build, fresh: true };
+}
+
+/** Where builds shipped with a core lie: `capes/` beside its built file, a manifest and each build's `<id>.js`, as a hero keeps its own. */
+export function shippedDir(core: Pick<Cape, "url">): string | undefined {
+	return core.url?.startsWith("file:") ? join(dirname(fileURLToPath(core.url)), "capes") : undefined;
+}
+
+/**
+ * Copies a shipped build of the repo at the commit, made by this core, into the bridge's builds, with every build it needs, and
+ * records them; undefined when none is shipped, or one it needs is not.
+ */
+function takeShipped(bridgeDir: string, repoId: string, commit: string, core: Cape): (CapeBuild & { fresh: boolean }) | undefined {
+	const dir = shippedDir(core);
+	const manifest = dir ? join(dir, "manifest.json") : undefined;
+	if (!dir || !manifest || !existsSync(manifest)) return undefined;
+	const shipped = JSON.parse(readFileSync(manifest, "utf8")) as CapeBuild[];
+	const wanted = shipped.find((build) => build.repo === repoId && build.commit === commit && build.core === core.id);
+	if (!wanted) return undefined;
+	const all: CapeBuild[] = [];
+	const gather = (build: CapeBuild): boolean => {
+		if (all.includes(build)) return true;
+		all.push(build);
+		return Object.values(build.needs).every((id) => {
+			const need = shipped.find((each) => each.id === id);
+			return need !== undefined && gather(need);
+		});
+	};
+	if (!gather(wanted) || !all.every((build) => existsSync(join(dir, `${build.id}.js`)))) return undefined;
+	const builds = join(bridgeDir, ".nosedive", "capes");
+	mkdirSync(builds, { recursive: true });
+	const fresh = !existsSync(join(builds, `${wanted.id}.js`));
+	for (const build of all) {
+		if (!existsSync(join(builds, `${build.id}.js`))) copyFileSync(join(dir, `${build.id}.js`), join(builds, `${build.id}.js`));
+		capeManifest(bridgeDir, { ...build, builtAt: new Date().toISOString() });
+	}
+	return { ...wanted, fresh };
 }
 
 /**

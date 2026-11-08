@@ -13,7 +13,7 @@ import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee
 import { i01a1337d2c14754f9772dc22c1f2edfc as findRepoDoc } from "./i01a1337d2c14754f9772dc22c1f2edfc.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
-import { CANONICAL, GREET, git, greetCapeRepo, lock, ok, registerRepo, run, setCapes, shoutPackage, tempBridge, waveCapeRepo } from "../test/harness.ts";
+import { CANONICAL, GREET, git, greetCapeRepo, lock, ok, registerRepo, run, setCapes, shoutPackage, tempBridge, tempDir, waveCapeRepo } from "../test/harness.ts";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
 
 const core: Cape = await sourceCape();
@@ -53,6 +53,39 @@ async function build(repo: string, ref = "") {
 	const bridge = findBridge(dir)!;
 	return { dir, built: () => buildCape(bridge, findRepoDoc(bridge, "greet-cape"), ref, core) };
 }
+
+test("takes a build shipped with this core of the pinned commit, with no clone, and builds any other (shipped-cape-builds)", async () => {
+	const repo = greetCapeRepo();
+	const commit = git(["rev-parse", "HEAD"], repo);
+	// A build made the usual way, then shipped beside a core file.
+	const { dir, built } = await build(repo, commit);
+	const made = await built();
+	const shipped = join(tempDir("build-cape-shipped"), "dist");
+	mkdirSync(join(shipped, "capes"), { recursive: true });
+	writeFileSync(join(shipped, "capes", "manifest.json"), JSON.stringify([{ ...made, fresh: undefined }]));
+	writeFileSync(join(shipped, "capes", `${made.id}.js`), readFileSync(join(dir, ".nosedive", "capes", `${made.id}.js`)));
+	const shipping: Cape = { ...core, url: pathToFileURL(join(shipped, "core.js")).href };
+
+	// A hero registering the same repo, as the legacy-capes migration does by its fixed id, whose remote is not there, can only take it shipped.
+	const hero = await tempBridge("build-cape-shipped-hero");
+	await registerRepo(hero, "greet-cape", repo);
+	const bridge = findBridge(hero)!;
+	const record = { ...findRepoDoc(bridge, "greet-cape"), id: made.repo, remote: join(hero, "no-such-remote") };
+	const messages: string[] = [];
+	const taken = await buildCape(bridge, record, commit, shipping, [], (message) => messages.push(message));
+	assert.equal(taken.id, made.id);
+	assert.equal(taken.fresh, true);
+	assert.match(messages.join("\n"), /cape greet-cape: using the build shipped with this core/);
+	assert.equal(existsSync(join(hero, ".nosedive", "capes", "src")), false, "nothing was cloned");
+	assert.ok(existsSync(join(hero, ".nosedive", "capes", `${made.id}.js`)));
+	assert.equal(JSON.parse(readFileSync(join(hero, ".nosedive", "capes", "manifest.json"), "utf8"))[0].id, made.id);
+	assert.equal((await buildCape(bridge, record, commit, shipping)).fresh, false, "taken once");
+
+	// Another commit, or another core, is no match, so it is cloned and built: here that fails on the missing remote.
+	git(["commit", "-q", "--allow-empty", "-m", "moved on"], repo);
+	await assert.rejects(buildCape(bridge, record, git(["rev-parse", "HEAD"], repo), shipping), /no-such-remote/);
+	await assert.rejects(buildCape(bridge, record, commit, { ...shipping, id: "another-core" }), /no-such-remote/);
+});
 
 test("builds a cape whose core imports resolve only against the core it was built for", async () => {
 	const repo = greetCapeRepo();
