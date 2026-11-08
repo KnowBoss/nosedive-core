@@ -173,7 +173,8 @@ function gateIds(links: unknown, sect: string): string[] {
 		link && typeof link === "object"
 			? Object.entries(link as Record<string, { rel?: unknown } | null>)
 					.filter(([, value]) => value?.rel === `${sect}.gate`)
-					.flatMap(([target]) => QUID.exec(target) ?? [])
+					// The gate's quid is the key's last: one keyed `<repo id>:kb/<gate>.md` names its repo first.
+					.flatMap(([target]) => target.match(new RegExp(QUID, "g"))?.at(-1) ?? [])
 			: [],
 	);
 }

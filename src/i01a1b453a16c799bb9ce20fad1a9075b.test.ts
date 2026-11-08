@@ -107,6 +107,17 @@ test("a doc of a kind with no crud gates is minted as before", async () => {
 	assert.match(git(["log", "-1", "--format=%s"], bridge), /^crud: core:memo$/);
 });
 
+test("a crud gate a kind links as <repo id>:kb/<gate>.md is found in its cape, not sought as the repo", async () => {
+	const bridge = await tempBridge("crud-gates-repo-keyed");
+	const repo = await registerRepo(bridge, "note-cape", noteCapeRepo());
+	setCapes(bridge, ["note-cape"]);
+	ok(await run(["seed"], bridge));
+	const kind = ok(await run(["crud", "core:kind", "a jot", "--name", "jot", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: true\n"));
+	ok(await run(["crud", kind, "--links", "-"], bridge, `${repo}:kb/${AFTER}.md:\n  rel: crud.gate\n`));
+	// note-shapes takes only notes, so a jot is minted untouched rather than refused.
+	assert.ok(existsSync(join(bridge, ok(await run(["crud", "jot", "a", "jot"], bridge)))));
+});
+
 test("changed compares a dotted path of the frontmatter, a missing state having nothing there", () => {
 	const doc = (feat?: string) => ({ fm: { meta: feat ? { feat } : {} }, body: "" });
 	assert.equal(changed(doc("a"), doc("a"), "meta.feat"), false);

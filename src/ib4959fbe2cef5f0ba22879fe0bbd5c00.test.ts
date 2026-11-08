@@ -144,3 +144,15 @@ test("lists a gate under each kind that links it, by the kind's spelling, and un
 	assert.equal(groups.at(-2), "thing\n  pass --stamp <quid> [--loud]");
 	assert.equal(groups.at(-1), "any doc\n  pass --stamp <quid> [--refuse]");
 });
+
+test("a gate linked as <repo id>:kb/<gate>.md is that gate, not the repo", async () => {
+	const bridge = await tempBridge("pass-repo-keyed");
+	const repo = await registerRepo(bridge, "stamp-cape", stampCapeRepo());
+	setCapes(bridge, ["stamp-cape"]);
+	ok(await run(["seed"], bridge));
+	const kind = idOf(ok(await run(["crud", "core:kind", "a thing", "--name", "thing", "--meta", "-"], bridge, "schema:\n  type: object\n  additionalProperties: true\n")));
+	ok(await run(["crud", kind, "--links", "-"], bridge, `${repo}:kb/${STAMP}.md:\n  rel: stamp.gate\n`));
+	assert.match(ok(await run(["pass", "--help"], bridge)), /\n\nthing\n {2}pass --stamp <quid> \[--loud\]/);
+	const path = ok(await run(["crud", "thing", "a", "thing"], bridge));
+	assert.match(ok(await run(["pass", "--stamp", idOf(path)], bridge)), /\ngate stamp: passed\n/);
+});
