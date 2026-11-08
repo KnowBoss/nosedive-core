@@ -8,19 +8,20 @@ import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource, dropWhenOf, dr
 import { repoDir } from "../scripts/source-cape.mjs";
 import { CANONICAL, git, gitRepo, ok, run, tempDir } from "../test/harness.ts";
 
-const SCAF = "01a13354-7f5f-7c45-a3fb-2ac0e3a7678e";
+const CRUD = "01a13354-7dea-7604-b903-b94a5aca2b83";
+const OTHER = "01a13354-7f5f-7c45-a3fb-2ac0e3a7678e";
 
 test("describes this repo's actions, skipping docs of other kinds", () => {
 	const { docs, entries } = describeCapeSource(repoDir);
-	const scaf = docs[SCAF]!;
-	assert.equal(scaf.name, "scaf");
-	assert.deepEqual(scaf.usages[0], { id: "c984cd607bf9568d97eb5ffb0b7da854", text: "scaf [<quid>]" });
-	assert.equal(scaf.top, true, "its parent is the backlog root, which is no action");
-	assert.match(scaf.body, /^# Scaf\n/);
+	const crud = docs[CRUD]!;
+	assert.equal(crud.name, "crud");
+	assert.deepEqual(crud.usages[0], { id: "5d22a1166ca0519c8dcb58f8989f3ac0", text: "crud" });
+	assert.equal(crud.top, true, "its parent is the backlog root, which is no action");
+	assert.match(crud.body, /^# Crud\n/);
 	assert.equal(docs["01a13354-7d34-72f3-ad11-9c44b4d5de6e"], undefined);
 	assert.deepEqual(
-		entries.find((entry) => entry.id === SCAF),
-		{ id: SCAF, name: "i01a133547f5f7c45a3fb2ac0e3a7678e", file: join(repoDir, "src", "i01a133547f5f7c45a3fb2ac0e3a7678e.ts") },
+		entries.find((entry) => entry.id === CRUD),
+		{ id: CRUD, name: "i01a133547dea7604b903b94a5aca2b83", file: join(repoDir, "src", "i01a133547dea7604b903b94a5aca2b83.ts") },
 	);
 });
 
@@ -43,10 +44,10 @@ test("reads the kb its config names, and only code and kind docs whole", () => {
 	mkdirSync(join(dir, ".nosedive"));
 	mkdirSync(join(dir, "notes"));
 	writeFileSync(join(dir, ".nosedive", "config.yaml"), "roots:\n  - notes/01a180ad-db95-70d2-b34d-add0b8f7ed41.md\n");
-	writeFileSync(join(dir, "notes", `${SCAF}.md`), `---\nkind: action\nid: ${SCAF}\nname: scaf\nmeta:\n  usages:\n    - scaf\n${CANONICAL}---\n`);
+	writeFileSync(join(dir, "notes", `${OTHER}.md`), `---\nkind: action\nid: ${OTHER}\nname: scaf\nmeta:\n  usages:\n    - scaf\n${CANONICAL}---\n`);
 	writeFileSync(join(dir, "notes", "memo.md"), "---\nkind: memo\nid: m\n---\n\nkind: action\n");
 	const { docs, entries } = describeCapeSource(dir);
-	assert.deepEqual(Object.keys(docs), [SCAF]);
+	assert.deepEqual(Object.keys(docs), [OTHER]);
 	assert.equal(entries[0]!.file, join(dir, "src", "i01a133547f5f7c45a3fb2ac0e3a7678e.ts"));
 });
 

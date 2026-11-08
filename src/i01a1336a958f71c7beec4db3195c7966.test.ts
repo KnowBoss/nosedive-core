@@ -10,7 +10,7 @@ import { greetCapeRepo, kbOf, ok, registerRepo, run, setCapes, tempBridge, tempD
 test("lists core's top-level actions, never internal functions", async () => {
 	const out = ok(await run([], tempDir("launch-help")));
 	assert.match(out, /^Usage: nosedive \[--at <target>\] <action> \[<args>\]\n\ncore\n {2}crud {2}Reads, mints and edits kb docs\n {2}mint {2}Prints new uuid v7 ids/);
-	assert.match(out, /\n {2}scaf {2}Writes the files/);
+	assert.doesNotMatch(out, /\n {2}scaf /, "seed scaffolds now (seed-scaffolds-capes)");
 	assert.match(out, /\n {2}seed {2}Makes the current git repo a bridge/);
 	assert.doesNotMatch(out, /match-usage|launch/);
 });
@@ -38,9 +38,9 @@ test("heads a cape in help by its short name, the name of its root doc, not its 
 
 test("--help lists an action's usages and names --help --more, which adds its ## Usage section", async () => {
 	const dir = tempDir("launch-action-help");
-	const help = ok(await run(["scaf", "--help"], dir));
-	assert.equal(help, "Writes the files a seeded repo's action docs call for and do not have yet\n\n  scaf [<quid>]\n\nnosedive scaf --help --more for what each usage does.");
-	assert.match(ok(await run(["scaf", "--help", "--more"], dir)), /\n\n`nosedive \[--at <dir>\] scaf \[<quid>\]` walks the tree /);
+	const help = ok(await run(["seed", "--help"], dir));
+	assert.equal(help, "Makes the current git repo a bridge, or brings an existing bridge's setup up to date\n\n  seed [--no-capes] [--root-kind <kind>] [--workspace]\n\nnosedive seed --help --more for what each usage does.");
+	assert.match(ok(await run(["seed", "--help", "--more"], dir)), /\n\nOn a repo it knows, seed first brings it to today's shape/);
 });
 
 test("--at selects one of the hero's roots by directory, name or quid, else a directory in the hero for crud to write into; NOSEDIVE_HERO names the repo to act on", async () => {

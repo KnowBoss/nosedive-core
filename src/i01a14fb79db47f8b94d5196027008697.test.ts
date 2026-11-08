@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
 import { CANONICAL, lock, ok, run, shoutPackage, tempBridge, kbOf, kbPath } from "../test/harness.ts";
+import { i01a133547f5f7c45a3fb2ac0e3a7678e as scaffoldCape } from "./i01a133547f5f7c45a3fb2ac0e3a7678e.ts";
 
 const HELLO = "01a14fba-1f85-72f5-8685-94c90e206721";
 const READY = "01a14fba-1f86-7d2a-9f27-269a3819ca27";
@@ -18,7 +19,7 @@ async function helloBase(label: string): Promise<string> {
 		writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${gist}"\nmeta:\n  usages:\n    - ${usage}\n${CANONICAL}---\n`);
 	doc(HELLO, "hello", "Says hello", "hello <who>");
 	doc(READY, "ready-memo", "A memo is ready", "pass --ready <core:memo>");
-	ok(await run(["scaf"], bridge));
+	scaffoldCape(bridge);
 	hello(bridge, "hello");
 	writeFileSync(join(bridge, implOf(READY, "pass --ready <core:memo>")), `export async function i${usageId("pass --ready <core:memo>", READY)}(ctx: any) {\n\tctx.out(\`\${ctx.doc.fm.name} is ready\`);\n}\n`);
 	return bridge;

@@ -7,11 +7,11 @@ import { i01a135419cdf7f3ba72a31c4092c5bb5 as loadSourceCape } from "./i01a13541
 import { repoDir } from "../scripts/source-cape.mjs";
 
 const ID = "01a13541-9d8a-7f92-8be9-3ad202ef84bd";
-const SCAF = "01a13354-7f5f-7c45-a3fb-2ac0e3a7678e";
+const CRUD = "01a13354-7dea-7604-b903-b94a5aca2b83";
 
 test("indexes each action by name and its entrypoint by doc id, under the given id", async () => {
 	const cape = await loadSourceCape(repoDir, ID, "nosedive-core");
 	assert.deepEqual([cape.id, cape.name, cape.commit, cape.version], [ID, "nosedive-core", "source", "source"]);
-	assert.equal(cape.index[namespacedUuid("scaf", ID)], SCAF);
-	assert.equal(typeof cape.index[namespacedUuid(SCAF, ID)], "function");
+	assert.equal(cape.index[namespacedUuid("crud", ID)], CRUD);
+	assert.equal(typeof cape.index[namespacedUuid(CRUD, ID)], "function");
 });
