@@ -13,7 +13,7 @@ export const LEGACY_CAPES = [
 		name: "nosedive-work",
 		gist: "The cape holding feat, dive, jump, pack, bail, land and merge",
 		origin: "https://github.com/KnowBoss/nosedive-work.git",
-		commit: "9804c0a3eebfcea0b1979a453b7406c5863f8b54",
+		commit: "f3c449cfdcff28c865805c5c129be0feb67dfcb7",
 	},
 	{
 		id: "01a1b13e-111d-73de-8f7d-41b47af07703",
