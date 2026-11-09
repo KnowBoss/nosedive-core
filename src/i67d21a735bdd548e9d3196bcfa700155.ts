@@ -188,6 +188,8 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 
 	// Each root's body is its tree, rendered from its links.
 	const roots = own.roots.filter((root) => !nestedRoot(own, root)).flatMap((root) => {
+		const fromRepo = relative(dir, root.dir);
+		if (isAbsolute(fromRepo) || fromRepo === ".." || fromRepo.startsWith("../") || fromRepo.startsWith("..\\")) return [];
 		const doc = findKbDoc(root.dir, root.id);
 		return doc ? [{ doc, kbDir: root.dir }] : [];
 	});

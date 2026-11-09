@@ -32,3 +32,15 @@ test("finds a doc of a local cape, naming the hero as the repo it commits in", a
 	const found = locateKbDoc(findBridge(dir)!, root.root!);
 	assert.deepEqual([found?.repoDir, found?.kbDir], [dir, join(dir, "capes", "spec", "kb")]);
 });
+
+test("names the external root's checkout as the repo for its context docs", async () => {
+	const hero = await tempBridge("external-root-hero");
+	const external = await tempBridge("external-root-repo");
+	const bridge = findBridge(hero)!;
+	const root = findBridge(external)!.roots[0]!;
+	const doc = join(root.dir, `${THERE}.md`);
+	writeFileSync(doc, `---\nid: ${THERE}\n---\n`);
+	git(["add", "--", doc], external);
+	bridge.roots.push(root);
+	assert.deepEqual([locateKbDoc(bridge, THERE)?.repoDir, locateKbDoc(bridge, THERE)?.kbDir], [external, root.dir]);
+});

@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a138b2b8ed775297973c2aad478c8f as workspaceRepo } from "./i01a138b2b8ed775297973c2aad478c8f.ts";
@@ -35,7 +35,14 @@ function inRepo(repo: Bridge, id: string) {
 	const dirs = [...(repo.kindsDir ? [repo.kindsDir] : []), ...(repo.reposDir ? [repo.reposDir] : []), ...repo.roots.map((root) => root.dir), repo.kbDir];
 	for (const kbDir of [...new Set(dirs)]) {
 		const doc = existsSync(kbDir) ? findKbDoc(kbDir, id) : undefined;
-		if (doc) return { ...doc, repoDir: repo.dir, kbDir };
+		if (doc) {
+			const fromRepo = relative(repo.dir, kbDir);
+			if (isAbsolute(fromRepo) || fromRepo === ".." || fromRepo.startsWith("../") || fromRepo.startsWith("..\\")) {
+				const top = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: kbDir, encoding: "utf8" });
+				if (top.status === 0) return { ...doc, repoDir: resolve(kbDir, top.stdout.trim()), kbDir };
+			}
+			return { ...doc, repoDir: repo.dir, kbDir };
+		}
 	}
 	return undefined;
 }
