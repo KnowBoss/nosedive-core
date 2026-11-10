@@ -1,10 +1,11 @@
-// seed [--no-capes] [--root-kind <kind>] [--workspace]
+// seed [--no-capes] [--root-kind <kind>] [--workspace] [--migrate] [--no-migrate]
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { test } from "node:test";
 import { parseDocument } from "yaml";
 import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
+import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
@@ -232,7 +233,78 @@ test("migrates an older config first, its backlog becoming its one root, and say
 	assert.deepEqual(after, { migrations: MIGRATIONS.slice(0, 2).map((migration) => migration.id), id: root, roots: [`kb/${root}.md`] });
 	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), /\nkind: base\n/);
 	assert.match(git(["log", "--format=%s"], dir), /\nmigrate: baseline\n/);
-	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], dir)), /migrated/, "once");
+	// Converted, it is a repo seed knows: what waited is asked about like any pending migration.
+	const asked = await run(["seed", "--no-capes"], dir);
+	assert.equal(asked.code, 1);
+	assert.match(asked.err, /^- canonical-kinds: /m);
+	assert.doesNotMatch(ok(await run(["seed", "--no-capes", "--migrate"], dir)), /migrated/, "once");
+});
+
+/** HEAD and the working tree, which a refused seed leaves as they were. */
+const state = (dir: string) => `${git(["rev-parse", "HEAD"], dir)}\n${git(["status", "--porcelain", "--untracked-files=all"], dir)}`;
+const FENCE = MIGRATIONS.at(-1)!;
+
+/** A hero seeded before core had its last migration. */
+async function heroBehind(label: string): Promise<{ dir: string; config: string }> {
+	const dir = await tempBridge(label);
+	const config = join(dir, ".nosedive", "config.yaml");
+	writeFileSync(config, readFileSync(config, "utf8").replace(`  - ${FENCE.id}\n`, ""));
+	git(["commit", "-qam", "seeded by an older core"], dir);
+	return { dir, config };
+}
+
+test("a new hero and a converted legacy repo migrate unasked (seed-asks-before-migrating)", async () => {
+	const hero = gitRepo("seed-new-hero-migrates");
+	ok(await run(["seed", "--workspace"], hero));
+	assert.match(configOf(hero).text, new RegExp(`^migrations:\n${LISTED}`, "m"));
+	const legacy = gitRepo("seed-legacy-migrates");
+	const root = ok(await run(["mint"], legacy));
+	mkdirSync(join(legacy, "kb"));
+	writeFileSync(join(legacy, "kb", `${root}.md`), `---\nkind: memo\nid: ${root}\nname: old\n---\n\n# old\n`);
+	mkdirSync(join(legacy, ".nosedive"));
+	writeFileSync(join(legacy, ".nosedive", "config.yaml"), `kb: ./kb\nbacklog: ${root}\n`);
+	git(["add", "-A"], legacy);
+	git(["commit", "-qm", "legacy"], legacy);
+	assert.match(ok(await run(["seed", "--no-capes"], legacy)), /^migrated \S+: baseline$/m);
+});
+
+test("refuses to migrate a repo it knows unasked, changing nothing, and lists each pending migration's name, gist, doc and crud", async () => {
+	const { dir, config } = await heroBehind("seed-asks");
+	const before = state(dir);
+	const asked = await run(["seed"], dir);
+	assert.equal(asked.code, 1);
+	const gist = String(readKbDoc(core.docs[FENCE.id]!.text).fm.gist);
+	const link = relative(dir, join(core.repoDir!, "kb", `${FENCE.id}.md`)).replace(/\\/g, "/");
+	assert.equal(
+		asked.err,
+		`nosedive: seed changed nothing: ${basename(dir)} has a migration to run\n- ${FENCE.name}: ${gist}\n  [${FENCE.name}](${link})\n  nosedive crud ${FENCE.id}\nrerun with --migrate to run them all, or --no-migrate to seed without them`,
+	);
+	assert.equal(state(dir), before);
+	// The link is relative to where seed runs.
+	const sub = join(dir, "self");
+	const fromSub = (await run(["seed"], sub)).err;
+	assert.ok(fromSub.includes(`[${FENCE.name}](${relative(sub, join(core.repoDir!, "kb", `${FENCE.id}.md`)).replace(/\\/g, "/")})`), fromSub);
+	assert.equal(state(dir), before);
+	const both = await run(["seed", "--migrate", "--no-migrate"], dir);
+	assert.match(both.err, /--migrate or --no-migrate, not both/);
+	assert.equal(state(dir), before);
+	assert.doesNotMatch(readFileSync(config, "utf8"), new RegExp(FENCE.id));
+});
+
+test("--migrate runs every pending migration; --no-migrate seeds without them, so the next seed asks again", async () => {
+	const { dir, config } = await heroBehind("seed-migrate-flags");
+	ok(await run(["seed", "--no-migrate"], dir));
+	assert.doesNotMatch(readFileSync(config, "utf8"), new RegExp(FENCE.id), "left pending");
+	assert.equal(git(["status", "--porcelain"], dir), "");
+	assert.equal((await run(["seed"], dir)).code, 1, "and asked about again");
+	ok(await run(["seed", "--migrate"], dir));
+	assert.match(readFileSync(config, "utf8"), new RegExp(`^  - ${FENCE.id}$`, "m"));
+	assert.equal(git(["log", "-1", "--format=%s"], dir), `migrate: ${FENCE.name}`);
+	// With nothing pending, either flag changes nothing.
+	const before = state(dir);
+	for (const flag of ["--migrate", "--no-migrate"]) assert.equal(ok(await run(["seed", flag], dir)), `${basename(dir)} is already seeded`);
+	assert.equal(ok(await run(["seed"], dir)), `${basename(dir)} is already seeded`);
+	assert.equal(state(dir), before);
 });
 
 test("a workspace ignores itself, and moves when its path changes", async () => {

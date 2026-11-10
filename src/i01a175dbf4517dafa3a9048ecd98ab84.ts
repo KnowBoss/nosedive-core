@@ -29,9 +29,8 @@ export const MIGRATIONS: Migration[] = [
 	{ id: "01a1b3c3-5311-77d3-a3b8-9d851c6b456c", name: "legacy-fence", run: legacyFence },
 ];
 
-export function i01a175dbf4517dafa3a9048ecd98ab84(dir: string, ctx: MigrationCtx, chain = MIGRATIONS): string[] {
-	const configPath = join(dir, ".nosedive", "config.yaml");
-	if (!existsSync(configPath) || chain.length === 0) return [];
+/** The migrations of the chain the repo has not run, in chain order, and its config's `last-migration`; it writes nothing. */
+function ranAndPending(configPath: string, chain: Migration[]): { ran: string[]; pending: Migration[]; last: unknown } {
 	const config = parseDocument(readFileSync(configPath, "utf8")).toJS() as Record<string, unknown> | null;
 	const listed = Array.isArray(config?.migrations) ? config.migrations.map(String) : [];
 	const last = config?.["last-migration"];
@@ -41,8 +40,19 @@ export function i01a175dbf4517dafa3a9048ecd98ab84(dir: string, ctx: MigrationCtx
 	const ran = [...new Set([...chain.slice(0, upTo + 1).map((each) => each.id), ...listed])];
 	// `<cape repo id>:<migration id>` is a cape's, which run-cape-migrations runs (cape-migration-ids).
 	for (const id of ran) if (!id.includes(":") && !chain.some((each) => each.id === id)) throw newerCore(configPath, id);
+	return { ran, pending: chain.filter((each) => !ran.includes(each.id)), last };
+}
 
-	const pending = chain.filter((each) => !ran.includes(each.id));
+/** The migrations a run would try, writing nothing: none for a repo with no config. */
+export function pendingMigrations(dir: string): Migration[] {
+	const configPath = join(dir, ".nosedive", "config.yaml");
+	return existsSync(configPath) ? ranAndPending(configPath, MIGRATIONS).pending : [];
+}
+
+export function i01a175dbf4517dafa3a9048ecd98ab84(dir: string, ctx: MigrationCtx, chain = MIGRATIONS): string[] {
+	const configPath = join(dir, ".nosedive", "config.yaml");
+	if (!existsSync(configPath) || chain.length === 0) return [];
+	const { ran, pending, last } = ranAndPending(configPath, chain);
 	const listAlone = () => {
 		listMigrations(configPath, ran);
 		commitFiles(dir, [configPath], `migrate: ${dirName(dir)} lists its migrations`, ctx.capes[0]!.version);
