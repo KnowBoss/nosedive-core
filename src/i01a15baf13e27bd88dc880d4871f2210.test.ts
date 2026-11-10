@@ -125,7 +125,7 @@ test("keeps a cache at its origin's key, and under local by the key's hash when 
 	assert.equal(cachePath("git@github.com:Owner/Name.git"), keyed);
 	assert.equal(cachePath("https://GitHub.com/Owner/Name/"), keyed);
 	const hashed = (key: string) => join(root, "local", `${createHash("sha256").update(key).digest("hex").slice(0, 16)}.git`);
-	for (const unsafe of ["https://example.com/a/../b", "https://example.com/a/./b", "https://example.com/a/b c", "https://example.com/a/b%20c", "git@example.com:a/b:c"]) {
+	for (const unsafe of ["https://example.com/a/../b", "https://example.com/a/./b", "https://example.com/a/b c", "https://example.com/a/b%20c", "git@example.com:a/b:c", "https://example.com/a.git/b"]) {
 		assert.equal(cachePath(unsafe), hashed(remoteKey(unsafe)), unsafe);
 	}
 	assert.match(slashed(cachePath(join(root, "some", "path"))), /\/cache\/local\/[0-9a-f]{16}\.git$/);

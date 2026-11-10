@@ -77,7 +77,8 @@ export function cachePath(remote: string): string {
 	let key = remoteKey(url ? remote : resolve(remote));
 	if (!url && process.platform === "win32") key = key.toLowerCase();
 	const segments = key.split("/");
-	const safe = url && segments.every((segment) => /^[A-Za-z0-9._~-]+$/.test(segment) && segment !== "." && segment !== "..");
+	// A segment ending `.git` would put one cache inside another's directory.
+	const safe = url && segments.every((segment) => /^[A-Za-z0-9._~-]+$/.test(segment) && segment !== "." && segment !== ".." && !/\.git$/i.test(segment));
 	const kept = safe ? segments : ["local", createHash("sha256").update(key).digest("hex").slice(0, 16)];
 	return `${join(userDir(), "cache", ...kept)}.git`;
 }
