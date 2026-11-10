@@ -107,3 +107,15 @@ test("checks a doc's meta once, against its final kind, so kind and meta change 
 	const refused = await run(["crud", "--batch", "-"], bridge, `- quid: ${q}\n  kind: question\n`);
 	assert.match(refused.err, new RegExp(`--batch ${q}: meta does not fit kind question`));
 });
+
+test("a body that starts with a # heading sets the title, as --body does, leaving one title", async () => {
+	const bridge = await tempBridge("crud-batch-titled");
+	await declareKinds(bridge, "goal");
+	const a = ok(await run(["crud", "goal", "a"], bridge));
+	const b = ok(await run(["crud", "goal", "b"], bridge));
+	const batch = [`- quid: ${idOf(a)}`, "  body: |", "    # a", "", "    Its own title.", `- quid: ${idOf(b)}`, "  body: |", "", "    # Beta", "", "    Retitled.", ""].join("\n");
+	ok(await run(["crud", "--batch", "-"], bridge, batch));
+	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: body");
+	assert.match(readFileSync(join(bridge, a), "utf8"), /\n---\n\n# a\n\nIts own title\.\n$/);
+	assert.match(readFileSync(join(bridge, b), "utf8"), /\n---\n\n# Beta\n\nRetitled\.\n$/);
+});
