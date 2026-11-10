@@ -39,7 +39,7 @@ test("heads a cape in help by its short name, the name of its root doc, not its 
 test("--help lists an action's usages and names --help --more, which adds its ## Usage section", async () => {
 	const dir = tempDir("launch-action-help");
 	const help = ok(await run(["seed", "--help"], dir));
-	assert.equal(help, "Makes the current git repo a bridge, or brings an existing bridge's setup up to date\n\n  seed [--no-capes] [--root-kind <kind>] [--workspace]\n\nnosedive seed --help --more for what each usage does.");
+	assert.equal(help, "Makes the current git repo a bridge, or brings an existing bridge's setup up to date\n\n  seed [--no-capes] [--root-kind <kind>] [--workspace] [--migrate] [--no-migrate]\n\nnosedive seed --help --more for what each usage does.");
 	assert.match(ok(await run(["seed", "--help", "--more"], dir)), /\n\nOn a repo it knows, seed first brings it to today's shape/);
 });
 

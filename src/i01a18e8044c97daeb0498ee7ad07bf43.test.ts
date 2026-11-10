@@ -207,7 +207,7 @@ test("seed leaves it unrecorded until the capes it needs are built, then runs it
 	assert.doesNotMatch(readFileSync(config, "utf8"), new RegExp(QUID));
 	assert.equal(fmOf(read(home, gizmo)).scopes, undefined);
 
-	const out = ok(await run(["seed"], dir));
+	const out = ok(await run(["seed", "--migrate"], dir));
 	assert.ok(out.indexOf("built cape greet-cape") !== -1 && out.indexOf("built cape greet-cape") < out.indexOf("migrated "), out);
 	assert.match(out, /migrated .+: canonical-kinds/);
 	assert.equal(fmOf(read(home, gizmo)).scopes?.[0]?.[owner]?.canonical, true);
@@ -298,7 +298,7 @@ test("changes nothing when it runs again, and is one commit when seed runs it", 
 	git(["add", "-A"], dir);
 	git(["commit", "-qm", "forgot"], dir);
 	const before = git(["rev-list", "--count", "HEAD"], dir);
-	assert.match(ok(await run(["seed", "--no-capes"], dir)), /migrated .+: canonical-kinds/);
+	assert.match(ok(await run(["seed", "--no-capes", "--migrate"], dir)), /migrated .+: canonical-kinds/);
 	assert.equal(Number(git(["rev-list", "--count", "HEAD"], dir)) - Number(before), 1);
 	assert.equal(git(["log", "--format=%s", "-1"], dir), "migrate: canonical-kinds");
 	assert.match(readFileSync(config, "utf8"), new RegExp(QUID));

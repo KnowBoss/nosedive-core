@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Document, isSeq, parseDocument } from "yaml";
 import { renderActions, type Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, hasSurface, ownChange } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
@@ -17,11 +18,12 @@ import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c810a7456876b831d0c873396.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig, selectRoot } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
-import { i01a175dbf4517dafa3a9048ecd98ab84 as runMigrations, MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
+import { i01a175dbf4517dafa3a9048ecd98ab84 as runMigrations, MIGRATIONS, pendingMigrations, type Migration } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
+import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { i01a14a5504467ef08586b828ebabc148 as renderTree, rendersTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
-import { i01a1b30d4b537775a4e1260cd7fb9067 as runCapeMigrations } from "./i01a1b30d4b537775a4e1260cd7fb9067.ts";
+import { i01a1b30d4b537775a4e1260cd7fb9067 as runCapeMigrations, pendingCapeMigrations } from "./i01a1b30d4b537775a4e1260cd7fb9067.ts";
 import { i01a133547f5f7c45a3fb2ac0e3a7678e as scaffoldCape } from "./i01a133547f5f7c45a3fb2ac0e3a7678e.ts";
 
 /** Relative to .nosedive/: built capes, and what this checkout remembers for itself. */
@@ -94,8 +96,8 @@ function nearestRepo(cwd: string, top: string): string {
 	return found !== undefined && rel !== undefined && !rel.startsWith("..") && !isAbsolute(rel) ? found : top;
 }
 
-export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: boolean; rootKind: string; workspace: boolean }, ctx: Ctx): Promise<void> {
-	const { noCapes, rootKind, workspace } = options;
+export async function ie4a628f20d785d3a941ca681bf26e3cf(options: { noCapes: boolean; rootKind: string; workspace: boolean; migrate: boolean; noMigrate: boolean }, ctx: Ctx): Promise<void> {
+	const { noCapes, rootKind, workspace, migrate, noMigrate } = options;
 	const root = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: ctx.cwd, encoding: "utf8" });
 	if (root.status !== 0) throw new Error("seed makes a git repo a bridge, and this is not a git repo");
 	const top = root.stdout.trim();
@@ -111,8 +113,22 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		const rel = relative(top, listed.dir);
 		if (rel.startsWith("..") || isAbsolute(rel)) throw new Error(`${configPath} lists root ${listed.id} at ${listed.dir}, outside this git checkout, ${top}: seed writes into no other checkout, so it wrote nothing`);
 	}
+	if (migrate && noMigrate) throw new Error("seed takes --migrate or --no-migrate, not both");
+	// Only a repo seeded for the first time, new or legacy (no roots yet), migrates unasked (seed-asks-before-migrating).
+	const asking = !migrate && !noMigrate && existsSync(configPath) && parseDocument(readFileSync(configPath, "utf8")).has("roots");
+	const corePending = pendingMigrations(dir);
+	if (asking && corePending.length > 0) throw pendingError(ctx, repo, [...corePending.map((migration) => coreMigration(ctx, migration)), ...(noCapes ? [] : await pendingCapeMigrations(dir, ctx))]);
+	// --no-migrate leaves out what was pending, but not what seed itself makes pending, as --workspace does hero-self.
+	const chain = noMigrate ? MIGRATIONS.filter((migration) => !corePending.includes(migration)) : MIGRATIONS;
 	// A repo it knows is brought to today's shape before anything else reads it.
-	for (const name of existsSync(configPath) ? runMigrations(dir, ctx) : []) ctx.out(`migrated ${repo}: ${name}`);
+	for (const name of existsSync(configPath) ? runMigrations(dir, ctx, chain) : []) ctx.out(`migrated ${repo}: ${name}`);
+	// Its capes build next, so their migrations are known before seed writes anything else; a new repo wears none.
+	const failed: string[] = [];
+	if (!noCapes && readRepoConfig(dir)) await buildCapes(dir, ctx, failed);
+	if (asking && !noCapes) {
+		const capePending = await pendingCapeMigrations(dir, ctx);
+		if (capePending.length > 0) throw pendingError(ctx, repo, capePending);
+	}
 	if (!readRepoConfig(dir)) {
 		// A repo is what its config enables: its id, its first root, and a workspace when asked for.
 		// The root's kind is one of core's, which the root says in a canonical scope.
@@ -206,7 +222,7 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 
 	// A migration that waited for capes to build runs now that they have, so it needs no second seed.
 	const migrateAgain = () => {
-		for (const name of runMigrations(dir, ctx)) ctx.out(`migrated ${repo}: ${name}`);
+		for (const name of runMigrations(dir, ctx, chain)) ctx.out(`migrated ${repo}: ${name}`);
 	};
 	// Last, the hero's agent instruction files show the surface as it now is, the capes just built included.
 	const writeSurface = async () => {
@@ -230,10 +246,22 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		migrateAgain();
 		return writeSurface();
 	}
+	migrateAgain();
+	// Each worn cape's own migrations run after core's, against what core's left (cape-migration-order).
+	for (const name of noMigrate ? [] : await runCapeMigrations(dir, ctx)) ctx.out(`migrated ${repo}: ${name}`);
+	try {
+		await writeSurface();
+	} catch (err) {
+		if (failed.length === 0) throw err;
+		failed.push(`agent surface: ${err instanceof Error ? err.message : String(err)}`);
+	}
+	if (failed.length > 0) throw new Error(`some capes are not usable:\n${failed.map((failure) => `- ${failure}`).join("\n")}`);
+}
+
+/** Builds every root's capes, the active root's first, each once: a cape only another root wears is rebuilt too (seed-builds-every-roots-capes). */
+async function buildCapes(dir: string, ctx: Ctx, failed: string[]): Promise<void> {
 	const core = ctx.capes[0]!;
 	const bridgeAt = findBridge(dir)!;
-	const failed: string[] = [];
-	// Every root's capes, the active root's first, each built once: a cape only another root wears is rebuilt too (seed-builds-every-roots-capes).
 	const rootIds = [bridgeAt.activeRoot, ...bridgeAt.roots.map((root) => root.id).filter((id) => id !== bridgeAt.activeRoot)];
 	const seen = new Set<string>();
 	const capes = rootIds.flatMap((root) => {
@@ -256,16 +284,27 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 			failed.push(`${cape.spec}: ${err instanceof Error ? err.message : String(err)}${lastBuilt(bridgeAt.dir, cape.name, cape.repo?.id, core.id)}`);
 		}
 	}
-	migrateAgain();
-	// Each worn cape's own migrations run after core's, against what core's left (cape-migration-order).
-	for (const name of await runCapeMigrations(dir, ctx)) ctx.out(`migrated ${repo}: ${name}`);
-	try {
-		await writeSurface();
-	} catch (err) {
-		if (failed.length === 0) throw err;
-		failed.push(`agent surface: ${err instanceof Error ? err.message : String(err)}`);
-	}
-	if (failed.length > 0) throw new Error(`some capes are not usable:\n${failed.map((failure) => `- ${failure}`).join("\n")}`);
+}
+
+type Pending = { id: string; name: string; gist: string; path?: string };
+
+/** A core migration as seed lists it: its doc is in core's kb when core runs from a checkout. */
+function coreMigration(ctx: Ctx, migration: Migration): Pending {
+	const core = ctx.capes[0]!;
+	const doc = core.docs[migration.id];
+	const repoDir = core.repoDir ?? (core.url?.startsWith("file:") ? dirname(dirname(fileURLToPath(core.url))) : undefined);
+	const path = repoDir ? findKbDoc(join(repoDir, "kb"), migration.id)?.path : undefined;
+	return { id: migration.id, name: migration.name, gist: doc ? String(readKbDoc(doc.text).fm.gist ?? "") : "", ...(path ? { path } : {}) };
+}
+
+/** The refusal of a seed that would migrate unasked: each pending migration, how to read it, and how to go on. */
+function pendingError(ctx: Ctx, repo: string, pending: Pending[]): Error {
+	const lines = pending.flatMap((migration) => [
+		`- ${migration.name}: ${migration.gist}`,
+		...(migration.path ? [`  [${migration.name}](${relative(ctx.cwd, migration.path).replace(/\\/g, "/")})`] : []),
+		`  nosedive crud ${migration.id}`,
+	]);
+	return new Error(`seed changed nothing: ${repo} has ${pending.length === 1 ? "a migration" : "migrations"} to run\n${lines.join("\n")}\nrerun with --migrate to run them all, or --no-migrate to seed without them`);
 }
 
 /** Where a cape that failed to build last built: the way back to a core it works with. */

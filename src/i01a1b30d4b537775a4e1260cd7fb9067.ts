@@ -4,6 +4,8 @@ import { parseDocument } from "yaml";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
+import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
@@ -34,6 +36,27 @@ export function capeMigrations(cape: Cape): CapeMigration[] {
 	}
 	if (chain.length !== all.length) throw new Error(`${cape.name}'s migrations do not make one chain`);
 	return chain;
+}
+
+/** The worn capes' migrations a run would try, writing nothing: each as `<cape>:<name>`, with its gist and its doc's path where that is on disk. */
+export async function pendingCapeMigrations(dir: string, ctx: MigrationCtx): Promise<{ id: string; name: string; gist: string; path?: string }[]> {
+	const configPath = join(dir, ".nosedive", "config.yaml");
+	const bridge = findBridge(dir);
+	if (!existsSync(configPath) || !bridge || bridge.dir !== dir) return [];
+	const core = ctx.capes[0]!;
+	const pending: { id: string; name: string; gist: string; path?: string }[] = [];
+	for (const worn of configuredCapes(bridge, core)) {
+		if (!worn.build || !worn.repo) continue;
+		const cape = await loadCape(dir, worn.build, core);
+		const source = worn.repo.dir ?? worn.build.source ?? join(dir, ".nosedive", "capes", "src", worn.repo.id);
+		const kbDir = existsSync(source) ? (readRepoConfig(source)?.kbDir ?? join(source, "kb")) : undefined;
+		for (const migration of capeMigrations(cape)) {
+			if (listed(configPath).includes(`${worn.repo.id}:${migration.id}`)) continue;
+			const path = kbDir ? findKbDoc(kbDir, migration.id)?.path : undefined;
+			pending.push({ id: migration.id, name: `${worn.name}:${migration.name}`, gist: String(readKbDoc(cape.docs[migration.id]!.text).fm.gist ?? ""), ...(path ? { path } : {}) });
+		}
+	}
+	return pending;
 }
 
 export async function i01a1b30d4b537775a4e1260cd7fb9067(dir: string, ctx: MigrationCtx): Promise<string[]> {

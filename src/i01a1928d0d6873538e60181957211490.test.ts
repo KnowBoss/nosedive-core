@@ -76,7 +76,7 @@ test("seed records and commits the migration once while keeping an old hero dire
 	writeFileSync(configPath, config.toString({ lineWidth: 0 }));
 	git(["commit", "-qam", "old workspace hero"], dir);
 	const root = (parse(readFileSync(configPath, "utf8")) as { roots: string[] }).roots[0]!;
-	assert.match(ok(await run(["seed", "--no-capes"], dir)), /migrated .*: hero-self/);
+	assert.match(ok(await run(["seed", "--no-capes", "--migrate"], dir)), /migrated .*: hero-self/);
 	assert.equal(readKbDoc(readFileSync(join(dir, root), "utf8")).fm.kind, "hero");
 	assert.match(root, /^kb\//);
 	assert.equal((parse(readFileSync(configPath, "utf8")) as { migrations: string[] }).migrations.filter((id) => id === MIGRATION).length, 1);
@@ -92,7 +92,7 @@ test("an older data repo receiving pending migrations is promoted when the same 
 	config.set("migrations", (config.toJS() as { migrations: string[] }).migrations.filter((id) => id !== MIGRATION));
 	writeFileSync(configPath, config.toString({ lineWidth: 0 }));
 	git(["commit", "-qam", "older data repo"], dir);
-	ok(await run(["seed", "--workspace", "--no-capes"], dir));
+	ok(await run(["seed", "--workspace", "--no-capes", "--migrate"], dir));
 	const final = parse(readFileSync(configPath, "utf8")) as { roots: string[]; migrations: string[] };
 	assert.equal(readKbDoc(readFileSync(join(dir, final.roots[0]!), "utf8")).fm.kind, "hero");
 	assert.match(final.roots[0]!, /^kb\//);
