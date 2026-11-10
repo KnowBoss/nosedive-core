@@ -83,7 +83,7 @@ test("seed asks before running a cape's migrations on a hero it knows, having bu
 	const asked = await run(["seed"], bridge);
 	assert.equal(asked.code, 1);
 	const doc = `.nosedive/capes/src/${repo}/kb/${FIRST}.md`;
-	assert.ok(asked.err.includes(`- greet-cape:mark: mark\n  [greet-cape:mark](${doc})\n  nosedive crud ${FIRST}\n- greet-cape:after-mark: after-mark\n`), asked.err);
+	assert.ok(asked.err.includes(`- greet-cape:mark: mark\n  [greet-cape:mark](${doc})\n  nosedive crud --read ${FIRST}\n- greet-cape:after-mark: after-mark\n`), asked.err);
 	assert.match(asked.err, /rerun with --migrate to run them all, or --no-migrate to seed without them$/);
 	assert.equal(existsSync(join(bridge, doc)), true, "the cape is built, where git ignores it");
 	assert.equal(state(), before);

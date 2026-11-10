@@ -277,7 +277,7 @@ test("refuses to migrate a repo it knows unasked, changing nothing, and lists ea
 	const link = relative(dir, join(core.repoDir!, "kb", `${FENCE.id}.md`)).replace(/\\/g, "/");
 	assert.equal(
 		asked.err,
-		`nosedive: seed changed nothing: ${basename(dir)} has a migration to run\n- ${FENCE.name}: ${gist}\n  [${FENCE.name}](${link})\n  nosedive crud ${FENCE.id}\nrerun with --migrate to run them all, or --no-migrate to seed without them`,
+		`nosedive: seed changed nothing: ${basename(dir)} has a migration to run\n- ${FENCE.name}: ${gist}\n  [${FENCE.name}](${link})\n  nosedive crud --read ${FENCE.id}\nrerun with --migrate to run them all, or --no-migrate to seed without them`,
 	);
 	assert.equal(state(dir), before);
 	// The link is relative to where seed runs.
