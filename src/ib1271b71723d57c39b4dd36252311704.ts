@@ -17,8 +17,8 @@ export async function ib1271b71723d57c39b4dd36252311704(ctx: GateCtx): Promise<v
 	const ref = typeof ctx.args.ref === "string" ? ctx.args.ref : (worn?.follow ?? "");
 	const commit = resolve(bridge.dir, repo.remote, ref);
 	const built = await buildCape(bridge, repo, commit, ctx.core, [], ctx.out);
-	// Built from where build-cape keeps the clone, or the workspace checkout it prefers.
-	const root = findRoot(built.source ?? `${bridge.dir}/.nosedive/capes/src/${repo.id}`, "cape");
+	// Built from where build-cape keeps the clone.
+	const root = findRoot(`${bridge.dir}/.nosedive/capes/src/${repo.id}`, "cape");
 	// The repo doc's name is the hero's own for the cape; its short name is its root's, which the hero does not choose.
 	if (!root) throw new Error(`${name} is no cape: it has no cape root`);
 	const key = relative(bridge.dir, doc.path).replace(/\\/g, "/");

@@ -62,7 +62,7 @@ export function i01a141f869bf7f76b5bc81aa991ff9b9(bridge: Bridge, core: Cape): C
 			repo = undefined;
 		}
 		const build = builds
-			.filter((build) => build.repo === repo?.id && build.core === core.id && (COMMIT.test(ref) && !build.source ? build.commit === ref : build.ref === ref))
+			.filter((build) => build.repo === repo?.id && build.core === core.id && (COMMIT.test(ref) ? build.commit === ref : build.ref === ref))
 			.sort((a, b) => a.builtAt.localeCompare(b.builtAt))
 			.at(-1);
 		return { spec: follow ? `${name}@${follow}` : name, name, ref, repo, build };

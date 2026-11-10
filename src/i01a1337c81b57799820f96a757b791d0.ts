@@ -21,7 +21,7 @@ const COMMIT = /^[0-9a-f]{40}$/;
 const CORE = "nosedive-core";
 const BARE_IMPORT = /import\s*\{([^}]*)\}\s*from\s*["']([^"'./][^"']*)["']/g;
 
-/** `dir` is where a local cape lies in the hero, which it is built from as a workspace checkout is. */
+/** `dir` is where a local cape lies in the hero, which it is built from; a repo cape is built at its ref, from its clone. */
 type Repo = { id: string; name: string; remote: string; dir?: string };
 /** What a cape imports from one source: core, or another cape, with the doc ids it uses. */
 type Source = { specifier: string; capeId: string; label: string; docs: Record<string, CapeDoc>; ids: Set<string>; names: Set<string> };
@@ -36,11 +36,11 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	log: (message: string) => void = () => {},
 ): Promise<CapeBuild & { fresh: boolean }> {
 	if (building.includes(repo.name)) throw new Error(`capes import each other in a cycle: ${[...building, repo.name].join(" -> ")}`);
-	const local = repo.dir ?? (bridge.workspace ? join(bridge.workspace, repo.name) : undefined);
-	const workspace = local !== undefined && existsSync(local);
-	const dir = workspace ? local : join(bridge.dir, ".nosedive", "capes", "src", repo.id);
+	// A repo cape is built at its ref even when the workspace holds a checkout of it (pin-always-wins).
+	const local = repo.dir !== undefined && existsSync(repo.dir);
+	const dir = local ? repo.dir! : join(bridge.dir, ".nosedive", "capes", "src", repo.id);
 	// A build shipped with this core of that very commit is taken as it is, with no clone (shipped-cape-builds).
-	if (!workspace && COMMIT.test(ref)) {
+	if (!local && COMMIT.test(ref)) {
 		const shipped = takeShipped(bridge.dir, repo.id, ref, core);
 		if (shipped) {
 			log(`cape ${repo.name}: using the build shipped with this core`);
@@ -48,8 +48,8 @@ export async function i01a1337c81b57799820f96a757b791d0(
 		}
 	}
 	let commit: string;
-	if (workspace) {
-		log(`cape ${repo.name}: using ${repo.dir ? "local cape" : "workspace checkout"} ${dir}`);
+	if (local) {
+		log(`cape ${repo.name}: using local cape ${dir}`);
 		commit = git(dir, "rev-parse", "HEAD");
 	} else {
 		if (existsSync(dir)) {
@@ -83,15 +83,15 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	const { sources, needs } = await capeImports(bridge, dir, repo.name, source, core, building, log);
 
 	// A local cape lives in the hero's git, whose every commit would otherwise make it a new build.
-	const hash = createHash("sha256").update(repo.dir ? "" : commit);
-	if (workspace) {
+	const hash = createHash("sha256");
+	if (local) {
 		for (const file of git(dir, "ls-files", "--cached", "--others", "--exclude-standard", "-z").split("\0").filter(Boolean).sort()) {
 			hash.update(`\0${file}\0`);
 			if (existsSync(join(dir, file))) hash.update(readFileSync(join(dir, file)));
 			else hash.update("deleted");
 		}
 	}
-	const id = capeId(repo.id, workspace ? hash.digest("hex") : commit, core.id, Object.values(needs));
+	const id = capeId(repo.id, local ? hash.digest("hex") : commit, core.id, Object.values(needs));
 	const outfile = join(bridge.dir, ".nosedive", "capes", `${id}.js`);
 	const known = capeManifest(bridge.dir).find((build) => build.id === id);
 	if (known && existsSync(outfile)) {
@@ -103,7 +103,7 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	const seconds = Number(git(dir, "log", "-1", "--format=%ct", commit));
 	const date = new Date(seconds * 1000);
 	const millis = seconds * 1000 + (Number.parseInt(commit.slice(0, 3), 16) % 1000);
-	const version = workspace ? "working tree" : `${date.getUTCFullYear()}.${date.getUTCMonth() + 1}.${date.getUTCDate()}-${millis}`;
+	const version = local ? "working tree" : `${date.getUTCFullYear()}.${date.getUTCMonth() + 1}.${date.getUTCDate()}-${millis}`;
 
 	installCapePackages(dir);
 	await bundleCape(dir, source, { id, owner, shortName, name: repo.name, commit, version, core: core.id, needs }, sources, outfile);
@@ -113,7 +113,7 @@ export async function i01a1337c81b57799820f96a757b791d0(
 			.filter((doc) => doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? ""))
 			.map((doc) => [doc.name, doc.gist]),
 	);
-	const build = { id, owner, shortName, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString(), ...(workspace ? { source: dir } : {}) };
+	const build = { id, owner, shortName, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString(), ...(local ? { source: dir } : {}) };
 	capeManifest(bridge.dir, build);
 	return { ...build, fresh: true };
 }

@@ -36,7 +36,7 @@ export function i01a18e40518e7f15a2066909dca2be43(hero: Bridge, capes: Cape[]): 
 	const historyOf = (name: string, repoId: string | undefined, source?: string) => {
 		const checkout = hero.workspace ? join(hero.workspace, name) : undefined;
 		const clone = repoId ? join(hero.dir, ".nosedive", "capes", "src", repoId) : undefined;
-		return [source, checkout, clone].find((dir) => dir !== undefined && existsSync(dir));
+		return [source, clone, checkout].find((dir) => dir !== undefined && existsSync(dir));
 	};
 	for (const cape of capes) {
 		if (!cape.owner || cape.owner === hero.id) continue;

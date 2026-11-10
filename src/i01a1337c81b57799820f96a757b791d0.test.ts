@@ -1,6 +1,6 @@
 // build-cape
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
@@ -18,34 +18,82 @@ import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739
 
 const core: Cape = await sourceCape();
 
-test("prefers the workspace without changing it, logs the source, and rebuilds uncommitted files", async () => {
+test("builds a repo cape at its pin, never from a workspace checkout of its repo at another commit or with uncommitted changes (pin-always-wins)", async () => {
+	const repo = greetCapeRepo();
+	const pin = git(["rev-parse", "HEAD"], repo);
+	const { dir } = await build(repo);
+	const checkout = workspaceCheckout(dir, repo);
+	const bridge = findBridge(dir)!;
+	const messages: string[] = [];
+	const built = await buildCape(bridge, findRepoDoc(bridge, "greet-cape"), pin, core, [], (message) => messages.push(message));
+	assert.equal(built.commit, pin);
+	assert.equal(built.source, undefined);
+	assert.doesNotMatch(messages.join("\n"), /workspace/);
+	const bundle = readFileSync(join(dir, ".nosedive", "capes", `${built.id}.js`), "utf8");
+	assert.match(bundle, /hello/);
+	assert.doesNotMatch(bundle, /checkout hello|dirty hello/);
+	assert.notEqual(git(["rev-parse", "HEAD"], checkout), pin, "the checkout is left where it was");
+	assert.match(git(["status", "--porcelain"], checkout), /src\//, "and its changes too");
+});
+
+test("a pin bump takes effect though the workspace holds a checkout of the cape's repo (pin-always-wins)", async () => {
 	const repo = greetCapeRepo();
 	const { dir } = await build(repo);
-	const checkout = join(dir, "workspace", "greet-cape");
-	mkdirSync(join(dir, "workspace"), { recursive: true });
-	git(["clone", "-q", repo, checkout], dir);
-	const bridge = findBridge(dir)!;
-	const record = findRepoDoc(bridge, "greet-cape");
+	workspaceCheckout(dir, repo);
+	setCapes(dir, [`greet-cape@${git(["rev-parse", "HEAD"], repo)}`]);
+	ok(await run(["seed"], dir));
+	assert.match(ok(await run(["greet", "ann"], dir)), /^hello ann /);
+	const impl = join(repo, "src", `i${usageId("greet <who>", GREET)}.ts`);
+	writeFileSync(impl, readFileSync(impl, "utf8").replace("hello", "bumped hello"));
+	git(["commit", "-qam", "bump"], repo);
+	setCapes(dir, [`greet-cape@${git(["rev-parse", "HEAD"], repo)}`]);
+	assert.match(ok(await run(["seed"], dir)), /built cape greet-cape/);
+	assert.match(ok(await run(["greet", "ann"], dir)), /^bumped hello ann /);
+});
+
+test("builds a local cape from its directory without changing it, logs it, and rebuilds uncommitted files", async () => {
+	const hero = await tempBridge("build-cape-local");
+	ok(await run(["--at", "tools/greet", "seed", "--root-kind", "cape"], hero));
+	const local = join(hero, "tools", "greet");
+	for (const file of ["kb", "src"]) cpSync(join(greetCapeRepo(), file), join(local, file), { recursive: true });
+	git(["add", "-A"], hero);
+	git(["commit", "-qm", "greet in a local cape"], hero);
+	const bridge = findBridge(hero)!;
+	const record = { id: readRepoConfig(local)!.root!, name: "greet", remote: "", dir: local };
 	const messages: string[] = [];
-	const built = () => buildCape(bridge, record, "missing-remote-ref", core, [], (message) => messages.push(message));
-	const before = git(["rev-parse", "HEAD"], checkout);
+	const built = () => buildCape(bridge, record, "", core, [], (message) => messages.push(message));
+	const before = git(["rev-parse", "HEAD"], hero);
 	const first = await built();
-	assert.equal(first.source, checkout);
-	assert.match(messages[0]!, /using workspace checkout/);
+	assert.equal(first.source, local);
+	assert.equal(first.version, "working tree");
+	assert.match(messages[0]!, /using local cape/);
 	assert.equal((await built()).fresh, false);
-	const impl = join(checkout, "src", `i${usageId("greet <who>", GREET)}.ts`);
+	const impl = join(local, "src", `i${usageId("greet <who>", GREET)}.ts`);
 	writeFileSync(impl, readFileSync(impl, "utf8").replace("hello", "local hello"));
 	const second = await built();
 	assert.notEqual(second.id, first.id);
-	assert.match(readFileSync(join(dir, ".nosedive", "capes", `${second.id}.js`), "utf8"), /local hello/);
-	mkdirSync(join(checkout, "assets"));
-	writeFileSync(join(checkout, "assets", "new.txt"), "new local asset");
+	assert.match(readFileSync(join(hero, ".nosedive", "capes", `${second.id}.js`), "utf8"), /local hello/);
+	mkdirSync(join(local, "assets"));
+	writeFileSync(join(local, "assets", "new.txt"), "new local asset");
 	const third = await built();
 	assert.notEqual(third.id, second.id);
 	assert.equal((await built()).fresh, false);
-	assert.equal(git(["rev-parse", "HEAD"], checkout), before);
-	assert.match(git(["status", "--porcelain"], checkout), /src\//);
+	assert.equal(git(["rev-parse", "HEAD"], hero), before);
+	assert.match(git(["status", "--porcelain"], hero), /tools\/greet\/src\//);
 });
+
+/** Clones the cape's repo into the hero's workspace, moves it to a commit of its own, and leaves uncommitted changes in it. */
+function workspaceCheckout(hero: string, repo: string): string {
+	const checkout = join(hero, "workspace", "greet-cape");
+	mkdirSync(join(hero, "workspace"), { recursive: true });
+	git(["clone", "-q", repo, checkout], hero);
+	const impl = join(checkout, "src", `i${usageId("greet <who>", GREET)}.ts`);
+	writeFileSync(impl, readFileSync(impl, "utf8").replace("hello", "checkout hello"));
+	git(["commit", "-qam", "only in the checkout"], checkout);
+	writeFileSync(impl, readFileSync(impl, "utf8").replace("checkout hello", "dirty hello"));
+	writeFileSync(join(checkout, "untracked.txt"), "untracked");
+	return checkout;
+}
 
 async function build(repo: string, ref = "") {
 	const dir = await tempBridge("build-cape");
