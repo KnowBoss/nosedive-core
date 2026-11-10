@@ -71,16 +71,14 @@ export function remoteKey(url: string): string {
 	return text;
 }
 
-/** Where the user's cache of an origin is kept: at its key, or under `local` by the key's hash when it is a path or its key is no safe one. */
+/** Where the user's cache of an origin is kept: named by its key's hash, under its host, or under `local` when it is a path or its host is no plain name. */
 export function cachePath(remote: string): string {
 	const url = URL_SHAPED.test(remote);
 	let key = remoteKey(url ? remote : resolve(remote));
 	if (!url && process.platform === "win32") key = key.toLowerCase();
-	const segments = key.split("/");
-	// A segment ending `.git` would put one cache inside another's directory.
-	const safe = url && segments.every((segment) => /^[A-Za-z0-9._~-]+$/.test(segment) && segment !== "." && segment !== ".." && !/\.git$/i.test(segment));
-	const kept = safe ? segments : ["local", createHash("sha256").update(key).digest("hex").slice(0, 16)];
-	return `${join(userDir(), "cache", ...kept)}.git`;
+	const host = url ? key.slice(0, Math.max(key.indexOf("/"), 0)) : "";
+	const group = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(host) ? host : "local";
+	return join(userDir(), "cache", group, `${createHash("sha256").update(key).digest("hex").slice(0, 16)}.git`);
 }
 
 /** The user's cache of a repo, shared by every checkout of every hero; one kept the old way, by repo doc id, is moved to its key first. */

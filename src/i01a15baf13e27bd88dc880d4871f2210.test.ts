@@ -119,14 +119,19 @@ test("spells a remote one way however it is written", () => {
 	assert.notEqual(remoteKey("https://github.com/KnowBoss/nosedive"), key);
 });
 
-test("keeps a cache at its origin's key, and under local by the key's hash when the origin is a path or its key is unsafe", () => {
+test("names a cache by its origin's key's hash, under its host, and under local when the origin is a path or its host is no plain name", () => {
 	const root = join(process.env.NOSEDIVE_USER_DIR!, "cache");
-	const keyed = join(root, "github.com", "Owner", "Name.git");
+	const hashed = (group: string, key: string) => join(root, group, `${createHash("sha256").update(key).digest("hex").slice(0, 16)}.git`);
+	const keyed = hashed("github.com", "github.com/Owner/Name");
 	assert.equal(cachePath("git@github.com:Owner/Name.git"), keyed);
 	assert.equal(cachePath("https://GitHub.com/Owner/Name/"), keyed);
-	const hashed = (key: string) => join(root, "local", `${createHash("sha256").update(key).digest("hex").slice(0, 16)}.git`);
-	for (const unsafe of ["https://example.com/a/../b", "https://example.com/a/./b", "https://example.com/a/b c", "https://example.com/a/b%20c", "git@example.com:a/b:c", "https://example.com/a.git/b"]) {
-		assert.equal(cachePath(unsafe), hashed(remoteKey(unsafe)), unsafe);
+	assert.notEqual(cachePath("https://github.com/Owner/Other"), keyed);
+	// Whatever the path holds, the name is a hash, so no cache lands inside another's directory.
+	for (const odd of ["https://example.com/a/../b", "https://example.com/a/b%20c", "https://example.com/a.git/b", "https://org@dev.azure.com/org/Some%20Project/_git/repo"]) {
+		assert.equal(cachePath(odd), hashed(remoteKey(odd).split("/")[0]!, remoteKey(odd)), odd);
+	}
+	for (const hostless of ["file:///some/repo", "https://[::1]/a/b"]) {
+		assert.equal(cachePath(hostless), hashed("local", remoteKey(hostless)), hostless);
 	}
 	assert.match(slashed(cachePath(join(root, "some", "path"))), /\/cache\/local\/[0-9a-f]{16}\.git$/);
 	assert.equal(cachePath(join(root, "some", "path")), cachePath(`${join(root, "some", "path")}.git/`));
