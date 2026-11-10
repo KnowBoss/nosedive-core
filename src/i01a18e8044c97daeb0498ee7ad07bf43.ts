@@ -138,7 +138,7 @@ function wornKinds(hero: Bridge, ctx: MigrationCtx): { owners: Owner[]; unbuilt:
 			continue;
 		}
 		if (build.owner === hero.id || build.owner === CORE_OWNER || owners.has(build.owner)) continue;
-		const clones = [build.source, hero.workspace ? join(hero.workspace, worn.name) : undefined, join(hero.dir, ".nosedive", "capes", "src", worn.id)];
+		const clones = [build.source, join(hero.dir, ".nosedive", "capes", "src", worn.id), hero.workspace ? join(hero.workspace, worn.name) : undefined];
 		owners.set(build.owner, { id: build.owner, name: build.shortName ?? worn.name, kinds: build.kinds, repoDir: clones.find((each) => each !== undefined && existsSync(each)), repoDocId: worn.id });
 	}
 	return { owners: [...owners.values()], unbuilt: [...unbuilt] };
