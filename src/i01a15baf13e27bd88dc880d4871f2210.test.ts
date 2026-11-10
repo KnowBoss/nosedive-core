@@ -1,13 +1,14 @@
 // hydrate-repo
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
-import { i01a15baf13e27bd88dc880d4871f2210 as hydrateRepo } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
-import { git, gitRepo, registerRepo, tempBridge } from "../test/harness.ts";
+import { i01a15baf13e27bd88dc880d4871f2210 as hydrateRepo, cachePath, remoteKey } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
+import { git, gitRepo, registerRepo, tempBridge, tempDir } from "../test/harness.ts";
 
 /** A hero repo with repo `hello` registered and committed, its origin a repo of one commit on trunk. */
 async function hello(label: string) {
@@ -22,8 +23,9 @@ async function hello(label: string) {
 	const doc = findKbDoc(hero.reposDir!, id)!;
 	const said: string[] = [];
 	const say = { out: (text: string) => void said.push(text), err: (text: string) => void said.push(`err: ${text}`) };
-	const cache = join(process.env.NOSEDIVE_USER_DIR!, "cache", `${id}.git`);
-	return { bridge, source, id, hero, doc, said, say, cache, checkout: join(bridge, "workspace", "hello") };
+	const cache = cachePath(source);
+	const legacy = join(process.env.NOSEDIVE_USER_DIR!, "cache", `${id}.git`);
+	return { bridge, source, id, hero, doc, said, say, cache, legacy, checkout: join(bridge, "workspace", "hello") };
 }
 
 test("checks a repo out detached at its trunk, a worktree of the user's cache, which owns the trunk, and leaves it once there", async () => {
@@ -104,4 +106,64 @@ test("tells a worktree of a cache with per-worktree config that it is no bare re
 	git(["config", "extensions.worktreeConfig", "true"], cache);
 	hydrateRepo(hero, doc, say);
 	assert.equal(git(["status", "--porcelain"], checkout), "");
+});
+
+const commonDir = (dir: string) => git(["rev-parse", "--path-format=absolute", "--git-common-dir"], dir).toLowerCase();
+const slashed = (path: string) => path.replace(/\\/g, "/").toLowerCase();
+
+test("spells a remote one way however it is written", () => {
+	const key = remoteKey("https://github.com/KnowBoss/nosedive-dev.git");
+	for (const spelling of ["git@github.com:KnowBoss/nosedive-dev.git", "git@GitHub.com:KnowBoss/nosedive-dev", "ssh://git@github.com/KnowBoss/nosedive-dev", "https://github.com/KnowBoss/nosedive-dev/"]) {
+		assert.equal(remoteKey(spelling), key, spelling);
+	}
+	assert.notEqual(remoteKey("https://github.com/KnowBoss/nosedive"), key);
+});
+
+test("keeps a cache at its origin's key, and under local by the key's hash when the origin is a path or its key is unsafe", () => {
+	const root = join(process.env.NOSEDIVE_USER_DIR!, "cache");
+	const keyed = join(root, "github.com", "Owner", "Name.git");
+	assert.equal(cachePath("git@github.com:Owner/Name.git"), keyed);
+	assert.equal(cachePath("https://GitHub.com/Owner/Name/"), keyed);
+	const hashed = (key: string) => join(root, "local", `${createHash("sha256").update(key).digest("hex").slice(0, 16)}.git`);
+	for (const unsafe of ["https://example.com/a/../b", "https://example.com/a/./b", "https://example.com/a/b c", "https://example.com/a/b%20c", "git@example.com:a/b:c"]) {
+		assert.equal(cachePath(unsafe), hashed(remoteKey(unsafe)), unsafe);
+	}
+	assert.match(slashed(cachePath(join(root, "some", "path"))), /\/cache\/local\/[0-9a-f]{16}\.git$/);
+	assert.equal(cachePath(join(root, "some", "path")), cachePath(`${join(root, "some", "path")}.git/`));
+});
+
+test("shares one cache between repo docs of different ids that name one origin", async () => {
+	const { bridge, source, id, hero, doc, say, cache, checkout } = await hello("hydrate-repo-shared");
+	const otherId = await registerRepo(bridge, "hello-again", source);
+	assert.notEqual(otherId, id);
+	const other = findKbDoc(hero.reposDir!, otherId)!;
+	hydrateRepo(hero, doc, say);
+	const { dir } = hydrateRepo(hero, other, say);
+	assert.notEqual(dir, checkout);
+	assert.equal(commonDir(checkout), slashed(cache));
+	assert.equal(commonDir(dir), slashed(cache));
+});
+
+test("moves a cache kept by repo doc id to its key, and its worktrees follow", async () => {
+	const { source, hero, doc, said, say, cache, legacy, checkout } = await hello("hydrate-repo-legacy");
+	git(["clone", "-q", "--bare", source, legacy], source);
+	const worktree = join(tempDir("hydrate-repo-legacy-worktree"), "hello");
+	git(["worktree", "add", "-q", "--detach", worktree, "refs/heads/trunk"], legacy);
+	hydrateRepo(hero, doc, say);
+	assert.equal(existsSync(legacy), false);
+	assert.deepEqual(said.filter((line) => line.startsWith("err: ")), []);
+	git(["status"], worktree);
+	assert.equal(commonDir(worktree), slashed(cache));
+	assert.equal(commonDir(checkout), slashed(cache));
+});
+
+test("leaves a cache kept by repo doc id where it is when one is at its key already, and warns naming it", async () => {
+	const { source, hero, doc, said, say, cache, legacy, checkout } = await hello("hydrate-repo-legacy-left");
+	hydrateRepo(hero, doc, say);
+	git(["worktree", "remove", checkout], cache);
+	git(["clone", "-q", "--bare", source, legacy], source);
+	hydrateRepo(hero, doc, say);
+	assert.equal(existsSync(legacy), true);
+	assert.ok(said.some((line) => line.startsWith("err: nosedive: hello's old cache at ") && line.includes(legacy)));
+	assert.equal(commonDir(checkout), slashed(cache));
 });

@@ -9,7 +9,7 @@ import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
-import { fetchCache, userDir } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
+import { fetchCache, remoteKey, userDir } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -33,16 +33,6 @@ export async function i9dfd0b735ec95af1948f2b3311749c52(ref: string, head: strin
 	const refused = plans.flatMap(refusal);
 	if (refused.length > 0) throw new Error(refused.join("\n"));
 	for (const each of plans) place(each, ctx);
-}
-
-/** A remote as a key that is the same however it is spelled: scheme, user, port, `.git` and trailing slashes gone, the host in lower case. */
-export function remoteKey(url: string): string {
-	let text = url.trim().replace(/\\/g, "/").replace(/\/+$/, "").replace(/\.git$/i, "");
-	const scheme = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.*)$/i.exec(text);
-	const scp = /^(?:[^@/]+@)?([^:/]{2,}):(?!\/\/)(.*)$/.exec(text);
-	const parts = scheme ?? scp;
-	if (parts) text = `${parts[1]!.toLowerCase()}/${parts[2]!.replace(/^\/+/, "")}`;
-	return text;
 }
 
 /** A quid's repo doc, else its doc as a feat; then the repo doc a remote or a name finds. */

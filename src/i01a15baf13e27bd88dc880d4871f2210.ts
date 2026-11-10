@@ -1,12 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13c760de87562b4738946402010b8 as checkoutPath } from "./i01a13c760de87562b4738946402010b8.ts";
 
 const BRANCHES = "+refs/heads/*:refs/remotes/origin/*";
 const PACKED = "+refs/nosedive/*:refs/nosedive/*";
+const URL_SHAPED = /^[a-z][a-z0-9+.-]*:\/\/|^git@/i;
 
 type RepoDoc = { fm: Record<string, unknown> };
 type Say = { out(text: string): void; err(text: string): void };
@@ -22,7 +24,7 @@ export function i01a15baf13e27bd88dc880d4871f2210(bridge: Bridge, doc: RepoDoc, 
 		const current = on.ok ? on.text : undefined;
 		if (current !== branch) throw new Error(`${shown} is ${current ? `on ${current}` : "detached"}, not ${branch ? `on ${branch}` : "detached"}: dehydrate it first`);
 		ctx.out(`${shown}: checked out already`);
-		return { dir, trunk: trunkOf(doc, cachePath(doc)) };
+		return { dir, trunk: trunkOf(doc, cacheOf(bridge, doc, ctx)) };
 	}
 	const { cache, trunk } = fetchCache(bridge, doc, ctx);
 
@@ -59,15 +61,52 @@ export function userDir(): string {
 	return process.env.NOSEDIVE_USER_DIR || join(homedir(), ".nosedive");
 }
 
-/** The user's cache of a repo, shared by every checkout of every hero. */
-function cachePath(doc: RepoDoc): string {
-	return join(userDir(), "cache", `${String(doc.fm.id)}.git`);
+/** A remote as a key that is the same however it is spelled: scheme, user, port, `.git` and trailing slashes gone, the host in lower case. */
+export function remoteKey(url: string): string {
+	let text = url.trim().replace(/\\/g, "/").replace(/\/+$/, "").replace(/\.git$/i, "");
+	const scheme = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.*)$/i.exec(text);
+	const scp = /^(?:[^@/]+@)?([^:/]{2,}):(?!\/\/)(.*)$/.exec(text);
+	const parts = scheme ?? scp;
+	if (parts) text = `${parts[1]!.toLowerCase()}/${parts[2]!.replace(/^\/+/, "")}`;
+	return text;
+}
+
+/** Where the user's cache of an origin is kept: at its key, or under `local` by the key's hash when it is a path or its key is no safe one. */
+export function cachePath(remote: string): string {
+	const url = URL_SHAPED.test(remote);
+	let key = remoteKey(url ? remote : resolve(remote));
+	if (!url && process.platform === "win32") key = key.toLowerCase();
+	const segments = key.split("/");
+	const safe = url && segments.every((segment) => /^[A-Za-z0-9._~-]+$/.test(segment) && segment !== "." && segment !== "..");
+	const kept = safe ? segments : ["local", createHash("sha256").update(key).digest("hex").slice(0, 16)];
+	return `${join(userDir(), "cache", ...kept)}.git`;
+}
+
+/** The user's cache of a repo, shared by every checkout of every hero; one kept the old way, by repo doc id, is moved to its key first. */
+function cacheOf(bridge: Bridge, doc: RepoDoc, ctx: Say): string {
+	const name = String(doc.fm.name);
+	const keyed = cachePath(origin(bridge, doc));
+	const legacy = join(userDir(), "cache", `${String(doc.fm.id)}.git`);
+	if (!existsSync(legacy)) return keyed;
+	if (existsSync(keyed)) {
+		ctx.err(`nosedive: ${name}'s old cache at ${legacy} is left as it is, as its cache is at ${keyed} now`);
+		return keyed;
+	}
+	try {
+		mkdirSync(dirname(keyed), { recursive: true });
+		renameSync(legacy, keyed);
+	} catch (error) {
+		ctx.err(`nosedive: cannot move ${name}'s cache from ${legacy} to ${keyed}, so it is used where it is: ${error instanceof Error ? error.message : String(error)}`);
+		return legacy;
+	}
+	git(keyed, "worktree", "repair");
+	return keyed;
 }
 
 /** Fetches the user's cache of a repo from its origin, making the cache when there is none, without checking anything out; returns it and the repo's trunk. */
 export function fetchCache(bridge: Bridge, doc: RepoDoc, ctx: Say): { cache: string; trunk: string } {
 	const name = String(doc.fm.name);
-	const cache = cachePath(doc);
+	const cache = cacheOf(bridge, doc, ctx);
 	const remote = origin(bridge, doc);
 	const made = !existsSync(cache);
 	if (made) {
@@ -112,7 +151,7 @@ function origin(bridge: Bridge, doc: RepoDoc): string {
 	const remotes = ((doc.fm.meta as { remotes?: Record<string, unknown> } | undefined)?.remotes ?? {}) as Record<string, unknown>;
 	const url = remotes.origin;
 	if (typeof url !== "string" || !url) throw new Error(`${String(doc.fm.name)} has no meta.remotes.origin to fetch from`);
-	return /^[a-z][a-z0-9+.-]*:\/\/|^git@/i.test(url) || isAbsolute(url) ? url : resolve(bridge.dir, url);
+	return URL_SHAPED.test(url) || isAbsolute(url) ? url : resolve(bridge.dir, url);
 }
 
 function git(cwd: string, ...args: string[]): { ok: boolean; text: string } {

@@ -10,6 +10,7 @@ import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "../src/i01a133548
 import { after } from "node:test";
 import { i01a1336a958f71c7beec4db3195c7966 as launch, type Cape, type Ctx } from "../src/i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "../src/i01a13dee4b1d78f7a699c3777bf63587.ts";
+import { cachePath } from "../src/i01a15baf13e27bd88dc880d4871f2210.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
 
@@ -287,6 +288,6 @@ export function dockHero(kind = "hero") {
 	return {
 		hero, heroId, ids: { docked, plain, feat }, origins: { docked: dockedOrigin, plain: plainOrigin }, work, ctx, out,
 		at: (name: string) => join(user, "docks", "some-hero", name),
-		cache: (id: string) => join(user, "cache", `${id}.git`),
+		cache: (id: string) => cachePath(id === docked ? dockedOrigin : plainOrigin),
 	};
 }

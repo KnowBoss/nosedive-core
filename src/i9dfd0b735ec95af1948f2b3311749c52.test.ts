@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { i9dfd0b735ec95af1948f2b3311749c52 as dock, remoteKey } from "./i9dfd0b735ec95af1948f2b3311749c52.ts";
+import { i9dfd0b735ec95af1948f2b3311749c52 as dock } from "./i9dfd0b735ec95af1948f2b3311749c52.ts";
 import { commitAll, dockHero, git } from "../test/harness.ts";
 
 const head = (dir: string) => git(["rev-parse", "HEAD"], dir);
@@ -18,14 +18,6 @@ test("docks a hero by its repo doc's quid under the docking hero's name, on a br
 	assert.equal(git(["config", "push.default"], cache(ids.docked)), "upstream");
 	assert.equal(git(["rev-parse", "--is-bare-repository"], cache(ids.docked)), "true");
 	assert.match(out.join("\n"), new RegExp(`docks[\\\\/]some-hero[\\\\/]docked: on ${heroId}/dock at \\w+\\nnosedive seed there builds its capes`));
-});
-
-test("matches a remote however it is spelled", () => {
-	const key = remoteKey("https://github.com/KnowBoss/nosedive-dev.git");
-	for (const spelling of ["git@github.com:KnowBoss/nosedive-dev.git", "git@GitHub.com:KnowBoss/nosedive-dev", "ssh://git@github.com/KnowBoss/nosedive-dev", "https://github.com/KnowBoss/nosedive-dev/"]) {
-		assert.equal(remoteKey(spelling), key, spelling);
-	}
-	assert.notEqual(remoteKey("https://github.com/KnowBoss/nosedive"), key);
 });
 
 test("docks a hero by a remote its repo doc names, and by its repo doc's name, refusing what names none", async () => {
