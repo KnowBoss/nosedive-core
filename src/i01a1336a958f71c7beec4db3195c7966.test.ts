@@ -9,7 +9,7 @@ import { greetCapeRepo, kbOf, ok, registerRepo, run, setCapes, tempBridge, tempD
 
 test("lists core's top-level actions, never internal functions", async () => {
 	const out = ok(await run([], tempDir("launch-help")));
-	assert.match(out, /^Usage: nosedive \[--at <target>\] <action> \[<args>\]\n\ncore\n {2}crud {2}Reads, mints and edits kb docs\n {2}mint {2}Prints new uuid v7 ids/);
+	assert.match(out, /^Usage: nosedive \[--at <target>\] <action> \[<args>\]\n\ncore\n {2}crud {2}Reads, mints and edits kb docs\n {2}dock {2}Checks out a repo[^\n]*\n {2}mint {2}Prints new uuid v7 ids/);
 	assert.doesNotMatch(out, /\n {2}scaf /, "seed scaffolds now (seed-scaffolds-capes)");
 	assert.match(out, /\n {2}seed {2}Makes the current git repo a bridge/);
 	assert.doesNotMatch(out, /match-usage|launch/);
