@@ -61,23 +61,40 @@ export function userDir(): string {
 	return process.env.NOSEDIVE_USER_DIR || join(homedir(), ".nosedive");
 }
 
-/** A remote as a key that is the same however it is spelled: scheme, user, port, `.git` and trailing slashes gone, the host in lower case. */
+// Azure DevOps serves one repo under four spellings; each folds to dev.azure.com/<org>/<project>/<repo>, matched exactly, so a shape not listed keys as itself.
+const AZURE = [
+	/^dev\.azure\.com\/([^/]+)\/([^/]+)\/_git\/([^/]+)$/i,
+	/^ssh\.dev\.azure\.com\/v3\/([^/]+)\/([^/]+)\/([^/]+)$/i,
+	/^vs-ssh\.visualstudio\.com\/v3\/([^/]+)\/([^/]+)\/([^/]+)$/i,
+];
+const AZURE_LEGACY = /^([^/.]+)\.visualstudio\.com\/(?:defaultcollection\/)?([^/]+)\/_git\/([^/]+)$/i;
+
+/** A remote as a key that is the same however it is spelled: scheme, user, port, `.git` and trailing slashes gone, the host in lower case, Azure DevOps's spellings as one. */
 export function remoteKey(url: string): string {
 	let text = url.trim().replace(/\\/g, "/").replace(/\/+$/, "").replace(/\.git$/i, "");
 	const scheme = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.*)$/i.exec(text);
 	const scp = /^(?:[^@/]+@)?([^:/]{2,}):(?!\/\/)(.*)$/.exec(text);
 	const parts = scheme ?? scp;
 	if (parts) text = `${parts[1]!.toLowerCase()}/${parts[2]!.replace(/^\/+/, "")}`;
+	const azure = AZURE.map((shape) => shape.exec(text)).find(Boolean) ?? AZURE_LEGACY.exec(text);
+	// Azure DevOps names are case-insensitive.
+	if (azure) text = `dev.azure.com/${azure.slice(1, 4).join("/")}`.toLowerCase();
 	return text;
 }
 
-/** Where the user's cache of an origin is kept: named by its key's hash, under its host, or under `local` when it is a path or its host is no plain name. */
+/** The key a cache is kept under: the origin's remoteKey, a local path's resolved and, on Windows, in lower case. */
+function cacheKey(remote: string): string {
+	if (URL_SHAPED.test(remote)) return remoteKey(remote);
+	const key = remoteKey(resolve(remote));
+	return process.platform === "win32" ? key.toLowerCase() : key;
+}
+
+/** Where the user's cache of an origin is kept: named by its key's hash, under its host, `_local` for a path, `_other` for a host that is no plain name. */
 export function cachePath(remote: string): string {
-	const url = URL_SHAPED.test(remote);
-	let key = remoteKey(url ? remote : resolve(remote));
-	if (!url && process.platform === "win32") key = key.toLowerCase();
-	const host = url ? key.slice(0, Math.max(key.indexOf("/"), 0)) : "";
-	const group = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(host) ? host : "local";
+	const key = cacheKey(remote);
+	const host = key.slice(0, Math.max(key.indexOf("/"), 0));
+	// No host name holds `_`, so neither group can be a host's.
+	const group = !URL_SHAPED.test(remote) ? "_local" : /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(host) ? host : "_other";
 	return join(userDir(), "cache", group, `${createHash("sha256").update(key).digest("hex").slice(0, 16)}.git`);
 }
 
@@ -112,6 +129,11 @@ export function fetchCache(bridge: Bridge, doc: RepoDoc, ctx: Say): { cache: str
 		mkdirSync(cache, { recursive: true });
 		git(cache, "init", "-q", "--bare");
 	}
+	// A cache says whose it is, so two keys that hash alike never share one.
+	const key = cacheKey(remote);
+	const held = git(cache, "config", "nosedive.key");
+	if (held.ok && held.text !== key) throw new Error(`${name}'s cache at ${cache} holds ${held.text}, not ${key}: move it aside to cache ${name} afresh`);
+	if (!held.ok) git(cache, "config", "nosedive.key", key);
 	// So a checkout can push, by naming its target: git push origin HEAD:<ref>.
 	git(cache, "config", "remote.origin.url", remote);
 	git(cache, "config", "--replace-all", "remote.origin.fetch", BRANCHES);

@@ -119,7 +119,23 @@ test("spells a remote one way however it is written", () => {
 	assert.notEqual(remoteKey("https://github.com/KnowBoss/nosedive"), key);
 });
 
-test("names a cache by its origin's key's hash, under its host, and under local when the origin is a path or its host is no plain name", () => {
+test("spells an Azure DevOps repo one way across its ssh, https and visualstudio.com forms, and a shape it does not know as itself", () => {
+	const key = "dev.azure.com/org/some%20project/repo";
+	for (const spelling of [
+		"https://org@dev.azure.com/org/Some%20Project/_git/Repo",
+		"git@ssh.dev.azure.com:v3/org/Some%20Project/Repo",
+		"ssh://git@ssh.dev.azure.com/v3/org/Some%20Project/Repo",
+		"https://org.visualstudio.com/Some%20Project/_git/Repo",
+		"https://org.visualstudio.com/DefaultCollection/Some%20Project/_git/Repo",
+		"org@vs-ssh.visualstudio.com:v3/org/Some%20Project/Repo",
+	]) {
+		assert.equal(remoteKey(spelling), key, spelling);
+	}
+	assert.equal(remoteKey("https://dev.azure.com/org/project/_git/repo/extra"), "dev.azure.com/org/project/_git/repo/extra");
+	assert.equal(remoteKey("https://dev.azure.com/org/_git/repo"), "dev.azure.com/org/_git/repo");
+});
+
+test("names a cache by its origin's key's hash, under its host, _local for a path and _other for a host that is no plain name", () => {
 	const root = join(process.env.NOSEDIVE_USER_DIR!, "cache");
 	const hashed = (group: string, key: string) => join(root, group, `${createHash("sha256").update(key).digest("hex").slice(0, 16)}.git`);
 	const keyed = hashed("github.com", "github.com/Owner/Name");
@@ -131,9 +147,10 @@ test("names a cache by its origin's key's hash, under its host, and under local 
 		assert.equal(cachePath(odd), hashed(remoteKey(odd).split("/")[0]!, remoteKey(odd)), odd);
 	}
 	for (const hostless of ["file:///some/repo", "https://[::1]/a/b"]) {
-		assert.equal(cachePath(hostless), hashed("local", remoteKey(hostless)), hostless);
+		assert.equal(cachePath(hostless), hashed("_other", remoteKey(hostless)), hostless);
 	}
-	assert.match(slashed(cachePath(join(root, "some", "path"))), /\/cache\/local\/[0-9a-f]{16}\.git$/);
+	assert.match(slashed(cachePath(join(root, "some", "path"))), /\/cache\/_local\/[0-9a-f]{16}\.git$/);
+	assert.equal(slashed(cachePath("https://local/a/b")).includes("/cache/local/"), true, "a host named local is a host like any other");
 	assert.equal(cachePath(join(root, "some", "path")), cachePath(`${join(root, "some", "path")}.git/`));
 });
 
@@ -147,6 +164,17 @@ test("shares one cache between repo docs of different ids that name one origin",
 	assert.notEqual(dir, checkout);
 	assert.equal(commonDir(checkout), slashed(cache));
 	assert.equal(commonDir(dir), slashed(cache));
+});
+
+test("records the key a cache holds, and refuses a cache at its path that holds another", async () => {
+	const { hero, doc, say, cache, checkout } = await hello("hydrate-repo-key-guard");
+	hydrateRepo(hero, doc, say);
+	const key = git(["config", "nosedive.key"], cache);
+	assert.ok(key.length > 0);
+	git(["worktree", "remove", checkout], cache);
+	git(["config", "nosedive.key", "example.com/some/other"], cache);
+	assert.throws(() => hydrateRepo(hero, doc, say), /hello's cache at .+ holds example\.com\/some\/other, not .+: move it aside to cache hello afresh/);
+	assert.equal(existsSync(checkout), false);
 });
 
 test("moves a cache kept by repo doc id to its key, and its worktrees follow", async () => {
