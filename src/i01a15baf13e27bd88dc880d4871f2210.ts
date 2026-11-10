@@ -54,14 +54,18 @@ function featBranch(bridge: Bridge, featId: string): string {
 	return `${bridge.id}/${on.text}/${featId}`;
 }
 
+/** `~/.nosedive`, or `NOSEDIVE_USER_DIR` when that is set. */
+export function userDir(): string {
+	return process.env.NOSEDIVE_USER_DIR || join(homedir(), ".nosedive");
+}
+
 /** The user's cache of a repo, shared by every checkout of every hero. */
 function cachePath(doc: RepoDoc): string {
-	const user = process.env.NOSEDIVE_USER_DIR || join(homedir(), ".nosedive");
-	return join(user, "cache", `${String(doc.fm.id)}.git`);
+	return join(userDir(), "cache", `${String(doc.fm.id)}.git`);
 }
 
 /** Fetches the user's cache of a repo from its origin, making the cache when there is none, without checking anything out; returns it and the repo's trunk. */
-function fetchCache(bridge: Bridge, doc: RepoDoc, ctx: Say): { cache: string; trunk: string } {
+export function fetchCache(bridge: Bridge, doc: RepoDoc, ctx: Say): { cache: string; trunk: string } {
 	const name = String(doc.fm.name);
 	const cache = cachePath(doc);
 	const remote = origin(bridge, doc);

@@ -242,3 +242,51 @@ export async function declareKinds(hero: string, ...names: string[]): Promise<vo
 export async function declareDurable(hero: string, name: string): Promise<void> {
 	ok(await run(["crud", "core:kind", `a ${name}`, "--name", name, "--meta", "-"], hero, "schema:\n  type: object\n  additionalProperties: true\n"));
 }
+
+/** Commits files to a repo, as they are given; returns the commit. */
+export function commitAll(dir: string, files: Record<string, string>): string {
+	for (const [file, text] of Object.entries(files)) {
+		mkdirSync(join(dir, dirname(file)), { recursive: true });
+		writeFileSync(join(dir, file), text);
+	}
+	git(["add", "-A"], dir);
+	git(["commit", "-qm", "files"], dir);
+	return git(["rev-parse", "HEAD"], dir);
+}
+
+/**
+ * A hero to dock from, some-hero, with a user dir of its own. Its repo docs name two origins: `docked`, whose trunk's primary root
+ * is of `kind`, and `plain`, a repo of no hero with a branch `work/plain`; its feat scopes plain on that branch and docked on none.
+ */
+export function dockHero(kind = "hero") {
+	const root = (id: string, kind: string, name: string) => ({
+		".nosedive/config.yaml": `id: ${id}\nroots:\n  - kb/${id}.md\n`,
+		[`kb/${id}.md`]: `---\nkind: ${kind}\nid: ${id}\nname: ${name}\n---\n`,
+	});
+	const [heroId, dockedId, docked, plain, feat, owner] = [mintUuid(), mintUuid(), mintUuid(), mintUuid(), mintUuid(), mintUuid()];
+	const dockedOrigin = gitRepo("dock-docked");
+	commitAll(dockedOrigin, root(dockedId, kind, `some-${kind}`));
+	const plainOrigin = gitRepo("dock-plain");
+	commitAll(plainOrigin, { "README.md": "plain\n" });
+	git(["checkout", "-q", "-b", "work/plain"], plainOrigin);
+	const work = commitAll(plainOrigin, { "work.md": "work\n" });
+	git(["checkout", "-q", "main"], plainOrigin);
+	const repoDoc = (id: string, name: string, origin: string) =>
+		`---\nkind: repo\nid: ${id}\nname: ${name}\nmeta:\n  trunk: main\n  remotes:\n    origin: ${JSON.stringify(origin)}\n---\n`;
+	const hero = gitRepo("dock-hero");
+	commitAll(hero, {
+		...root(heroId, "hero", "some-hero"),
+		[`.nosedive/repos/${docked}.md`]: repoDoc(docked, "docked", dockedOrigin),
+		[`.nosedive/repos/${plain}.md`]: repoDoc(plain, "plain", plainOrigin),
+		[`kb/${feat}.md`]: `---\nkind: feat\nid: ${feat}\nname: some-feat\nscopes:\n  - ${plain}:\n      work-branch: work/plain\n  - ${docked}: {}\n  - ${owner}:\n      canonical: true\n---\n`,
+	});
+	const user = tempDir("dock-user");
+	process.env.NOSEDIVE_USER_DIR = user;
+	const out: string[] = [];
+	const ctx: Ctx = { cwd: hero, out: (text) => void out.push(text), err: (text) => void out.push(text), stdin: async () => "", capes: [cape] };
+	return {
+		hero, heroId, ids: { docked, plain, feat }, origins: { docked: dockedOrigin, plain: plainOrigin }, work, ctx, out,
+		at: (name: string) => join(user, "docks", "some-hero", name),
+		cache: (id: string) => join(user, "cache", `${id}.git`),
+	};
+}
