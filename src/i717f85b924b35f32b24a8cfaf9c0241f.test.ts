@@ -97,3 +97,18 @@ test("drops a doc its root's rendered tree lists, rendering the tree again in th
 	assert.equal(git(["rev-list", "--count", `${head}..HEAD`], bridge), "1");
 	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
+
+test("refuses a doc the body of a root linking no .feat links, leaving that body as its author wrote it", async () => {
+	const { bridge, parent, child, read } = await hung("crud-drop-unrendered");
+	const root = readRepoConfig(bridge)!.root!;
+	const rootPath = kbPath(bridge, root);
+	ok(await run(["crud", root, "--body", "-"], bridge, `\n# Show\n\nIts author's words, and [the child](${idOf(child)}.md).\n`));
+	const body = read(rootPath);
+	ok(await run(["crud", idOf(parent), `--section:Dropped.${idOf(child)}`, "-"], bridge, "Done; its lessons are on the parent.\n"));
+	const head = git(["rev-parse", "HEAD"], bridge);
+	const refused = await run(["crud", "--drop", idOf(child)], bridge);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, new RegExp(`\n {2}${rootPath} links it in its body: remove that link first`));
+	assert.equal(read(rootPath), body);
+	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+});

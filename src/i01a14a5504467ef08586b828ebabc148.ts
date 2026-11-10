@@ -25,6 +25,12 @@ export function i01a14a5504467ef08586b828ebabc148(kbDir: string, root: Doc, othe
 	return `\n${lines.join("\n")}\n`;
 }
 
+/** Whether the root has a tree: only one linking a `.feat` does, so any other's body stays its author's. */
+export function rendersTree(root: Doc): boolean {
+	const links = Array.isArray(root.fm.links) ? root.fm.links : [];
+	return links.some((link) => link && typeof link === "object" && Object.values(link as Record<string, { rel?: unknown } | null>).some((value) => String(value?.rel ?? "").endsWith(".feat")));
+}
+
 function entries(dirs: string[], from: string, ids: string[], path: string[], depth: number): string[] {
 	const docs = ids
 		.filter((id) => !path.includes(id))

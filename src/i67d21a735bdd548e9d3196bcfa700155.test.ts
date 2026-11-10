@@ -262,6 +262,37 @@ test("renders each root's tree from its feat links, and leaves it once rendered"
 	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], dir)), /rendered/);
 });
 
+test("leaves the body of a root that links no .feat as its author wrote it, and renders it once it links one", async () => {
+	const dir = await tempBridge("seed-foreign-body");
+	const root = configOf(dir).id;
+	const path = join(kbOf(dir), `${root}.md`);
+	ok(await run(["crud", root, "--body", "-"], dir, "\n# Show\n\nWhat the show is about, in its author's words.\n"));
+	const body = readFileSync(path, "utf8");
+	assert.doesNotMatch(ok(await run(["seed", "--no-capes"], dir)), /rendered/);
+	assert.equal(readFileSync(path, "utf8"), body);
+	const memo = ok(await run(["crud", "core:memo", "free", "level"], dir)).replace(/^.*\/|\.md$/g, "");
+	ok(await run(["crud", root, "--links", "-"], dir, `${kbPath(dir, memo)}:\n  rel: levels.feat\n`));
+	assert.match(ok(await run(["seed", "--no-capes"], dir)), /rendered the tree of /);
+	assert.doesNotMatch(readFileSync(path, "utf8"), /author's words/);
+});
+
+test("refuses a config root outside the hero's git checkout, naming it, and writes nothing", async () => {
+	const hero = await tempBridge("seed-outside-hero");
+	const other = await tempBridge("seed-outside-other");
+	const outside = join(kbOf(other), `${configOf(other).id}.md`);
+	const config = join(hero, ".nosedive", "config.yaml");
+	const doc = parseDocument(readFileSync(config, "utf8"));
+	(doc.get("roots") as { add: (value: string) => void }).add(outside.replace(/\\/g, "/"));
+	writeFileSync(config, doc.toString({ lineWidth: 0 }));
+	git(["commit", "-qam", "list a root outside"], hero);
+	const [heroHead, otherHead, otherBody] = [git(["rev-parse", "HEAD"], hero), git(["rev-parse", "HEAD"], other), readFileSync(outside, "utf8")];
+	const refused = await run(["seed", "--no-capes"], hero);
+	assert.equal(refused.code, 1);
+	assert.ok(refused.err.includes(`root ${configOf(other).id} at ${dirname(outside)}, outside this git checkout`), refused.err);
+	assert.deepEqual([git(["rev-parse", "HEAD"], hero), git(["status", "--porcelain"], hero)], [heroHead, ""]);
+	assert.deepEqual([git(["rev-parse", "HEAD"], other), git(["status", "--porcelain"], other), readFileSync(outside, "utf8")], [otherHead, "", otherBody]);
+});
+
 test("--at seeds a directory of the hero as a cape and lists its root in the hero's roots, in one commit, with no .git of its own", async () => {
 	const hero = await tempBridge("seed-at");
 	const before = git(["rev-parse", "HEAD"], hero);
