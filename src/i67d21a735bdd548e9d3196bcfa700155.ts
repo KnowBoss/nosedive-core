@@ -19,7 +19,7 @@ import { i01a1337c810a7456876b831d0c873396 as capeManifest } from "./i01a1337c81
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig, selectRoot } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a175dbf4517dafa3a9048ecd98ab84 as runMigrations, MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
-import { i01a14a5504467ef08586b828ebabc148 as renderTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
+import { i01a14a5504467ef08586b828ebabc148 as renderTree, rendersTree } from "./i01a14a5504467ef08586b828ebabc148.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import { i01a1b30d4b537775a4e1260cd7fb9067 as runCapeMigrations } from "./i01a1b30d4b537775a4e1260cd7fb9067.ts";
 import { i01a133547f5f7c45a3fb2ac0e3a7678e as scaffoldCape } from "./i01a133547f5f7c45a3fb2ac0e3a7678e.ts";
@@ -106,6 +106,11 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 
 	const repo = basename(dir);
 	const configPath = join(dir, ".nosedive", "config.yaml");
+	// A root outside the checkout belongs to another git, which seed never writes into.
+	for (const listed of existsSync(configPath) ? (readRepoConfig(dir)?.roots ?? []) : []) {
+		const rel = relative(top, listed.dir);
+		if (rel.startsWith("..") || isAbsolute(rel)) throw new Error(`${configPath} lists root ${listed.id} at ${listed.dir}, outside this git checkout, ${top}: seed writes into no other checkout, so it wrote nothing`);
+	}
 	// A repo it knows is brought to today's shape before anything else reads it.
 	for (const name of existsSync(configPath) ? runMigrations(dir, ctx) : []) ctx.out(`migrated ${repo}: ${name}`);
 	if (!readRepoConfig(dir)) {
@@ -186,10 +191,10 @@ export async function i67d21a735bdd548e9d3196bcfa700155(options: { noCapes: bool
 		if (scaffolded.lines.join() !== "nothing to scaffold") ctx.out([`scaffolded ${repo}:`, ...scaffolded.lines.map((line) => `  ${line}`)].join("\n"));
 	}
 
-	// Each root's body is its tree, rendered from its links.
+	// Each root's body is its tree, rendered from its links, when it links a .feat.
 	const roots = own.roots.filter((root) => !nestedRoot(own, root)).flatMap((root) => {
 		const doc = findKbDoc(root.dir, root.id);
-		return doc ? [{ doc, kbDir: root.dir }] : [];
+		return doc && rendersTree(doc) ? [{ doc, kbDir: root.dir }] : [];
 	});
 	for (const { doc, kbDir } of roots) {
 		const tree = renderTree(kbDir, doc, [...(own.kindsDir ? [own.kindsDir] : []), ...(own.reposDir ? [own.reposDir] : []), ...own.roots.map((root) => root.dir)]);
