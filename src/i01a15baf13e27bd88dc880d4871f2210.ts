@@ -115,7 +115,8 @@ function cacheOf(bridge: Bridge, doc: RepoDoc, ctx: Say): string {
 		ctx.err(`nosedive: cannot move ${name}'s cache from ${legacy} to ${keyed}, so it is used where it is: ${error instanceof Error ? error.message : String(error)}`);
 		return legacy;
 	}
-	git(keyed, "worktree", "repair");
+	const repaired = git(keyed, "worktree", "repair");
+	if (!repaired.ok) ctx.err(`nosedive: ${name}'s cache moved to ${keyed}, but git could not repair its checkouts, which may still point at ${legacy}: ${repaired.text}`);
 	return keyed;
 }
 

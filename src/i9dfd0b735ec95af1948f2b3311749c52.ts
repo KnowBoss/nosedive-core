@@ -10,6 +10,7 @@ import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8e
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { fetchCache, remoteKey, userDir } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
+import { pathComponent } from "./i01a13c760de87562b4738946402010b8.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -28,6 +29,9 @@ export async function i9dfd0b735ec95af1948f2b3311749c52(ref: string, head: strin
 
 	const found = find(hero, repos, ref);
 	const wanted = found.repo ? [{ doc: found.repo, workBranch: undefined }] : scoped(found.feat!, repos);
+	// Checked before any fetch, so a bad name docks nothing.
+	pathComponent(docker, "the hero's primary root's name");
+	for (const { doc } of wanted) pathComponent(String(doc.fm.name), "a repo's name");
 	const plans = wanted.map(({ doc, workBranch }) => plan(hero, doc, join(userDir(), "docks", docker, String(doc.fm.name)), { head, workBranch, feat: !found.repo }, ctx));
 	// Every dock is checked before any is moved, so a refusal moves none.
 	const refused = plans.flatMap(refusal);

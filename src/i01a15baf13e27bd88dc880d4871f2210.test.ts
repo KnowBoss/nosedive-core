@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, renameSync } from "node:fs";
+import { chmodSync, existsSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -188,6 +188,22 @@ test("moves a cache kept by repo doc id to its key, and its worktrees follow", a
 	git(["status"], worktree);
 	assert.equal(commonDir(worktree), slashed(cache));
 	assert.equal(commonDir(checkout), slashed(cache));
+});
+
+test("warns, naming the cache, when git cannot repair the checkouts of a cache it moved", async () => {
+	const { source, hero, doc, said, say, cache, legacy } = await hello("hydrate-repo-legacy-unrepaired");
+	git(["clone", "-q", "--bare", source, legacy], source);
+	const worktree = join(tempDir("hydrate-repo-legacy-unrepaired-worktree"), "hello");
+	git(["worktree", "add", "-q", "--detach", worktree, "refs/heads/trunk"], legacy);
+	// A .git file git cannot rewrite makes its repair fail.
+	chmodSync(join(worktree, ".git"), 0o444);
+	try {
+		hydrateRepo(hero, doc, say);
+	} finally {
+		chmodSync(join(worktree, ".git"), 0o644);
+	}
+	assert.equal(existsSync(cache), true);
+	assert.ok(said.some((line) => line.startsWith(`err: nosedive: hello's cache moved to ${cache}, but git could not repair its checkouts, which may still point at ${legacy}: `)), said.join("\n"));
 });
 
 test("leaves a cache kept by repo doc id where it is when one is at its key already, and warns naming it", async () => {

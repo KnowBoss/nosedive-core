@@ -36,6 +36,14 @@ test("refuses a ref that names more than one repo doc, naming them", async () =>
 	await assert.rejects(dock("docked", undefined, ctx), /docked names 2 repo docs, docked and docked: dock one by its quid/);
 });
 
+test("refuses a repo name that is no single path component, docking nothing outside the docks", async () => {
+	const { hero, ids, ctx, at } = dockHero();
+	const path = join(hero, `.nosedive/repos/${ids.docked}.md`);
+	writeFileSync(path, readFileSync(path, "utf8").replace("name: docked", 'name: "../escape"'));
+	await assert.rejects(dock(ids.docked, undefined, ctx), /a repo's name, "\.\.\/escape", is no single path component, so nothing was checked out/);
+	assert.equal(existsSync(join(dirname(at("docked")), "..", "escape")), false);
+});
+
 test("docks a repo whose trunk holds no hero read-only, detached at its trunk", async () => {
 	const { ids, origins, ctx, out, at } = dockHero("cape");
 	await dock(ids.docked, undefined, ctx);
