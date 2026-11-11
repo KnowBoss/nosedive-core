@@ -198,3 +198,10 @@ test("a local cape's root is a hero root that root walks leave to the cape: no t
 	assert.match(ok(await run(["crud", readRepoConfig(dir)!.root!], hero)), /^---\nkind: cape\n/);
 	assert.match(ok(await run(["pass", "--test", "tools/greet"], hero)), /gate cape-tests-pass: passed$/);
 });
+
+test("a supersedes.cape link on the root is no worn cape", async () => {
+	const bridge = await tempBridge("configured-capes-supersedes");
+	const config = readRepoConfig(bridge)!;
+	ok(await run(["crud", config.root!, "--links", "-"], bridge, "01a1c8aa-0000-7000-8000-00000000cafe:\n  rel: supersedes.cape\n"));
+	assert.deepEqual(configuredCapes(findBridge(bridge)!, core), []);
+});

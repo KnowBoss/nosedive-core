@@ -253,3 +253,29 @@ test("records its owner, its short name and the kinds it declares with their ver
 	for (const spelling of ["greet:tag", "greet-cape:tag", `${cape.owner}:tag`]) assert.equal(findKind(spelling, hero, [core])?.version, head, spelling);
 	assert.equal(versionOf(findKind("greet:tag", hero, [core])!), head);
 });
+
+test("records the seeded ids its root's supersedes.cape links name, which a build shipped with no source carries", async () => {
+	const superseded = "01a1c8aa-0000-7000-8000-00000000cafe";
+	const repo = greetCapeRepo({ supersedes: [superseded] });
+	const commit = git(["rev-parse", "HEAD"], repo);
+	const { dir, built } = await build(repo, commit);
+	const made = await built();
+	assert.deepEqual(made.supersedes, [superseded]);
+	assert.deepEqual(JSON.parse(readFileSync(join(dir, ".nosedive", "capes", "manifest.json"), "utf8"))[0].supersedes, [superseded]);
+
+	const shipped = join(tempDir("build-cape-supersedes"), "dist");
+	mkdirSync(join(shipped, "capes"), { recursive: true });
+	writeFileSync(join(shipped, "capes", "manifest.json"), JSON.stringify([{ ...made, fresh: undefined }]));
+	writeFileSync(join(shipped, "capes", `${made.id}.js`), readFileSync(join(dir, ".nosedive", "capes", `${made.id}.js`)));
+	const hero = await tempBridge("build-cape-supersedes-hero");
+	await registerRepo(hero, "greet-cape", repo);
+	const bridge = findBridge(hero)!;
+	const record = { ...findRepoDoc(bridge, "greet-cape"), id: made.repo, remote: join(hero, "no-such-remote") };
+	const taken = await buildCape(bridge, record, commit, { ...core, url: pathToFileURL(join(shipped, "core.js")).href });
+	assert.deepEqual(taken.supersedes, [superseded], "taken with no clone and no source");
+});
+
+test("refuses a supersedes.cape link keyed by anything but a seeded id", async () => {
+	const { built } = await build(greetCapeRepo({ supersedes: [".nosedive/repos/some-repo.md"] }));
+	await assert.rejects(built(), /supersedes \.nosedive\/repos\/some-repo\.md, which is no cape's seeded id: key it by that id/);
+});
