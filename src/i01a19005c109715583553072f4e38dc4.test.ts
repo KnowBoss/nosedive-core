@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { subjectLine } from "./i01a19005c109715583553072f4e38dc4.ts";
-import { git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
+import { declareHanging, git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 const subject = (dir: string) => git(["log", "-1", "--format=%s"], dir);
@@ -131,4 +131,80 @@ test("every commit ends with the nosedive co-author, once", async () => {
 	ok(await run(["crud", "--drop", idOf(path), "--sure", "--hard"], bridge));
 	assert.equal(coAuthors(bridge), 1, "a drop's");
 	for (const rev of git(["rev-list", "HEAD"], bridge).split("\n")) assert.equal(coAuthors(bridge, rev), 1, `${git(["log", "-1", "--format=%s", rev], bridge)}`);
+});
+
+test("a doc a feat links by a rel its kind names in meta.next is grouped under that feat, and under its own name when a branch names it (drop-takes-declared-links)", async () => {
+	const { bridge, featId, noteId } = await heroWithFeat("subject-declared");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const plan = ok(await run(["crud", "plan", "a plan", "--name", "the-plan"], bridge));
+	ok(await run(["crud", idOf(plan), "--gist", "unlinked"], bridge));
+	assert.equal(subject(bridge), "crud: gist", "no feat links it yet");
+
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${plan}: {rel: seen.dive}\n`));
+	ok(await run(["crud", idOf(plan), "--gist", "undeclared"], bridge));
+	assert.equal(subject(bridge), "crud: gist", "a rel its kind does not name is no feat's");
+
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
+	ok(await run(["crud", idOf(plan), "--gist", "declared"], bridge));
+	assert.equal(subject(bridge), "feat(ideas): crud gist", "grouped under the linking feat");
+
+	git(["switch", "-q", "-c", `nosedive-0123456789ab-${idOf(plan)}`], bridge);
+	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
+	assert.equal(subject(bridge), "feat(the-plan): crud gist", "its own name when a branch names it");
+});
+
+test("a root is never the holder a commit is grouped under, whatever the walk met first (drop-takes-declared-links)", async () => {
+	const { bridge, root, feat, featId } = await heroWithFeat("subject-root-holder");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const plan = ok(await run(["crud", "plan", "a plan", "--name", "the-plan"], bridge));
+	ok(await run(["crud", root, "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
+	ok(await run(["crud", idOf(plan), "--gist", "root only"], bridge));
+	assert.equal(subject(bridge), "crud: gist", "a root alone holding it groups nothing");
+
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
+	ok(await run(["crud", idOf(plan), "--gist", "root first"], bridge));
+	assert.equal(subject(bridge), "feat(ideas): crud gist", "root's link to it before the feat's");
+
+	// The root now links the plan before the feat.
+	ok(await run(["crud", root, "--links", "-"], bridge, `${feat}: null\n`));
+	ok(await run(["crud", root, "--links", "-"], bridge, `${feat}: {rel: work.feat}\n`));
+	ok(await run(["crud", idOf(plan), "--gist", "feat last"], bridge));
+	assert.equal(subject(bridge), "feat(ideas): crud gist", "and after it");
+});
+
+test("a branch naming a doc only a root links by a declared rel groups under the doc's own name (drop-takes-declared-links)", async () => {
+	const { bridge, root, noteId } = await heroWithFeat("subject-root-branch");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const plan = ok(await run(["crud", "plan", "a plan", "--name", "the-plan"], bridge));
+	ok(await run(["crud", root, "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
+	git(["switch", "-q", "-c", `nosedive-0123456789ab-${idOf(plan)}`], bridge);
+	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
+	assert.equal(subject(bridge), "feat(the-plan): crud gist");
+});
+
+test("a branch naming a doc with no name groups nothing, not feat(undefined) (drop-takes-declared-links)", async () => {
+	const { bridge, featId, noteId } = await heroWithFeat("subject-nameless");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const id = "01a19005-0000-7000-8000-000000000009";
+	writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: plan\nid: ${id}\n---\n\n# Nameless\n`);
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "a nameless plan"], bridge);
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${kbPath(bridge, id)}: {rel: planned.dive}\n`));
+	git(["switch", "-q", "-c", `nosedive-0123456789ab-${id}`], bridge);
+	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
+	assert.equal(subject(bridge), "crud: gist");
+});
+
+test("a branch naming a doc with no name falls through to a touched doc's feat (drop-takes-declared-links)", async () => {
+	const { bridge, feat, featId, noteId } = await heroWithFeat("subject-nameless-falls");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const id = "01a19005-0000-7000-8000-00000000000a";
+	writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: plan\nid: ${id}\n---\n\n# Nameless\n`);
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "a nameless plan"], bridge);
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${kbPath(bridge, id)}: {rel: planned.dive}\n`));
+	ok(await run(["crud", noteId, "--links", "-"], bridge, `${feat}: {rel: parent.feat}\n`));
+	git(["switch", "-q", "-c", `nosedive-0123456789ab-${id}`], bridge);
+	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
+	assert.equal(subject(bridge), "feat(ideas): crud gist");
 });

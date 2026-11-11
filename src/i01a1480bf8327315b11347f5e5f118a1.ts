@@ -19,10 +19,10 @@ import { i01a14a5504467ef08586b828ebabc148 as renderTree, rendersTree } from "./
 type Listed = ReturnType<typeof listKbDocs>[number];
 
 /**
- * Returns the dropped docs' paths relative to the bridge. A drop removes the `.feat` links to the docs it drops, from the docs they
+ * Returns the dropped docs' paths relative to the bridge, and once the drop has committed reports `unlinked <holder path>: <rel> <dropped doc path>` through `report` for each link removed. A drop removes the `.feat` links to the docs it drops, and those by a rel their kind names in `meta.next`, from the docs they
  * hang from, once one of those records it (drops-recorded); `sure` drops a doc that hangs from none.
  */
-export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], hard: boolean, capes: Cape[], sure = false): string[] {
+export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], hard: boolean, capes: Cape[], sure = false, report?: (line: string) => void): string[] {
 	const bridge = findBridge(cwd);
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");
 	const at = (path: string) => relative(bridge.dir, path).replace(/\\/g, "/");
@@ -46,10 +46,17 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 			repoDirs.push(repo.dir);
 		}
 	}
+	// The rels a dropped doc's kind names in `meta.next`, as next lists it by (kind-declared links); a durable kind's are none, as next's are.
+	const declared = new Map(
+		docs.map(({ id, doc }) => {
+			const { kind } = kindOfDoc(doc, bridge, capes);
+			return [id, new Set(kind && !isDurable(kind) ? (kind.next ?? []) : [])] as const;
+		}),
+	);
 	const blockers: string[] = [];
 	const block = (id: string, why: string) => blockers.push(one ? why : `${labelOf.get(id)}: ${why}`);
 	// The links the drop removes, by the doc holding them, and the docs each dropped one hangs from.
-	const unlinks = new Map<Listed, { repoDir: string; at: number[] }>();
+	const unlinks = new Map<Listed, { repoDir: string; at: number[]; links: { rel: string; id: string }[] }>();
 	const parents = new Map<string, Map<string, { id: string; label: string; body: string }>>(docs.map(({ id }) => [id, new Map()]));
 	const hangsFrom = (id: string, doc: { fm: Record<string, unknown>; body: string; path: string }) =>
 		parents.get(id)!.set(doc.path, { id: String(doc.fm.id), label: `${String(doc.fm.kind)} ${String(doc.fm.name)}`, body: doc.body });
@@ -73,14 +80,17 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 							block(id, `${at(other.path)} hangs under it: drop it first`);
 							continue;
 						}
-						// Only the tree's links go with it; any other says something a drop must not undo unasked, as a worn cape's does.
-						if (!rel.endsWith(".feat")) {
+						// Only the tree's links and those its kind names in meta.next go with it; any other says something a drop must not undo unasked, as a worn cape's does.
+						if (!rel.endsWith(".feat") && !declared.get(id)!.has(rel)) {
 							block(id, `${at(other.path)} links it as ${rel || "a link"}: remove that link first`);
 							continue;
 						}
 						hangsFrom(id, other);
-						const entry = unlinks.get(other) ?? { repoDir: repoDirs[index]!, at: [] };
-						if (!entry.at.includes(position)) entry.at.push(position);
+						const entry = unlinks.get(other) ?? { repoDir: repoDirs[index]!, at: [], links: [] };
+						if (!entry.at.includes(position)) {
+							entry.at.push(position);
+							entry.links.push({ rel, id });
+						}
 						unlinks.set(other, entry);
 					}
 				}
@@ -153,7 +163,7 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	for (const [other, { repoDir }] of unlinks) add(repoDir, other.path);
 	for (const id of rerender) add(bridge.dir, rendered.get(id)!.path);
 	// Named before the docs and links go, since their links are how a feat is found.
-	const subjects = new Map([...byRepo.keys()].map((repoDir) => [repoDir, commitSubject(bridge, "crud", "drop", [...dropping])]));
+	const subjects = new Map([...byRepo.keys()].map((repoDir) => [repoDir, commitSubject(bridge, "crud", "drop", [...dropping], capes)]));
 	for (const entry of docs) rmSync(entry.doc.path);
 	for (const [other, { at: positions }] of unlinks) {
 		for (const position of positions.sort((a, b) => b - a)) other.yaml.deleteIn(["links", position]);
@@ -168,5 +178,7 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 		if (doc) writeKbDoc(doc.path, doc.yaml, renderTree(root.dir, doc, others));
 	}
 	for (const [repoDir, paths] of byRepo) commitFiles(repoDir, paths, subjects.get(repoDir)!, capes[0]!.version);
+	const pathOf = new Map(docs.map(({ id, doc }) => [id, at(doc.path)]));
+	for (const [other, { links }] of unlinks) for (const { rel, id } of links) report?.(`unlinked ${at(other.path)}: ${rel} ${pathOf.get(id)!}`);
 	return docs.map(({ doc }) => at(doc.path));
 }

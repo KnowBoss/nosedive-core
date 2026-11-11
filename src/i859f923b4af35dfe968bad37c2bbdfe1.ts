@@ -5,5 +5,5 @@ import { gateDrop } from "./i01a1b453a16c799bb9ce20fad1a9075b.ts";
 /** crud --drop <quid> --sure: drops it though it hangs from no doc, so none records what it held. */
 export async function i859f923b4af35dfe968bad37c2bbdfe1(quid: string, hard: boolean, ctx: Ctx): Promise<void> {
 	await gateDrop([quid], ctx);
-	ctx.out(dropKbDocs(ctx.cwd, [quid], hard, ctx.capes, true).join("\n"));
+	ctx.out(dropKbDocs(ctx.cwd, [quid], hard, ctx.capes, true, ctx.err).join("\n"));
 }
