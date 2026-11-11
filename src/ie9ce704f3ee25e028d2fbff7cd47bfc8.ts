@@ -58,7 +58,7 @@ export async function ie9ce704f3ee25e028d2fbff7cd47bfc8(
 		if (mintedDoc) await gateEdit(edit, ctx, [mintedDoc], discard);
 		if (mintedDoc && edit.touched().length > 0) edit.commit({ action: "crud", what: doc.kind }, [mintedDoc]);
 		// git finds the repo holding the doc from its directory, a checkout's included.
-		else commitFiles(kbDir, [minted.path], commitSubject(bridge, "crud", doc.kind), ctx.capes[0]!.version);
+		else commitFiles(kbDir, [minted.path], commitSubject(bridge, "crud", doc.kind, [], ctx.capes), ctx.capes[0]!.version);
 	} catch (error) {
 		discardMinted(discard);
 		throw error;

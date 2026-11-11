@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { subjectLine } from "./i01a19005c109715583553072f4e38dc4.ts";
-import { git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
+import { declareHanging, git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 const subject = (dir: string) => git(["log", "-1", "--format=%s"], dir);
@@ -131,4 +131,24 @@ test("every commit ends with the nosedive co-author, once", async () => {
 	ok(await run(["crud", "--drop", idOf(path), "--sure", "--hard"], bridge));
 	assert.equal(coAuthors(bridge), 1, "a drop's");
 	for (const rev of git(["rev-list", "HEAD"], bridge).split("\n")) assert.equal(coAuthors(bridge, rev), 1, `${git(["log", "-1", "--format=%s", rev], bridge)}`);
+});
+
+test("a doc a feat links by a rel its kind names in meta.next is grouped under that feat, and under its own name when a branch names it (drop-takes-declared-links)", async () => {
+	const { bridge, featId, noteId } = await heroWithFeat("subject-declared");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const plan = ok(await run(["crud", "plan", "a plan", "--name", "the-plan"], bridge));
+	ok(await run(["crud", idOf(plan), "--gist", "unlinked"], bridge));
+	assert.equal(subject(bridge), "crud: gist", "no feat links it yet");
+
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${plan}: {rel: seen.dive}\n`));
+	ok(await run(["crud", idOf(plan), "--gist", "undeclared"], bridge));
+	assert.equal(subject(bridge), "crud: gist", "a rel its kind does not name is no feat's");
+
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
+	ok(await run(["crud", idOf(plan), "--gist", "declared"], bridge));
+	assert.equal(subject(bridge), "feat(ideas): crud gist", "grouped under the linking feat");
+
+	git(["switch", "-q", "-c", `nosedive-0123456789ab-${idOf(plan)}`], bridge);
+	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
+	assert.equal(subject(bridge), "feat(the-plan): crud gist", "its own name when a branch names it");
 });

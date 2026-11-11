@@ -84,7 +84,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 			for (const [repoDir, written] of byRepo) {
 				for (const { doc, write } of written) if (write) writeKbDoc(doc.path, doc.yaml, doc.body);
 				const { action, what } = given ?? { action: "crud", what: [...new Set(edits)].join(", ") || "edit" };
-				commitFiles(repoDir, written.map(({ doc }) => doc.path), commitSubject(bridge, action, what, written.map(({ doc }) => doc.id)), version);
+				commitFiles(repoDir, written.map(({ doc }) => doc.path), commitSubject(bridge, action, what, written.map(({ doc }) => doc.id), capes), version);
 			}
 			return [...new Set([...include, ...changed])].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));
 		},
