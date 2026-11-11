@@ -4,7 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 import { fileURLToPath } from "node:url";
 import { Document, isSeq, parseDocument } from "yaml";
 import { renderActions, type Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
-import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, hasSurface, ownChange } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
+import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, hasSurface, ownChange, stampVersion } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { nestedRoot } from "./i01a1934563e77ed886f06d04416385ef.ts";
@@ -228,7 +228,7 @@ export async function ie4a628f20d785d3a941ca681bf26e3cf(options: { noCapes: bool
 	const writeSurface = async () => {
 		// A local cape lies in the hero's checkout: the hero's surface is the hero's.
 		if (relative(top, dir) !== "" || !hasSurface(dir)) return;
-		const written = writeAgentSurface(dir, await renderActions(ctx, false), ctx.capes[0]!.version);
+		const written = writeAgentSurface(dir, await renderActions(ctx, false), stampVersion(ctx.capes[0]!));
 		if (written.hint) ctx.out(written.hint);
 		const rel = (path: string) => relative(dir, path).replace(/\\/g, "/");
 		// A block restored to what HEAD holds, after a hand edit, leaves nothing to commit.
