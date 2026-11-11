@@ -172,6 +172,16 @@ test("a root is never the holder a commit is grouped under, whatever the walk me
 	assert.equal(subject(bridge), "feat(ideas): crud gist", "and after it");
 });
 
+test("a branch naming a doc only a root links by a declared rel groups under the doc's own name (drop-takes-declared-links)", async () => {
+	const { bridge, root, noteId } = await heroWithFeat("subject-root-branch");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const plan = ok(await run(["crud", "plan", "a plan", "--name", "the-plan"], bridge));
+	ok(await run(["crud", root, "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
+	git(["switch", "-q", "-c", `nosedive-0123456789ab-${idOf(plan)}`], bridge);
+	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
+	assert.equal(subject(bridge), "feat(the-plan): crud gist");
+});
+
 test("a branch naming a doc with no name groups nothing, not feat(undefined) (drop-takes-declared-links)", async () => {
 	const { bridge, featId, noteId } = await heroWithFeat("subject-nameless");
 	await declareHanging(bridge, "plan", "planned.dive");

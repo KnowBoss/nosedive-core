@@ -58,18 +58,19 @@ export function featNameOf(bridge: Bridge, ids: string[], capes?: Cape[]): strin
 			const held = holdersOf(id).filter(({ holder, rel }) => FEAT_OR_SPEC.test(rel) && order.has(holder));
 			return held.length ? held.reduce((first, next) => (order.get(next.holder)! < order.get(first.holder)! ? next : first)).holder : undefined;
 		};
-		// The first walked doc, a root never, that links a doc by a rel its non-durable kind names in meta.next, as next lists it (kind-declared links), with the doc.
-		const declaredHolder = (id: string) => {
+		// The first walked doc that links a doc by a rel its non-durable kind names in meta.next, as next lists it (kind-declared links), with the doc; a root only when `rootToo`.
+		const declaredHolder = (id: string, rootToo = false) => {
 			const doc = capes && (walk.docs.get(id) ?? locateKbDoc(bridge, id));
 			const kind = doc && kindOfDoc(doc, bridge, capes).kind;
 			const rels = kind && !isDurable(kind) ? kind.next : undefined;
 			if (!doc || !rels?.length) return undefined;
-			const held = holdersOf(id).find(({ holder, rel }) => rels.includes(rel) && !isRoot(holder));
+			const held = holdersOf(id).find(({ holder, rel }) => rels.includes(rel) && (rootToo || !isRoot(holder)));
 			return held && { holder: held.holder, doc };
 		};
 		const onBranch = branchFeat(bridge);
 		if (onBranch && walk.feats.has(onBranch)) return nameOf(onBranch);
-		const declaredOnBranch = onBranch && declaredHolder(onBranch);
+		// The branch's doc is grouped under its own name, so whichever doc holds it will do, a root too.
+		const declaredOnBranch = onBranch && declaredHolder(onBranch, true);
 		// A doc with no name has none to group under.
 		if (declaredOnBranch) return declaredOnBranch.doc.fm.name === undefined ? undefined : String(declaredOnBranch.doc.fm.name);
 		for (const id of ids) {
