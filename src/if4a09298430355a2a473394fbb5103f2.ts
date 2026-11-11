@@ -13,7 +13,7 @@ import { i01a14b30eb0e72e28934c918000a26ac as loadCape } from "./i01a14b30eb0e72
  *
  * Looks in the hero's kb, then the repos checked out in its workspace, then the docs of the loaded capes, then those of every cape the hero wears that has a build, so a cape's doc is readable wherever the cape is worn. Refuses a quid none of them holds.
  *
- * @param quid The doc to change: its quid, or a path ending `<quid>.md`.
+ * @param quid The doc to print: its quid, or a path ending `<quid>.md`.
  * @param ctx Where it runs, and how it reads and prints.
  * @returns Nothing; it prints the doc.
  * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297

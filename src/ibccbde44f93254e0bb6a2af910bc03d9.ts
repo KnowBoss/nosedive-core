@@ -18,7 +18,7 @@ const KEPT = /^(?:[a-z][a-z0-9+.-]*:|#|[\\/])/i;
  *
  * Leaves out the front matter and rewrites each relative markdown link so it resolves from the current directory. A cape's doc that has no file is looked up in its repo's dock at the commit the cape was built at, docked first if need be; when that cannot be done, the links print as written and stderr says why.
  *
- * @param quid The doc to change: its quid, or a path ending `<quid>.md`.
+ * @param quid The doc to print: its quid, or a path ending `<quid>.md`.
  * @param ctx Where it runs, and how it reads and prints.
  * @returns Nothing; it prints the body.
  * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
