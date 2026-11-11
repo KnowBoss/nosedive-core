@@ -145,6 +145,7 @@ test("takes a doc from the doc linking it by a rel its kind names in meta.next, 
 	assert.equal(ok(dropped), plan);
 	assert.equal(dropped.err, `unlinked ${feat}: planned.dive ${plan}`);
 	assert.equal(existsSync(join(bridge, plan)), false);
+	assert.ok(!ok(await run(["next"], bridge)).includes(plan), "next no longer lists the dropped plan");
 	assert.doesNotMatch(read(feat), new RegExp(`${idOf(plan)}\\.md`), "the feat's link goes");
 	assert.match(read(feat), new RegExp(`### ${idOf(plan)}\\n\\nPlanned and carried out`), "its record stays");
 	assert.equal(git(["rev-list", "--count", `${head}..HEAD`], bridge), "2", "the record, then the drop with the link");
