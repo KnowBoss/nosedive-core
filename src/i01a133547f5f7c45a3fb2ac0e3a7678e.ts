@@ -12,6 +12,7 @@ import { i01a14fdf275b70b48f86f7f5c651719d as kbDocKind } from "./i01a14fdf275b7
 import { CORE_OWNER, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const QUIDS = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 const CODE_KINDS = new Set(["action", "function", "migration"]);
 
 /** What a walk met: the docs named by a quid, and the symlinks it did not follow. */
@@ -84,15 +85,16 @@ function scaffold(repoDir: string, group: Group): Scaffolded {
 				continue;
 			}
 			write(`src/${entry.name}.ts`, entryStub(entry.name, doc.name, doc.usages, types));
+			const feat = featOf(raw.fm.links);
 			for (const usage of doc.usages) {
 				// A gate's usage impl takes the pass's GateCtx, and is a test itself.
 				if (gateUsage(usage.text)) {
-					write(`src/i${usage.id}.ts`, gateStub(`i${usage.id}`, usage.text, types));
+					write(`src/i${usage.id}.ts`, gateStub(`i${usage.id}`, usage.text, types, doc.gist || doc.name, feat));
 					// A crud gate is behaviour, not a check, so it has tests of its own.
 					if (gateUsage(usage.text)!.when) write(`src/i${usage.id}.test.ts`, testStub(usage.text));
 					continue;
 				}
-				write(`src/i${usage.id}.ts`, implStub(`i${usage.id}`, usage.text, types));
+				write(`src/i${usage.id}.ts`, implStub(`i${usage.id}`, usage.text, types, doc.gist || doc.name, feat));
 				write(`src/i${usage.id}.test.ts`, testStub(usage.text));
 			}
 		}
@@ -171,10 +173,51 @@ function entryStub(name: string, action: string, usages: { id: string; text: str
 	].join("\n");
 }
 
-function implStub(name: string, usage: string, types: string): string {
+/**
+ * The jsdoc a usage impl opens with, which help shows (usage-help-from-jsdoc): the action's gist, a body to write, one `@param` each,
+ * `@returns`, and the feat the doc names when it does.
+ */
+function usageBlock(summary: string, params: [string, string][], returns: string, feat: string | undefined): string {
+	return [
+		"/**",
+		` * ${summary.replace(/\s+/g, " ").replace(/\*\//g, "* /")}`,
+		" *",
+		" * Describe what this usage does.",
+		" *",
+		...params.map(([name, text]) => ` * @param ${name} ${text}`),
+		` * @returns ${returns}`,
+		...(feat ? [` * @nosedive-feat ${feat}`] : []),
+		" */",
+	].join("\n");
+}
+
+/** The quid a doc's first `parent.feat` link names, which is the feat it serves; none when it has no such link. */
+function featOf(links: unknown): string | undefined {
+	if (!Array.isArray(links)) return undefined;
+	for (const link of links) {
+		if (!link || typeof link !== "object") continue;
+		for (const [target, value] of Object.entries(link as Record<string, { rel?: unknown } | null>)) {
+			const quid = value?.rel === "parent.feat" ? target.match(QUIDS)?.at(-1) : undefined;
+			if (quid) return quid;
+		}
+	}
+	return undefined;
+}
+
+function implStub(name: string, usage: string, types: string, gist: string, feat: string | undefined): string {
+	const placeholders = [...usage.matchAll(/<[^<>]+>/g)].map((match) => match[0]);
 	return [
 		`import type { Args, Ctx } from "${types}";`,
 		"",
+		usageBlock(
+			gist,
+			[
+				["args", `What the usage matched: ${placeholders.length > 0 ? placeholders.join(", ") : "nothing to bind"}.`],
+				["ctx", "Where it runs, and how it reads and prints."],
+			],
+			"Nothing; it throws to fail.",
+			feat,
+		),
 		`export async function ${name}(args: Args, ctx: Ctx): Promise<void> {`,
 		`\tthrow new Error(${JSON.stringify(`not written yet: ${usage}`)});`,
 		"}",
@@ -182,10 +225,11 @@ function implStub(name: string, usage: string, types: string): string {
 	].join("\n");
 }
 
-function gateStub(name: string, gate: string, types: string): string {
+function gateStub(name: string, gate: string, types: string, gist: string, feat: string | undefined): string {
 	return [
 		`import type { GateCtx } from "${types}";`,
 		"",
+		usageBlock(gist, [["ctx", "What the pass gives the gate: the doc passing through, the args its usage bound and the pass's edit."]], "Nothing; it throws to fail the pass.", feat),
 		`export async function ${name}(ctx: GateCtx): Promise<void> {`,
 		`\tthrow new Error(${JSON.stringify(`not written yet: ${gate}`)});`,
 		"}",

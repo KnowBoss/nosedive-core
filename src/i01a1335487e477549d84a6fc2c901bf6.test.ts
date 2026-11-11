@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource, dropWhenOf, dropWhenSlips, namedExports, schemaDigest } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource, dropWhenOf, dropWhenSlips, namedExports, schemaDigest, usageDescription } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { repoDir } from "../scripts/source-cape.mjs";
+import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
 import { CANONICAL, git, gitRepo, ok, run, tempDir } from "../test/harness.ts";
 
 const CRUD = "01a13354-7dea-7604-b903-b94a5aca2b83";
@@ -15,7 +16,8 @@ test("describes this repo's actions, skipping docs of other kinds", () => {
 	const { docs, entries } = describeCapeSource(repoDir);
 	const crud = docs[CRUD]!;
 	assert.equal(crud.name, "crud");
-	assert.deepEqual(crud.usages[0], { id: "5d22a1166ca0519c8dcb58f8989f3ac0", text: "crud" });
+	assert.deepEqual({ ...crud.usages[0]!, description: undefined }, { id: "5d22a1166ca0519c8dcb58f8989f3ac0", text: "crud", description: undefined });
+	assert.equal(crud.usages[0]!.description?.summary, "Lists the kinds a doc can be minted as.", "read from the usage file's block");
 	assert.equal(crud.top, true, "its parent is the backlog root, which is no action");
 	assert.match(crud.body, /^# Crud\n/);
 	assert.equal(docs["01a13354-7d34-72f3-ad11-9c44b4d5de6e"], undefined);
@@ -155,4 +157,85 @@ test("records the digest of each kind's schema, with or without versions", async
 	const digest = schemaDigest({ type: "object", additionalProperties: true });
 	assert.equal((describeCapeSource(dir).kinds.idea as { digest?: string }).digest, digest);
 	assert.equal((describeCapeSource(dir, false, true).kinds.idea as { digest?: string }).digest, digest);
+});
+
+const FEAT = "01a1336b-c0b8-7cde-b7c6-285196062297";
+
+test("reads a usage's description from the jsdoc block of its default export: summary, body, params, returns and @nosedive- attributes", () => {
+	const source = [
+		'import type { Ctx } from "nosedive-core";',
+		"",
+		"/**",
+		" * Greets someone.",
+		" *",
+		" * Says hello to who it is given,",
+		" * and nothing else.",
+		" *",
+		" * A second paragraph.",
+		" *",
+		" * @param who Who to greet,",
+		" *   by name.",
+		" * @param {Ctx} ctx - Where it prints.",
+		" * @returns Nothing.",
+		" * @see somewhere",
+		` * @nosedive-feat ${FEAT}`,
+		" * @nosedive-since 2026",
+		" * @nosedive-since 2027",
+		" */",
+		"export async function ia1(who: string, ctx: Ctx): Promise<void> {}",
+		"",
+	].join("\n");
+	assert.deepEqual(usageDescription(source, "ia1"), {
+		summary: "Greets someone.",
+		body: "Says hello to who it is given,\nand nothing else.\n\nA second paragraph.",
+		params: [
+			{ name: "who", text: "Who to greet, by name." },
+			{ name: "ctx", text: "Where it prints." },
+		],
+		returns: "Nothing.",
+		attributes: [
+			{ key: "feat", value: FEAT },
+			{ key: "since", value: "2026" },
+			{ key: "since", value: "2027" },
+		],
+	});
+});
+
+test("reads a block tolerantly: any export form, one line, CRLF, tags alone, and the summary alone", () => {
+	assert.deepEqual(usageDescription("/** Just this. */\nexport default function () {}\n", "ia1"), { summary: "Just this." });
+	assert.deepEqual(usageDescription("/**\n * Async.\n */\nexport default async function ia1() {}\n", "ia1"), { summary: "Async." });
+	assert.deepEqual(usageDescription("/**\r\n * Windows.\r\n *\r\n * @returns Nothing.\r\n */\r\nexport function ia1() {}\r\n", "ia1"), { summary: "Windows.", returns: "Nothing." });
+	assert.deepEqual(usageDescription("/**\n * @nosedive-feat q\n */\nexport function ia1() {}\n", "ia1"), { summary: "", attributes: [{ key: "feat", value: "q" }] });
+	assert.deepEqual(usageDescription("/**\n *\n * \n */\nexport function ia1() {}\n", "ia1"), undefined, "an empty block says nothing");
+});
+
+test("reads no description when the block is not the one directly above the default export", () => {
+	assert.equal(usageDescription("export function ia1() {}\n", "ia1"), undefined, "no block");
+	assert.equal(usageDescription("/** Of the helper. */\nfunction help() {}\n\nexport function ia1() {}\n", "ia1"), undefined, "a block above another function");
+	assert.equal(usageDescription("/* Not jsdoc. */\nexport function ia1() {}\n", "ia1"), undefined, "a plain comment");
+	assert.equal(usageDescription("/** Of the other. */\nexport function ia2() {}\n", "ia1"), undefined, "another function's block");
+	assert.equal(usageDescription("/** A. */\n/* B. */\nexport function ia1() {}\n", "ia1"), undefined, "a block of another kind between");
+});
+
+test("a usage carries the description its file gives it, and has none when the file has none or is missing", () => {
+	const dir = tempDir("describe-usage-block");
+	mkdirSync(join(dir, "kb"));
+	mkdirSync(join(dir, "src"));
+	const action = "01a1335b-f253-7b80-ab64-d2f9a03c9634";
+	writeFileSync(join(dir, "kb", `${action}.md`), `---\nkind: action\nid: ${action}\nname: tool\nmeta:\n  usages:\n    - tool one\n    - tool two\n    - tool three\n${CANONICAL}---\n`);
+	const [one, two, three] = ["tool one", "tool two", "tool three"].map((text) => usageId(text, action));
+	writeFileSync(join(dir, "src", `i${one}.ts`), `/**\n * Does one.\n * @nosedive-feat ${FEAT}\n */\nexport async function i${one}() {}\n`);
+	writeFileSync(join(dir, "src", `i${two}.ts`), `export async function i${two}() {}\n`);
+	const usages = describeCapeSource(dir).docs[action]!.usages;
+	assert.deepEqual(usages[0], { id: one, text: "tool one", description: { summary: "Does one.", attributes: [{ key: "feat", value: FEAT }] } });
+	assert.deepEqual(usages[1], { id: two, text: "tool two" });
+	assert.deepEqual(usages[2], { id: three, text: "tool three" }, "its file is not written yet");
+});
+
+test("this repo's usage impls carry blocks: crud, seed, mint, next, dock and its gates", () => {
+	const { docs } = describeCapeSource(repoDir);
+	for (const doc of Object.values(docs)) {
+		if (doc.kind !== "action" || doc.name === "pass") continue;
+		for (const usage of doc.usages) assert.ok(usage.description?.summary, `${usage.text} has a block with a summary`);
+	}
 });
