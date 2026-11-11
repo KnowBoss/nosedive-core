@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 
 /** The agent instruction files a hero may hold, read by the write and the drift check alike. */
@@ -13,6 +14,22 @@ const STAMP = /^<!-- nosedive v=(\S+) surface=([0-9a-f]{8}) -->$/;
 /** The first 8 hex of the sha256 of the surface, trimmed, so two cores rendering the same surface agree. */
 export function surfaceDigest(surface: string): string {
 	return createHash("sha256").update(surface.trim()).digest("hex").slice(0, 8);
+}
+
+/**
+ * The version a stamp names: the npm package's, when the running core ships in the `nosedive` package beside its
+ * `package.json`, so legacy's `npm i -g nosedive@<stamp>` finds it; else core's own (stamp-installable).
+ */
+export function stampVersion(core: { version: string; url?: string }): string {
+	if (!core.url?.startsWith("file:")) return core.version;
+	try {
+		const pkg: unknown = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", core.url)), "utf8"));
+		const { name, version } = (pkg ?? {}) as { name?: unknown; version?: unknown };
+		if (name === "nosedive" && typeof version === "string" && version !== "" && version !== "0.0.0") return version;
+	} catch {
+		// No package beside it: a build of core's own, or a source run.
+	}
+	return core.version;
 }
 
 /** Whether a directory has a surface: a hero, a root of core's kind hero, at the top of its own checkout; never a cape, a base or a local cape, whatever workspace it names. */

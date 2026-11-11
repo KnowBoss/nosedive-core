@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { test } from "node:test";
-import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, DROPPED_LINE, FENCE_LINE, SURFACE_BEGIN, SURFACE_END, surfaceDigest, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
+import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, DROPPED_LINE, FENCE_LINE, SURFACE_BEGIN, SURFACE_END, stampVersion, surfaceDigest, surfaceDrift } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import { git, gitRepo, greetCapeRepo, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
 const SURFACE = "Usage: nosedive [--at <target>] <action> [<args>]\n\ncore\n  seed  Makes a bridge\n";
@@ -189,4 +190,20 @@ test("seed writes no surface for a cape, with a workspace or not, nor a base: on
 	ok(await run(["seed"], base));
 	assert.equal(readFileSync(join(base, "CLAUDE.md"), "utf8"), `${SURFACE_BEGIN}\n${SURFACE_END}\n`, "a base is not worked in from its root, marked or not");
 	assert.equal((await run(["next"], base)).err, "", "nor is it reported");
+});
+
+test("stamps the nosedive package's version when core runs from it, so legacy's npm install hint finds it; else core's own", () => {
+	const pkg = (body: string | undefined) => {
+		const dir = tempDir("agent-surface-package");
+		mkdirSync(join(dir, "dist"));
+		if (body !== undefined) writeFileSync(join(dir, "package.json"), body);
+		return pathToFileURL(join(dir, "dist", "core.js")).href;
+	};
+	const core = "2026.11.11-1794422857783";
+	assert.equal(stampVersion({ version: core, url: pkg(JSON.stringify({ name: "nosedive", version: "2026.11.11-1794426521559" })) }), "2026.11.11-1794426521559");
+	assert.equal(stampVersion({ version: core, url: pkg(JSON.stringify({ name: "nosedive", version: "0.0.0" })) }), core, "an unpublished checkout of the package");
+	assert.equal(stampVersion({ version: core, url: pkg(JSON.stringify({ name: "nosedive-core", version: "0.0.0" })) }), core, "a build of core's own");
+	assert.equal(stampVersion({ version: core, url: pkg(undefined) }), core, "no package beside it");
+	assert.equal(stampVersion({ version: core, url: pkg("not json") }), core);
+	assert.equal(stampVersion({ version: core }), core, "a source run");
 });
