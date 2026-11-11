@@ -152,3 +152,35 @@ test("a doc a feat links by a rel its kind names in meta.next is grouped under t
 	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
 	assert.equal(subject(bridge), "feat(the-plan): crud gist", "its own name when a branch names it");
 });
+
+test("a root is never the holder a commit is grouped under, whatever the walk met first (drop-takes-declared-links)", async () => {
+	const { bridge, root, feat, featId } = await heroWithFeat("subject-root-holder");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const plan = ok(await run(["crud", "plan", "a plan", "--name", "the-plan"], bridge));
+	ok(await run(["crud", root, "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
+	ok(await run(["crud", idOf(plan), "--gist", "root only"], bridge));
+	assert.equal(subject(bridge), "crud: gist", "a root alone holding it groups nothing");
+
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
+	ok(await run(["crud", idOf(plan), "--gist", "root first"], bridge));
+	assert.equal(subject(bridge), "feat(ideas): crud gist", "root's link to it before the feat's");
+
+	// The root now links the plan before the feat.
+	ok(await run(["crud", root, "--links", "-"], bridge, `${feat}: null\n`));
+	ok(await run(["crud", root, "--links", "-"], bridge, `${feat}: {rel: work.feat}\n`));
+	ok(await run(["crud", idOf(plan), "--gist", "feat last"], bridge));
+	assert.equal(subject(bridge), "feat(ideas): crud gist", "and after it");
+});
+
+test("a branch naming a doc with no name groups nothing, not feat(undefined) (drop-takes-declared-links)", async () => {
+	const { bridge, featId, noteId } = await heroWithFeat("subject-nameless");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const id = "01a19005-0000-7000-8000-000000000009";
+	writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: plan\nid: ${id}\n---\n\n# Nameless\n`);
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "a nameless plan"], bridge);
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${kbPath(bridge, id)}: {rel: planned.dive}\n`));
+	git(["switch", "-q", "-c", `nosedive-0123456789ab-${id}`], bridge);
+	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
+	assert.equal(subject(bridge), "crud: gist");
+});

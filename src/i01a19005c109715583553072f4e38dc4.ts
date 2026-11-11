@@ -27,7 +27,7 @@ function branchFeat(bridge: Bridge): string | undefined {
 
 /**
  * The name of the feat to group a commit under: the one the hero's branch names, else the first the touched docs other than roots have; nothing when none is found or a doc will not read.
- * A doc the feat tree does not hold counts as a feat's when a walked doc links it by a rel its kind names in `meta.next`, given `capes` to read kinds by.
+ * A doc the feat tree does not hold counts as a feat's when a walked doc other than a root links it by a rel its kind names in `meta.next`, given `capes` to read kinds by.
  */
 export function featNameOf(bridge: Bridge, ids: string[], capes?: Cape[]): string | undefined {
 	try {
@@ -37,32 +37,52 @@ export function featNameOf(bridge: Bridge, ids: string[], capes?: Cape[]): strin
 			const name = walk.docs.get(id)?.fm.name;
 			return name === undefined ? undefined : String(name);
 		};
-		// The walked doc that links a doc by a rel its non-durable kind names in meta.next, as next lists it (kind-declared links), with the doc.
+		// Who links each doc, by which rel, in the order the walk read them; built when a doc first needs it.
+		let index: Map<string, { holder: string; rel: string }[]> | undefined;
+		const holdersOf = (id: string) => {
+			if (!index) {
+				index = new Map();
+				for (const [holder, from] of walk.docs) for (const link of linkedIds(from)) {
+					if (!index.has(link.id)) index.set(link.id, []);
+					index.get(link.id)!.push({ holder, rel: String(link.rel) });
+				}
+			}
+			return index.get(id) ?? [];
+		};
+		const isRoot = (id: string) => bridge.roots.some((root) => root.id === id);
+		let featOrder: Map<string, number> | undefined;
+		// The feat, first in the order the walk found them, that links a doc by a .feat or .spec rel.
+		const featHolder = (id: string) => {
+			featOrder ??= new Map([...walk.feats.keys()].map((feat, position) => [feat, position]));
+			const order = featOrder;
+			const held = holdersOf(id).filter(({ holder, rel }) => FEAT_OR_SPEC.test(rel) && order.has(holder));
+			return held.length ? held.reduce((first, next) => (order.get(next.holder)! < order.get(first.holder)! ? next : first)).holder : undefined;
+		};
+		// The first walked doc, a root never, that links a doc by a rel its non-durable kind names in meta.next, as next lists it (kind-declared links), with the doc.
 		const declaredHolder = (id: string) => {
 			const doc = capes && (walk.docs.get(id) ?? locateKbDoc(bridge, id));
 			const kind = doc && kindOfDoc(doc, bridge, capes).kind;
 			const rels = kind && !isDurable(kind) ? kind.next : undefined;
 			if (!doc || !rels?.length) return undefined;
-			for (const [holder, from] of walk.docs) if (linkedIds(from).some((link) => link.id === id && rels.includes(String(link.rel)))) return { holder, doc };
-			return undefined;
+			const held = holdersOf(id).find(({ holder, rel }) => rels.includes(rel) && !isRoot(holder));
+			return held && { holder: held.holder, doc };
 		};
 		const onBranch = branchFeat(bridge);
 		if (onBranch && walk.feats.has(onBranch)) return nameOf(onBranch);
 		const declaredOnBranch = onBranch && declaredHolder(onBranch);
-		if (declaredOnBranch) return String(declaredOnBranch.doc.fm.name);
+		// A doc with no name has none to group under.
+		if (declaredOnBranch) return declaredOnBranch.doc.fm.name === undefined ? undefined : String(declaredOnBranch.doc.fm.name);
 		for (const id of ids) {
 			if (walk.feats.has(id)) return nameOf(id);
 			// A root's .feat links go down to the feats it holds.
-			if (bridge.roots.some((root) => root.id === id)) continue;
+			if (isRoot(id)) continue;
 			const doc = walk.docs.get(id) ?? locateKbDoc(bridge, id);
 			const reached = doc && linkedIds(doc).find((link) => FEAT_OR_SPEC.test(String(link.rel)) && walk.feats.has(link.id));
 			if (reached) return nameOf(reached.id);
-			for (const feat of walk.feats.keys()) {
-				const links = walk.docs.get(feat);
-				if (links && linkedIds(links).some((link) => link.id === id && FEAT_OR_SPEC.test(String(link.rel)))) return nameOf(feat);
-			}
+			const feat = featHolder(id);
+			if (feat) return nameOf(feat);
 			const declared = declaredHolder(id);
-			if (declared && !bridge.roots.some((root) => root.id === declared.holder)) return nameOf(declared.holder);
+			if (declared) return nameOf(declared.holder);
 		}
 	} catch {
 		// A commit is never refused for want of a feat to name.

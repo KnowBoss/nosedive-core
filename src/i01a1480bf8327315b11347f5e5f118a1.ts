@@ -19,7 +19,7 @@ import { i01a14a5504467ef08586b828ebabc148 as renderTree, rendersTree } from "./
 type Listed = ReturnType<typeof listKbDocs>[number];
 
 /**
- * Returns the dropped docs' paths relative to the bridge. A drop removes the `.feat` links to the docs it drops, and those by a rel their kind names in `meta.next`, from the docs they
+ * Returns the lines to print: the dropped docs' paths relative to the bridge, then `unlinked <holder path>: <rel>` for each link removed. A drop removes the `.feat` links to the docs it drops, and those by a rel their kind names in `meta.next`, from the docs they
  * hang from, once one of those records it (drops-recorded); `sure` drops a doc that hangs from none.
  */
 export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], hard: boolean, capes: Cape[], sure = false): string[] {
@@ -56,7 +56,7 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	const blockers: string[] = [];
 	const block = (id: string, why: string) => blockers.push(one ? why : `${labelOf.get(id)}: ${why}`);
 	// The links the drop removes, by the doc holding them, and the docs each dropped one hangs from.
-	const unlinks = new Map<Listed, { repoDir: string; at: number[] }>();
+	const unlinks = new Map<Listed, { repoDir: string; at: number[]; rels: string[] }>();
 	const parents = new Map<string, Map<string, { id: string; label: string; body: string }>>(docs.map(({ id }) => [id, new Map()]));
 	const hangsFrom = (id: string, doc: { fm: Record<string, unknown>; body: string; path: string }) =>
 		parents.get(id)!.set(doc.path, { id: String(doc.fm.id), label: `${String(doc.fm.kind)} ${String(doc.fm.name)}`, body: doc.body });
@@ -86,8 +86,11 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 							continue;
 						}
 						hangsFrom(id, other);
-						const entry = unlinks.get(other) ?? { repoDir: repoDirs[index]!, at: [] };
-						if (!entry.at.includes(position)) entry.at.push(position);
+						const entry = unlinks.get(other) ?? { repoDir: repoDirs[index]!, at: [], rels: [] };
+						if (!entry.at.includes(position)) {
+							entry.at.push(position);
+							entry.rels.push(rel);
+						}
 						unlinks.set(other, entry);
 					}
 				}
@@ -175,5 +178,6 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 		if (doc) writeKbDoc(doc.path, doc.yaml, renderTree(root.dir, doc, others));
 	}
 	for (const [repoDir, paths] of byRepo) commitFiles(repoDir, paths, subjects.get(repoDir)!, capes[0]!.version);
-	return docs.map(({ doc }) => at(doc.path));
+	const unlinked = [...unlinks].flatMap(([other, { rels }]) => rels.map((rel) => `unlinked ${at(other.path)}: ${rel}`));
+	return [...docs.map(({ doc }) => at(doc.path)), ...unlinked];
 }
