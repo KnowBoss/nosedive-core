@@ -7,6 +7,8 @@ export type CapeBuild = {
 	owner?: string;
 	/** Its cape root doc's name. */
 	shortName?: string;
+	/** The seeded ids of the capes its root says it supersedes. */
+	supersedes?: string[];
 	repo: string;
 	ref: string;
 	commit: string;

@@ -4,7 +4,7 @@ import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a13354
 import { i01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./i01a1335482437c9eb145885f65f12aa1.ts";
 import { i01a1337c825f7457b879d5c039ffeccd as findCape } from "./i01a1337c825f7457b879d5c039ffeccd.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge, insideWorkspace } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
+import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes, providers } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 import { i01a14fb79db47f8b94d5196027008697 as buildBase } from "./i01a14fb79db47f8b94d5196027008697.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
@@ -200,9 +200,17 @@ export async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 		);
 		if (rows.length > 0) groups.push([String(root.fm.name), rows]);
 	}
-	for (const cape of bridge ? configuredCapes(bridge, core) : []) {
-		// Core's actions are never shadowed, so a cape's action of the same name is not listed.
-		const rows = Object.entries(cape.build?.actions ?? {}).filter(([name]) => !coreRows.some(([taken]) => taken === name));
+	const worn = bridge ? configuredCapes(bridge, core) : [];
+	const shortOf = (each: (typeof worn)[number]) => each.build?.shortName ?? each.name;
+	for (const cape of worn) {
+		// Core's actions are never shadowed, so a cape's action of the same name is not listed; nor is one a worn cape supersedes, which its superseder lists.
+		const rows = Object.entries(cape.build?.actions ?? {}).flatMap(([name, gist]): [string, string][] => {
+			if (coreRows.some(([taken]) => taken === name)) return [];
+			const { dropped } = providers(worn, name);
+			if (dropped.includes(cape)) return [];
+			const standsFor = dropped.filter((other) => cape.build?.supersedes?.includes(other.build?.owner ?? ""));
+			return [[name, more && standsFor.length > 0 ? `${gist} (in place of ${standsFor.map(shortOf).join(", ")}'s)` : gist]];
+		});
 		const build = cape.build;
 		const from = build ? (build.source ?? (build.ref || "trunk")) : "";
 		const header = build ? `${build.shortName ?? cape.name}${more ? ` ${build.version}\n  ${from} at ${build.commit.slice(0, 12)}, repo ${cape.repo?.id ?? "unregistered"}` : ""}` : cape.name;
