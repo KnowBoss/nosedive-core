@@ -18,8 +18,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
-      - name: Preserve repository line endings
-        run: git config --global core.autocrlf false
+      - name: Configure Git for test fixtures
+        run: |
+          git config --global core.autocrlf false
+          git config --global user.name "Core CI"
+          git config --global user.email core-ci@nosedive.invalid
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
