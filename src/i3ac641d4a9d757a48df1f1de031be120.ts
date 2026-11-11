@@ -6,9 +6,16 @@ import { kindOfDoc, pinOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 
 /**
- * A doc's meta belongs to its kind. When the doc's kind is its holder's or the owner its canonical scope names, that is the
- * root's `meta`. A doc whose holder is no seeded repo has no owner for its kind, so a kind of this repo's of that name
- * gets a scope entry of its own, versioned, beside the root's.
+ * Merges a mapping into a doc's meta.
+ *
+ * The keys merge onto the doc's meta, and a null removes one. The result is checked against the schema of the doc's kind, and a mismatch is a warning on stderr. A doc held by no seeded repo keeps the meta in a scope entry for its kind instead of in its own.
+ *
+ * @param edit The edit this change is made in, which the caller commits.
+ * @param quid The doc to change: its quid, or a path ending `<quid>.md`.
+ * @param patch The mapping, read from its source.
+ * @param ctx Where it runs, and how it reads and prints.
+ * @returns Nothing; the change is in the edit.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
  */
 export function i3ac641d4a9d757a48df1f1de031be120(edit: KbEdit, quid: string, patch: unknown, ctx: Ctx): void {
 	if (patch === null || typeof patch !== "object" || Array.isArray(patch)) throw new Error("--meta takes a mapping");

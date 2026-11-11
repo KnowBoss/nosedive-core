@@ -14,8 +14,14 @@ const DEFINITION = /^(\s{0,3}\[(?!\^)[^\]]+\]:\s+)(<[^>]*>|\S+)/;
 const KEPT = /^(?:[a-z][a-z0-9+.-]*:|#|[\\/])/i;
 
 /**
- * A doc with a file has its links resolved from it. One a cape ships without a file is looked up in the cape's repo, docked read-only at
- * the commit the cape was built at (read-docks-capes), and its links resolve into the dock; where it cannot be, they are printed as written.
+ * Prints a doc to be read: its title and body, with its links made relative to where you are.
+ *
+ * Leaves out the front matter and rewrites each relative markdown link so it resolves from the current directory. A cape's doc that has no file is looked up in its repo's dock at the commit the cape was built at, docked first if need be; when that cannot be done, the links print as written and stderr says why.
+ *
+ * @param quid The doc to change: its quid, or a path ending `<quid>.md`.
+ * @param ctx Where it runs, and how it reads and prints.
+ * @returns Nothing; it prints the body.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
  */
 export async function ibccbde44f93254e0bb6a2af910bc03d9(quid: string, ctx: Ctx): Promise<void> {
 	const doc = await findDoc(quid, ctx);

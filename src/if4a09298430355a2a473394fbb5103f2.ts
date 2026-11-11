@@ -8,6 +8,16 @@ import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a14b30eb0e72e28934c918000a26ac as loadCape } from "./i01a14b30eb0e72e28934c918000a26ac.ts";
 
+/**
+ * Prints a doc whole, its front matter included.
+ *
+ * Looks in the hero's kb, then the repos checked out in its workspace, then the docs of the loaded capes, then those of every cape the hero wears that has a build, so a cape's doc is readable wherever the cape is worn. Refuses a quid none of them holds.
+ *
+ * @param quid The doc to change: its quid, or a path ending `<quid>.md`.
+ * @param ctx Where it runs, and how it reads and prints.
+ * @returns Nothing; it prints the doc.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
+ */
 export async function if4a09298430355a2a473394fbb5103f2(quid: string, ctx: Ctx): Promise<void> {
 	ctx.out((await findDoc(quid, ctx)).text.trimEnd());
 }

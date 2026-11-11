@@ -5,6 +5,18 @@ import { pinOf, i01a147171f057d019118aaa1f269f5fd as findKind, kindOfDoc, undecl
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 
+/**
+ * Changes a doc's kind.
+ *
+ * Its scopes are written as a mint would write them: the canonical scope naming the kind's owner is added, unless the owner is the repo holding the doc, and the one for its old kind goes. Its meta is then checked against the new kind's schema, a mismatch being a warning.
+ *
+ * @param edit The edit this change is made in, which the caller commits.
+ * @param quid The doc to change: its quid, or a path ending `<quid>.md`.
+ * @param kind The new kind, spelled as crud mints one.
+ * @param ctx Where it runs, and how it reads and prints.
+ * @returns Nothing; the change is in the edit.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
+ */
 export function i5225ca8db7b85be197b4b22ee341b5f1(edit: KbEdit, quid: string, kind: string, ctx: Ctx): void {
 	if (!/^([a-z0-9][a-z0-9.-]*:)?[a-z0-9][a-z0-9.-]*$/.test(kind)) throw new Error(`--kind must be lowercase letters, digits, dots and dashes, after its owner and a colon if it is not this repo's: ${kind}`);
 	const doc = edit.doc(quid);

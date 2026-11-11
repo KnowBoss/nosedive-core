@@ -96,6 +96,16 @@ function nearestRepo(cwd: string, top: string): string {
 	return found !== undefined && rel !== undefined && !rel.startsWith("..") && !isAbsolute(rel) ? found : top;
 }
 
+/**
+ * Makes the current git repo a hero, or brings a seeded repo's setup up to date.
+ *
+ * On a repo nosedive does not know it writes `.nosedive/config.yaml` and a root doc. On one it knows it runs the pending migrations, asking first unless `--migrate` or `--no-migrate` is given, builds the capes it wears, scaffolds a cape root's missing code files, and renders each root's tree, committing what changes. With `--at <dir>` it seeds a directory of the hero as a local cape.
+ *
+ * @param options The flags: noCapes, rootKind, workspace, migrate and noMigrate.
+ * @param ctx Where it runs, and how it reads and prints.
+ * @returns Nothing; it prints what it did.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
+ */
 export async function ie4a628f20d785d3a941ca681bf26e3cf(options: { noCapes: boolean; rootKind: string; workspace: boolean; migrate: boolean; noMigrate: boolean }, ctx: Ctx): Promise<void> {
 	const { noCapes, rootKind, workspace, migrate, noMigrate } = options;
 	const root = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: ctx.cwd, encoding: "utf8" });

@@ -6,6 +6,16 @@ import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d367
 import { i01a14b30ecc07ea18999d6255d636e39 as crudEdit } from "./i01a14b30ecc07ea18999d6255d636e39.ts";
 import { discardMinted, gateEdit } from "./i01a1b453a16c799bb9ce20fad1a9075b.ts";
 
+/**
+ * Applies a list of edits to docs, committing once per repo.
+ *
+ * Each item names a doc by `quid` and one edit, keyed as its flag, with its text inline. A doc's meta is checked once, against its final kind, so kind and meta can change together. An item that refuses, or a gate that fails, writes nothing.
+ *
+ * @param source Where the YAML list is read from: a file, or `-` for stdin.
+ * @param ctx Where it runs, and how it reads and prints.
+ * @returns Nothing; it prints the paths it committed.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
+ */
 export async function i2ad1fc06c83d538e8d38e574e99974af(source: string, ctx: Ctx): Promise<void> {
 	const items = await readSource(source, ctx);
 	if (!Array.isArray(items) || items.length === 0) throw new Error("--batch takes a list of edits");
