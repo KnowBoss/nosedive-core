@@ -1,8 +1,10 @@
 // crud --drop <quid> [--hard]
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
+import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { declareDurable, declareHanging, declareKinds, git, ok, run, tempBridge, kbPath } from "../test/harness.ts";
 
@@ -39,9 +41,9 @@ test("drops a doc a parent records, with every .feat link to it, in one commit, 
 	mkdirSync(join(bridge, "workspace", "no-kb"), { recursive: true });
 	ok(await run(["crud", idOf(parent), `--section:Dropped.${idOf(child)}`, "-"], bridge, "Proved the work passes; its lessons are on the parent.\n"));
 	const head = git(["rev-parse", "HEAD"], bridge);
-	const dropped = ok(await run(["crud", "--drop", idOf(child)], bridge)).split("\n");
-	assert.equal(dropped[0], child);
-	assert.deepEqual(dropped.slice(1).map((line) => line.replace(/^unlinked \S+: /, "")), ["child.feat", "ideas.feat"], "then each link taken");
+	const dropped = await run(["crud", "--drop", idOf(child)], bridge);
+	assert.equal(ok(dropped), child);
+	assert.deepEqual(dropped.err.split("\n").sort(), [`unlinked ${note}: ideas.feat ${child}`, `unlinked ${parent}: child.feat ${child}`].sort(), "each link taken, on stderr");
 	assert.equal(existsSync(join(bridge, child)), false);
 	assert.doesNotMatch(read(parent), new RegExp(`${idOf(child)}\\.md`), "the parent's link goes");
 	assert.match(read(parent), new RegExp(`\n## Dropped\n\n### ${idOf(child)}\n\nProved the work passes`), "its record stays");
@@ -139,7 +141,9 @@ test("takes a doc from the doc linking it by a rel its kind names in meta.next, 
 	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
 
 	ok(await run(["crud", idOf(feat), `--section:Dropped.${idOf(plan)}`, "-"], bridge, "Planned and carried out; the result is on the feat.\n"));
-	assert.equal(ok(await run(["crud", "--drop", idOf(plan)], bridge)), `${plan}\nunlinked ${feat}: planned.dive`);
+	const dropped = await run(["crud", "--drop", idOf(plan)], bridge);
+	assert.equal(ok(dropped), plan);
+	assert.equal(dropped.err, `unlinked ${feat}: planned.dive ${plan}`);
 	assert.equal(existsSync(join(bridge, plan)), false);
 	assert.doesNotMatch(read(feat), new RegExp(`${idOf(plan)}\\.md`), "the feat's link goes");
 	assert.match(read(feat), new RegExp(`### ${idOf(plan)}\\n\\nPlanned and carried out`), "its record stays");
@@ -157,12 +161,12 @@ test("still refuses a doc a link by a rel its kind does not name holds, naming i
 	assert.equal(existsSync(join(bridge, plan)), true);
 });
 
-test("prints each link it removed after the dropped path, as unlinked <holder path>: <rel>", async () => {
+test("reports each link it removed on stderr, as unlinked <holder path>: <rel> <dropped doc path>", async () => {
 	const { bridge, parent, child, note } = await hung("crud-drop-unlinked");
 	ok(await run(["crud", idOf(parent), `--section:Dropped.${idOf(child)}`, "-"], bridge, "Proved the work passes.\n"));
-	const lines = ok(await run(["crud", "--drop", idOf(child)], bridge)).split("\n");
-	assert.equal(lines[0], child);
-	assert.deepEqual(lines.slice(1).sort(), [`unlinked ${note}: ideas.feat`, `unlinked ${parent}: child.feat`].sort());
+	const dropped = await run(["crud", "--drop", idOf(child)], bridge);
+	assert.equal(ok(dropped), child, "stdout is the dropped path alone");
+	assert.deepEqual(dropped.err.split("\n").sort(), [`unlinked ${note}: ideas.feat ${child}`, `unlinked ${parent}: child.feat ${child}`].sort());
 });
 
 test("still refuses a durable kind's declared rel, which names no hanging (drop-takes-declared-links)", async () => {
@@ -173,7 +177,7 @@ test("still refuses a durable kind's declared rel, which names no hanging (drop-
 	ok(await run(["crud", idOf(feat), "--links", "-"], bridge, `${keep}: {rel: kept.dive}\n`));
 	const refused = await run(["crud", "--drop", idOf(keep), "--sure", "--hard"], bridge);
 	assert.equal(refused.code, 1);
-	assert.match(refused.err, new RegExp(`${feat} links it as kept\.dive: remove that link first`));
+	assert.match(refused.err, new RegExp(`${feat} links it as kept\\.dive: remove that link first`));
 	assert.equal(existsSync(join(bridge, keep)), true);
 });
 
@@ -185,32 +189,36 @@ test("takes a doc from a root that is its only holder by a declared rel, printin
 	const plan = ok(await run(["crud", "plan", "a plan"], bridge));
 	ok(await run(["crud", root, "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
 	ok(await run(["crud", root, `--section:Dropped.${idOf(plan)}`, "-"], bridge, "Carried out.\n"));
-	assert.equal(ok(await run(["crud", "--drop", idOf(plan)], bridge)), `${plan}\nunlinked ${rootPath}: planned.dive`);
+	const dropped = await run(["crud", "--drop", idOf(plan)], bridge);
+	assert.equal(ok(dropped), plan);
+	assert.equal(dropped.err, `unlinked ${rootPath}: planned.dive ${plan}`);
 	assert.doesNotMatch(readFileSync(join(bridge, rootPath), "utf8"), /planned\.dive/);
 	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
 
 test("takes a doc's link from a holder next does not walk, the record going on it (drop-takes-declared-links)", async () => {
-	const { bridge, plan, read } = await planned("crud-drop-unwalked");
+	const { bridge, feat, plan, read } = await planned("crud-drop-unwalked");
 	const stray = ok(await run(["crud", "core:memo", "a stray"], bridge));
 	ok(await run(["crud", idOf(stray), "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
 	assert.doesNotMatch(ok(await run(["next"], bridge)), new RegExp(stray), "no root reaches it");
 	ok(await run(["crud", idOf(stray), `--section:Dropped.${idOf(plan)}`, "-"], bridge, "Carried out.\n"));
-	const lines = ok(await run(["crud", "--drop", idOf(plan)], bridge)).split("\n");
-	assert.deepEqual(lines, [plan, ...lines.slice(1)]);
-	assert.ok(lines.includes(`unlinked ${stray}: planned.dive`));
+	const dropped = await run(["crud", "--drop", idOf(plan)], bridge);
+	assert.equal(ok(dropped), plan);
+	assert.deepEqual(dropped.err.split("\n").sort(), [`unlinked ${feat}: planned.dive ${plan}`, `unlinked ${stray}: planned.dive ${plan}`].sort(), "the walked holder's link goes too");
 	assert.doesNotMatch(read(stray), /links:/);
 });
 
 test("one holder linking a doc by a .feat rel and a declared rel hangs it once, printing both links (drop-takes-declared-links)", async () => {
 	const { bridge, feat, plan, read } = await planned("crud-drop-both");
-	// crud keeps one link per target, so the second goes in by hand.
-	writeFileSync(join(bridge, feat), read(feat).replace("      rel: planned.dive\n", `      rel: planned.dive\n  - ${plan}:\n      rel: tracked.feat\n`));
+	// crud keeps one link per target, so the second is added to the parsed doc.
+	const doc = readKbDoc(read(feat));
+	doc.yaml.addIn(["links"], { [plan]: { rel: "tracked.feat" } });
+	writeKbDoc(join(bridge, feat), doc.yaml, doc.body);
 	git(["commit", "-qam", "a second link"], bridge);
 	assert.equal(read(feat).match(/rel: (planned\.dive|tracked\.feat)/g)!.length, 2, "both links are on the feat");
 	ok(await run(["crud", idOf(feat), `--section:Dropped.${idOf(plan)}`, "-"], bridge, "Carried out.\n"));
-	const lines = ok(await run(["crud", "--drop", idOf(plan)], bridge)).split("\n");
-	assert.equal(lines[0], plan);
-	assert.deepEqual(lines.slice(1).sort(), [`unlinked ${feat}: planned.dive`, `unlinked ${feat}: tracked.feat`]);
+	const dropped = await run(["crud", "--drop", idOf(plan)], bridge);
+	assert.equal(ok(dropped), plan);
+	assert.deepEqual(dropped.err.split("\n").sort(), [`unlinked ${feat}: planned.dive ${plan}`, `unlinked ${feat}: tracked.feat ${plan}`]);
 	assert.doesNotMatch(read(feat), /links:/);
 });

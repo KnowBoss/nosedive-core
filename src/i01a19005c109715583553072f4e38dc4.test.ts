@@ -194,3 +194,17 @@ test("a branch naming a doc with no name groups nothing, not feat(undefined) (dr
 	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
 	assert.equal(subject(bridge), "crud: gist");
 });
+
+test("a branch naming a doc with no name falls through to a touched doc's feat (drop-takes-declared-links)", async () => {
+	const { bridge, feat, featId, noteId } = await heroWithFeat("subject-nameless-falls");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const id = "01a19005-0000-7000-8000-00000000000a";
+	writeFileSync(join(kbOf(bridge), `${id}.md`), `---\nkind: plan\nid: ${id}\n---\n\n# Nameless\n`);
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "a nameless plan"], bridge);
+	ok(await run(["crud", featId, "--links", "-"], bridge, `${kbPath(bridge, id)}: {rel: planned.dive}\n`));
+	ok(await run(["crud", noteId, "--links", "-"], bridge, `${feat}: {rel: parent.feat}\n`));
+	git(["switch", "-q", "-c", `nosedive-0123456789ab-${id}`], bridge);
+	ok(await run(["crud", noteId, "--gist", "on its branch"], bridge));
+	assert.equal(subject(bridge), "feat(ideas): crud gist");
+});

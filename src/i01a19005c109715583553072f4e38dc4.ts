@@ -71,8 +71,8 @@ export function featNameOf(bridge: Bridge, ids: string[], capes?: Cape[]): strin
 		if (onBranch && walk.feats.has(onBranch)) return nameOf(onBranch);
 		// The branch's doc is grouped under its own name, so whichever doc holds it will do, a root too.
 		const declaredOnBranch = onBranch && declaredHolder(onBranch, true);
-		// A doc with no name has none to group under.
-		if (declaredOnBranch) return declaredOnBranch.doc.fm.name === undefined ? undefined : String(declaredOnBranch.doc.fm.name);
+		// A doc with no name has none to group under, so the touched docs are tried instead.
+		if (declaredOnBranch && declaredOnBranch.doc.fm.name !== undefined) return String(declaredOnBranch.doc.fm.name);
 		for (const id of ids) {
 			if (walk.feats.has(id)) return nameOf(id);
 			// A root's .feat links go down to the feats it holds.

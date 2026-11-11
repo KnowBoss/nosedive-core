@@ -19,7 +19,9 @@ test("drops a doc with the child under it together, in one commit, the child's r
 	assert.match((await run(["crud", "--drop", idOf(a)], bridge)).err, /hangs under it: drop it first/, "alone, a has b under it");
 
 	writeFileSync(join(bridge, "drop.txt"), `${idOf(a)}\n\n${idOf(b).toUpperCase()}\n`);
-	assert.equal(ok(await run(["crud", "--drop-list", "drop.txt"], bridge)), `${a}\n${b}\nunlinked ${holder}: child.feat`);
+	const dropped = await run(["crud", "--drop-list", "drop.txt"], bridge);
+	assert.equal(ok(dropped), `${a}\n${b}`);
+	assert.equal(dropped.err, `unlinked ${holder}: child.feat ${a}`);
 	assert.equal(existsSync(join(bridge, a)) || existsSync(join(bridge, b)), false);
 	assert.equal(git(["log", "-1", "--format=%s"], bridge), "crud: drop");
 	assert.doesNotMatch(git(["show", "--name-only", "--format=", "HEAD"], bridge), /drop\.txt/);
@@ -81,7 +83,9 @@ test("takes docs from the docs linking them by a rel their kind names in meta.ne
 	assert.equal(existsSync(join(bridge, a)), true);
 
 	ok(await run(["crud", idOf(outside), "--links", "-"], bridge, `${kbPath(bridge, idOf(b))}: null\n`));
-	assert.equal(ok(await run(["crud", "--drop-list", "-"], bridge, `${idOf(a)}\n${idOf(b)}\n`)), `${a}\n${b}\nunlinked ${holder}: planned.dive\nunlinked ${holder}: planned.dive`);
+	const dropped = await run(["crud", "--drop-list", "-"], bridge, `${idOf(a)}\n${idOf(b)}\n`);
+	assert.equal(ok(dropped), `${a}\n${b}`);
+	assert.deepEqual(dropped.err.split("\n").sort(), [`unlinked ${holder}: planned.dive ${a}`, `unlinked ${holder}: planned.dive ${b}`].sort(), "one line for each dropped doc");
 	assert.doesNotMatch(readFileSync(join(bridge, holder), "utf8"), /planned\.dive/, "both links went with them");
 	assert.equal(git(["status", "--porcelain"], bridge), "");
 });

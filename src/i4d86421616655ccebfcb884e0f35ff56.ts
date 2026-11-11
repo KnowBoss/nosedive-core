@@ -17,5 +17,5 @@ export async function i4d86421616655ccebfcb884e0f35ff56(source: string, hard: bo
 	if (bad.length > 0) throw new Error(`--drop-list takes one quid per line, not: ${bad.join(", ")}`);
 	if (ids.length === 0) throw new Error("--drop-list found no quids to drop");
 	await gateDrop(ids, ctx);
-	ctx.out(dropKbDocs(ctx.cwd, ids, hard, ctx.capes, sure).join("\n"));
+	ctx.out(dropKbDocs(ctx.cwd, ids, hard, ctx.capes, sure, ctx.err).join("\n"));
 }
