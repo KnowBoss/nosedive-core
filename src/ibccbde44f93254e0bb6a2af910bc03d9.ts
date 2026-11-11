@@ -31,8 +31,9 @@ function dockedFile(cape: Cape, quid: string, ctx: Ctx): string | undefined {
 		const repos = reposOf(hero).filter((doc) => doc.fm.name === cape.name);
 		if (repos.length !== 1) throw new Error(`the hero has ${repos.length === 0 ? "no repo doc" : `${repos.length} repo docs`} named ${cape.name}`);
 		const at = dockPath(hero, repos[0]!);
-		// A dock there that holds the doc is used as it is: the pilot may have docked it at another head.
+		// A dock there is used as it is and never moved: the pilot may have docked it at another head.
 		if (!existsSync(docFile(at, quid))) {
+			if (existsSync(at)) throw new Error(`${at} is docked already and does not hold the doc`);
 			dockAt(hero, repos[0]!, cape.commit, ctx);
 			if (!existsSync(docFile(at, quid))) throw new Error(`${at} does not hold the doc`);
 		}

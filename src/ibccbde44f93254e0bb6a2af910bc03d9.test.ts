@@ -135,6 +135,20 @@ test("uses a dock already there that holds the doc as it is, at whatever head it
 	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
 
+test("leaves a dock already there that does not hold the doc where it is, and prints the links as written", async () => {
+	const { bridge, origin, repoId, dock } = await wearingBuilt("crud-read-docked-elsewhere");
+	git(["rm", "-q", `kb/${GREET}.md`], origin);
+	git(["commit", "-qm", "greet's doc gone"], origin);
+	const later = git(["rev-parse", "HEAD"], origin);
+	ok(await run(["dock", repoId], bridge));
+
+	const result = await run(["crud", "--read", GREET], bridge);
+	assert.equal(result.code, 0, result.err);
+	assert.match(result.out, /\[impl\]\(\.\.\/src\/i[0-9a-f]{32}\.ts\)/);
+	assert.match(result.err, /so they are as written: .* is docked already and does not hold the doc/);
+	assert.equal(git(["rev-parse", "HEAD"], dock), later, "not moved to the build's commit");
+});
+
 test("prints a worn built cape's links as written, with a line on stderr, when its repo cannot be docked", async () => {
 	const { bridge, origin, dock } = await wearingBuilt("crud-read-undockable");
 	// Its remote gone and its cache with it: nothing to fetch from or dock out of.
