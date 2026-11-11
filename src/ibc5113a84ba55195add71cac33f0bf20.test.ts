@@ -5,7 +5,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { test } from "node:test";
-import { git, gitRepo, ok, run, tempBridge, tempDir } from "../test/harness.ts";
+import { bareGit, git, gitRepo, ok, run, tempBridge, tempDir } from "../test/harness.ts";
 import { i01a1336a958f71c7beec4db3195c7966 as launch, type Cape, type Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
@@ -104,7 +104,7 @@ test("fetches origin first, and still lists but exits 1 when the hero is behind 
 	const branch = git(["rev-parse", "--abbrev-ref", "HEAD"], bridge);
 	git(["remote", "add", "origin", origin], bridge);
 	git(["push", "-q", "origin", branch], bridge);
-	git(["symbolic-ref", "HEAD", `refs/heads/${branch}`], origin);
+	bareGit(["symbolic-ref", "HEAD", `refs/heads/${branch}`], origin);
 	assert.equal(ok(await run(["next"], bridge)), "nothing left to do", "level with trunk, it says nothing of it");
 
 	const other = gitRepo("next-other");

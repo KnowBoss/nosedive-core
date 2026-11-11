@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { relative } from "node:path";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13c760de87562b4738946402010b8 as checkoutPath } from "./i01a13c760de87562b4738946402010b8.ts";
+import { cacheGit } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
 
 type RepoDoc = { fm: Record<string, unknown> };
 type Say = { out(text: string): void; err(text: string): void };
@@ -33,7 +34,7 @@ export function i01a17fba20d673c5b8dd8551943369a2(bridge: Bridge, doc: RepoDoc, 
 	if (ignored.length && !options.discard) throw new DehydrateIgnored(shown, ignored);
 
 	const cache = git(dir, "rev-parse", "--path-format=absolute", "--git-common-dir").text;
-	const removed = git(cache, "worktree", "remove", ...(ignored.length ? ["--force"] : []), dir);
+	const removed = cacheGit(cache, "worktree", "remove", ...(ignored.length ? ["--force"] : []), dir);
 	if (!removed.ok) throw new Error(`cannot remove ${shown}: ${removed.text}`);
 	ctx.out(`${shown}: put away`);
 }

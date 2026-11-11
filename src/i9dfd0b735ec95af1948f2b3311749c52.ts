@@ -9,7 +9,7 @@ import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { scopeEntries } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
-import { fetchCache, remoteKey, userDir } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
+import { cacheGit, fetchCache, remoteKey, userDir } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
 import { pathComponent } from "./i01a13c760de87562b4738946402010b8.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -111,7 +111,7 @@ function scoped(feat: NonNullable<ReturnType<typeof locateKbDoc>>, repos: RepoDo
 function plan(hero: Bridge, doc: RepoDoc, at: string, { head, workBranch, feat }: { head?: string; workBranch?: string; feat: boolean }, ctx: Ctx): Plan {
 	const name = String(doc.fm.name);
 	const { cache, trunk } = fetchCache(hero, doc, ctx);
-	const commit = (rev: string) => git(cache, "rev-parse", "--verify", "-q", `${rev}^{commit}`);
+	const commit = (rev: string) => cacheGit(cache, "rev-parse", "--verify", "-q", `${rev}^{commit}`);
 	const base = { name, at, cache, trunk };
 	if (head !== undefined) {
 		const branch = commit(`refs/remotes/origin/${head}`);
@@ -133,7 +133,7 @@ function plan(hero: Bridge, doc: RepoDoc, at: string, { head, workBranch, feat }
 
 /** Whether a commit's config names a primary root of kind hero: the root whose quid is its `id`, else its first. */
 function holdsHero(cache: string, tip: string): boolean {
-	const config = git(cache, "show", `${tip}:.nosedive/config.yaml`);
+	const config = cacheGit(cache, "show", `${tip}:.nosedive/config.yaml`);
 	if (!config.ok) return false;
 	let parsed: { id?: unknown; roots?: unknown };
 	try {
@@ -144,7 +144,7 @@ function holdsHero(cache: string, tip: string): boolean {
 	const roots = (Array.isArray(parsed.roots) ? parsed.roots : []).filter((path): path is string => typeof path === "string");
 	const primary = roots.find((path) => typeof parsed.id === "string" && path.toLowerCase().endsWith(`${parsed.id.toLowerCase()}.md`)) ?? roots[0];
 	if (!primary) return false;
-	const root = git(cache, "show", `${tip}:${posix.normalize(primary)}`);
+	const root = cacheGit(cache, "show", `${tip}:${posix.normalize(primary)}`);
 	if (!root.ok) return false;
 	try {
 		const kind = readKbDoc(root.text, primary).fm.kind;
@@ -171,15 +171,15 @@ function place({ name, at, cache, trunk, branch, shown, commit, note }: Plan, ct
 	const there = existsSync(at);
 	if (branch) {
 		// A dock's branch is not named as trunk is, so a plain push goes to its upstream.
-		git(cache, "config", "push.default", "upstream");
+		cacheGit(cache, "config", "push.default", "upstream");
 		const tip = `refs/remotes/origin/${trunk}`;
 		if (there) {
 			const ff = git(at, "merge", "-q", "--ff-only", tip);
 			if (!ff.ok) ctx.err(`dock: ${at} cannot be fast-forwarded to origin/${trunk}, so it was left as it is: ${ff.text}`);
 		} else {
-			if (!git(cache, "rev-parse", "--verify", "-q", `refs/heads/${branch}`).ok) must(git(cache, "branch", "-q", "--no-track", branch, tip), `cannot make ${branch}`);
-			git(cache, "config", `branch.${branch}.remote`, "origin");
-			git(cache, "config", `branch.${branch}.merge`, `refs/heads/${trunk}`);
+			if (!cacheGit(cache, "rev-parse", "--verify", "-q", `refs/heads/${branch}`).ok) must(cacheGit(cache, "branch", "-q", "--no-track", branch, tip), `cannot make ${branch}`);
+			cacheGit(cache, "config", `branch.${branch}.remote`, "origin");
+			cacheGit(cache, "config", `branch.${branch}.merge`, `refs/heads/${trunk}`);
 			add(cache, at, name, [at, branch]);
 		}
 		ctx.out(`${at}: on ${branch} at ${short(at)}\nnosedive seed there builds its capes`);
@@ -192,11 +192,11 @@ function place({ name, at, cache, trunk, branch, shown, commit, note }: Plan, ct
 
 /** A worktree of the cache, outside the hero, so a session at the dock reads none of its CLAUDE.md (dock-by-docker). */
 function add(cache: string, at: string, name: string, args: string[]): void {
-	git(cache, "worktree", "prune");
+	cacheGit(cache, "worktree", "prune");
 	mkdirSync(dirname(at), { recursive: true });
-	must(git(cache, "worktree", "add", "-q", ...args), `cannot check ${name} out at ${at}`);
+	must(cacheGit(cache, "worktree", "add", "-q", ...args), `cannot check ${name} out at ${at}`);
 	// As hydrate does: with per-worktree config on, the cache's core.bare reaches the worktree unless it says otherwise.
-	if (git(cache, "config", "--bool", "extensions.worktreeConfig").text === "true") git(at, "config", "--worktree", "core.bare", "false");
+	if (cacheGit(cache, "config", "--bool", "extensions.worktreeConfig").text === "true") git(at, "config", "--worktree", "core.bare", "false");
 }
 
 function short(at: string): string {

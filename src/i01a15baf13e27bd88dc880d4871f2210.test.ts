@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a15baf13e27bd88dc880d4871f2210 as hydrateRepo, cachePath, remoteKey } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
-import { git, gitRepo, registerRepo, tempBridge, tempDir } from "../test/harness.ts";
+import { bareGit, git, gitRepo, registerRepo, tempBridge, tempDir } from "../test/harness.ts";
 
 /** A hero repo with repo `hello` registered and committed, its origin a repo of one commit on trunk. */
 async function hello(label: string) {
@@ -35,7 +35,7 @@ test("checks a repo out detached at its trunk, a worktree of the user's cache, w
 	const head = git(["rev-parse", "--short", "HEAD"], source);
 	assert.equal(said.at(-1), `workspace/hello: detached at trunk ${head}`);
 	assert.equal(git(["rev-parse", "--path-format=absolute", "--git-common-dir"], checkout).toLowerCase(), cache.replace(/\\/g, "/").toLowerCase());
-	assert.equal(git(["rev-parse", "--short", "refs/heads/trunk"], cache), head);
+	assert.equal(bareGit(["rev-parse", "--short", "refs/heads/trunk"], cache), head);
 	assert.equal(git(["remote", "get-url", "origin"], checkout).toLowerCase(), source.toLowerCase());
 	assert.match(spawnSync("git", ["push"], { cwd: checkout, encoding: "utf8" }).stderr, /not currently on a branch/);
 	assert.doesNotMatch(git(["status", "--porcelain", "--untracked-files=all"], bridge), /workspace/, "the checkout is not committed");
@@ -43,6 +43,25 @@ test("checks a repo out detached at its trunk, a worktree of the user's cache, w
 	assert.deepEqual(hydrateRepo(hero, doc, say), first);
 	assert.equal(said.at(-1), "workspace/hello: checked out already");
 	assert.throws(() => hydrateRepo(hero, doc, say, { id: "f", workBranch: "work" }), /workspace\/hello is detached, not on \S+\/main\/f: dehydrate it first/);
+});
+
+test("uses a cache when Git requires bare repositories to be named explicitly", async () => {
+	const { hero, doc, say, cache, checkout } = await hello("hydrate-repo-explicit-bare");
+	const saved = new Map(["GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_CONFIG_PARAMETERS"].map((key) => [key, process.env[key]]));
+	process.env.GIT_CONFIG_COUNT = "1";
+	process.env.GIT_CONFIG_KEY_0 = "safe.bareRepository";
+	process.env.GIT_CONFIG_VALUE_0 = "explicit";
+	delete process.env.GIT_CONFIG_PARAMETERS;
+	try {
+		assert.deepEqual(hydrateRepo(hero, doc, say), { dir: checkout, trunk: "trunk" });
+		assert.equal(existsSync(cache), true);
+		assert.equal(existsSync(checkout), true);
+	} finally {
+		for (const [key, value] of saved) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+	}
 });
 
 test("checks a repo out for a feat on a branch named after the hero, its branch and the feat, tracking the work branch", async () => {
@@ -58,7 +77,7 @@ test("checks a repo out for a feat on a branch named after the hero, its branch 
 	assert.match(said.at(-1)!, new RegExp(`^workspace/hello: on ${branch} at \\w+$`));
 	assert.throws(() => hydrateRepo(hero, doc, say), new RegExp(`is on ${branch}, not detached`));
 
-	git(["worktree", "remove", checkout], cache);
+	bareGit(["worktree", "remove", checkout], cache);
 	hydrateRepo(hero, doc, say, { id: "feat-b", workBranch: "none-yet" });
 	assert.equal(git(["log", "-1", "--format=%s"], checkout), "first", "with no work branch on origin, it starts at trunk");
 });
@@ -77,7 +96,7 @@ test("goes on with the cache when origin cannot be reached, and refuses with no 
 	assert.equal(existsSync(cache), false, "no empty cache is left");
 	renameSync(`${source}-gone`, source);
 	hydrateRepo(hero, doc, say);
-	git(["worktree", "remove", checkout], cache);
+	bareGit(["worktree", "remove", checkout], cache);
 
 	renameSync(source, `${source}-gone`);
 	const { trunk } = hydrateRepo(hero, doc, say);
@@ -92,18 +111,18 @@ test("only fast-forwards the cache's trunk, and warns when it has moved apart fr
 	hydrateRepo(hero, doc, say);
 	git(["commit", "-q", "--allow-empty", "-m", "only in the cache"], checkout);
 	const apart = git(["rev-parse", "HEAD"], checkout);
-	git(["update-ref", "refs/heads/trunk", apart], cache);
-	git(["worktree", "remove", checkout], cache);
+	bareGit(["update-ref", "refs/heads/trunk", apart], cache);
+	bareGit(["worktree", "remove", checkout], cache);
 	hydrateRepo(hero, doc, say);
 	assert.ok(said.includes("err: nosedive: hello's cache has a trunk its remote does not, so it was left as it is"));
-	assert.equal(git(["rev-parse", "refs/heads/trunk"], cache), apart);
+	assert.equal(bareGit(["rev-parse", "refs/heads/trunk"], cache), apart);
 	assert.equal(git(["log", "-1", "--format=%s"], checkout), "first", "the checkout is at origin's tip");
 });
 
 test("tells a worktree of a cache with per-worktree config that it is no bare repo", async () => {
 	const { source, hero, doc, say, cache, checkout } = await hello("hydrate-repo-worktree-config");
 	git(["clone", "-q", "--bare", source, cache], source);
-	git(["config", "extensions.worktreeConfig", "true"], cache);
+	bareGit(["config", "extensions.worktreeConfig", "true"], cache);
 	hydrateRepo(hero, doc, say);
 	assert.equal(git(["status", "--porcelain"], checkout), "");
 });
@@ -169,10 +188,10 @@ test("shares one cache between repo docs of different ids that name one origin",
 test("records the key a cache holds, and refuses a cache at its path that holds another", async () => {
 	const { hero, doc, say, cache, checkout } = await hello("hydrate-repo-key-guard");
 	hydrateRepo(hero, doc, say);
-	const key = git(["config", "nosedive.key"], cache);
+	const key = bareGit(["config", "nosedive.key"], cache);
 	assert.ok(key.length > 0);
-	git(["worktree", "remove", checkout], cache);
-	git(["config", "nosedive.key", "example.com/some/other"], cache);
+	bareGit(["worktree", "remove", checkout], cache);
+	bareGit(["config", "nosedive.key", "example.com/some/other"], cache);
 	assert.throws(() => hydrateRepo(hero, doc, say), /hello's cache at .+ holds example\.com\/some\/other, not .+: move it aside to cache hello afresh/);
 	assert.equal(existsSync(checkout), false);
 });
@@ -181,7 +200,7 @@ test("moves a cache kept by repo doc id to its key, and its worktrees follow", a
 	const { source, hero, doc, said, say, cache, legacy, checkout } = await hello("hydrate-repo-legacy");
 	git(["clone", "-q", "--bare", source, legacy], source);
 	const worktree = join(tempDir("hydrate-repo-legacy-worktree"), "hello");
-	git(["worktree", "add", "-q", "--detach", worktree, "refs/heads/trunk"], legacy);
+	bareGit(["worktree", "add", "-q", "--detach", worktree, "refs/heads/trunk"], legacy);
 	hydrateRepo(hero, doc, say);
 	assert.equal(existsSync(legacy), false);
 	assert.deepEqual(said.filter((line) => line.startsWith("err: ")), []);
@@ -194,7 +213,7 @@ test("warns, naming the cache, when git cannot repair the checkouts of a cache i
 	const { source, hero, doc, said, say, cache, legacy } = await hello("hydrate-repo-legacy-unrepaired");
 	git(["clone", "-q", "--bare", source, legacy], source);
 	const worktree = join(tempDir("hydrate-repo-legacy-unrepaired-worktree"), "hello");
-	git(["worktree", "add", "-q", "--detach", worktree, "refs/heads/trunk"], legacy);
+	bareGit(["worktree", "add", "-q", "--detach", worktree, "refs/heads/trunk"], legacy);
 	// A .git file git cannot rewrite makes its repair fail.
 	chmodSync(join(worktree, ".git"), 0o444);
 	try {
@@ -209,7 +228,7 @@ test("warns, naming the cache, when git cannot repair the checkouts of a cache i
 test("leaves a cache kept by repo doc id where it is when one is at its key already, and warns naming it", async () => {
 	const { source, hero, doc, said, say, cache, legacy, checkout } = await hello("hydrate-repo-legacy-left");
 	hydrateRepo(hero, doc, say);
-	git(["worktree", "remove", checkout], cache);
+	bareGit(["worktree", "remove", checkout], cache);
 	git(["clone", "-q", "--bare", source, legacy], source);
 	hydrateRepo(hero, doc, say);
 	assert.equal(existsSync(legacy), true);

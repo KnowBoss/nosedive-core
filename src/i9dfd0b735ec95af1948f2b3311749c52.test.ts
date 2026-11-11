@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { i9dfd0b735ec95af1948f2b3311749c52 as dock } from "./i9dfd0b735ec95af1948f2b3311749c52.ts";
-import { commitAll, dockHero, git } from "../test/harness.ts";
+import { bareGit, commitAll, dockHero, git } from "../test/harness.ts";
 
 const head = (dir: string) => git(["rev-parse", "HEAD"], dir);
 const detached = (dir: string) => assert.equal(git(["rev-parse", "--abbrev-ref", "HEAD"], dir), "HEAD");
@@ -15,8 +15,8 @@ test("docks a hero by its repo doc's quid under the docking hero's name, on a br
 	assert.equal(git(["symbolic-ref", "--short", "HEAD"], at("docked")), `${heroId}/dock`);
 	assert.equal(head(at("docked")), head(origins.docked));
 	assert.equal(git(["rev-parse", "--abbrev-ref", "@{upstream}"], at("docked")), "origin/main");
-	assert.equal(git(["config", "push.default"], cache(ids.docked)), "upstream");
-	assert.equal(git(["rev-parse", "--is-bare-repository"], cache(ids.docked)), "true");
+	assert.equal(bareGit(["config", "push.default"], cache(ids.docked)), "upstream");
+	assert.equal(bareGit(["rev-parse", "--is-bare-repository"], cache(ids.docked)), "true");
 	assert.match(out.join("\n"), new RegExp(`docks[\\\\/]some-hero[\\\\/]docked: on ${heroId}/dock at \\w+\\nnosedive seed there builds its capes`));
 });
 
