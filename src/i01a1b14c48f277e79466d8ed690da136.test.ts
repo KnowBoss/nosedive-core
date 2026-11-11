@@ -11,7 +11,8 @@ import { git, gitRepo } from "../test/harness.ts";
 
 const ROOT = "01a1b14c-0000-7000-8000-000000000001";
 const OTHER = "01a1b14c-0000-7000-8000-000000000002";
-const [WORK, LEGACY] = LEGACY_CAPES.map((cape) => cape.id) as [string, string];
+const WORK = "01a15ba8-0bff-7ce3-83dc-e08af3633e26";
+const LEGACY = "01a1b13e-111d-73de-8f7d-41b47af07703";
 
 function legacy(label: string, rootLinks = "") {
 	const dir = gitRepo(label);
@@ -28,10 +29,10 @@ function legacy(label: string, rootLinks = "") {
 const out: string[] = [];
 const ctx = { capes: [{ version: "9.9.9" }] as never[], out: (text: string) => void out.push(text) };
 
-test("a legacy repo gets both capes' repo docs in its kb, each worn by its backlog at the commit core names", () => {
+test("a legacy repo gets the legacy cape at the commit core names", () => {
 	const dir = legacy("legacy-capes");
 	const changed = legacyCapes(dir, ctx);
-	assert.deepEqual(changed.sort(), [join(dir, "kb", `${WORK}.md`), join(dir, "kb", `${LEGACY}.md`), join(dir, "kb", `${ROOT}.md`)].sort());
+	assert.deepEqual(changed.sort(), [join(dir, "kb", `${LEGACY}.md`), join(dir, "kb", `${ROOT}.md`)].sort());
 	assert.match(readFileSync(join(dir, "kb", `${LEGACY}.md`), "utf8"), /^---\nkind: repo\nid: [^\n]+\nname: nosedive-legacy\n[^]*origin: https:\/\/github.com\/KnowBoss\/nosedive-legacy.git\n/);
 	const root = readFileSync(join(dir, "kb", `${ROOT}.md`), "utf8");
 	for (const cape of LEGACY_CAPES) assert.ok(root.includes(`  - kb/${cape.id}.md:\n      rel: .cape\n      commit: ${cape.commit}\n`), `${cape.name} is worn at its pin`);
@@ -58,13 +59,13 @@ test("a repo that is not legacy's is left as it is", () => {
 	assert.equal(existsSync(join(dir, "kb")), false);
 });
 
-test("after the whole chain, a legacy hero wears both capes, from .nosedive/repos, at their pins", () => {
+test("after the whole chain, a legacy hero wears only legacy from .nosedive/repos", () => {
 	const dir = legacy("legacy-capes-chain");
 	runMigrations(dir, ctx);
 	assert.equal(existsSync(join(dir, ".nosedive", "repos", `${LEGACY}.md`)), true, "baseline moved the repo docs");
 	const worn = wornCapes(findBridge(dir)!);
 	assert.deepEqual(
 		worn.map(({ name, ref }) => ({ name, ref })),
-		LEGACY_CAPES.map(({ name, commit }) => ({ name, ref: commit })),
+		[{ name: "nosedive-legacy", ref: LEGACY_CAPES[0]!.commit }],
 	);
 });

@@ -9,18 +9,11 @@ import type { MigrationCtx } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 /** The capes a legacy hero comes to wear, each pinned to the commit this core names. */
 export const LEGACY_CAPES = [
 	{
-		id: "01a15ba8-0bff-7ce3-83dc-e08af3633e26",
-		name: "nosedive-work",
-		gist: "The cape holding feat, dive, jump, pack, bail, land and merge",
-		origin: "https://github.com/KnowBoss/nosedive-work.git",
-		commit: "f3c449cfdcff28c865805c5c129be0feb67dfcb7",
-	},
-	{
 		id: "01a1b13e-111d-73de-8f7d-41b47af07703",
 		name: "nosedive-legacy",
-		gist: "The cape holding legacy nosedive's test, hydrate-repo.workspace, dehydrate-repo.workspace, record.gate and note",
+		gist: "The cape holding jump, pack, land, bail and legacy nosedive's test, hydrate-repo.workspace, dehydrate-repo.workspace, record.gate and note",
 		origin: "https://github.com/KnowBoss/nosedive-legacy.git",
-		commit: "bedf403f2e1b434971c31f6ae2fbe9d5630d67b7",
+		commit: "b74024c8d55135b94838bda094744e7ad8047caf",
 	},
 ];
 
