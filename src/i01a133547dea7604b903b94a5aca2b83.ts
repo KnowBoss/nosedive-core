@@ -4,6 +4,7 @@ import { i01a1471723807d6e8ef228ad9472fff7 as readText } from "./i01a1471723807d
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs, type KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i5d22a1166ca0519c8dcb58f8989f3ac0 } from "./i5d22a1166ca0519c8dcb58f8989f3ac0.ts";
 import { if4a09298430355a2a473394fbb5103f2 } from "./if4a09298430355a2a473394fbb5103f2.ts";
+import { ibccbde44f93254e0bb6a2af910bc03d9 } from "./ibccbde44f93254e0bb6a2af910bc03d9.ts";
 import { ie9ce704f3ee25e028d2fbff7cd47bfc8 } from "./ie9ce704f3ee25e028d2fbff7cd47bfc8.ts";
 import { i3ac641d4a9d757a48df1f1de031be120 } from "./i3ac641d4a9d757a48df1f1de031be120.ts";
 import { i7820a39cffb9511493085038a7e19447 } from "./i7820a39cffb9511493085038a7e19447.ts";
@@ -36,6 +37,8 @@ export async function i01a133547dea7604b903b94a5aca2b83(call: ActionCall): Promi
 			return i5d22a1166ca0519c8dcb58f8989f3ac0(ctx);
 		case "uf4a09298430355a2a473394fbb5103f2": // crud <quid>
 			return if4a09298430355a2a473394fbb5103f2(quid(args.quid), ctx);
+		case "ubccbde44f93254e0bb6a2af910bc03d9": // crud --read <quid>
+			return ibccbde44f93254e0bb6a2af910bc03d9(quid(args.read), ctx);
 		case "ue9ce704f3ee25e028d2fbff7cd47bfc8": { // crud <kind> <gist>... [--name <name>] [--meta <source>] [--meta:<path> <value>]... [--section:<path> <source>]...
 			const sections = await readSections(args["section:"] as Record<string, string>, ctx, args.meta === "-" ? 1 : 0);
 			return ie9ce704f3ee25e028d2fbff7cd47bfc8(

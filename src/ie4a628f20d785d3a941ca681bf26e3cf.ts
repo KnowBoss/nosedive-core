@@ -302,7 +302,7 @@ function pendingError(ctx: Ctx, repo: string, pending: Pending[]): Error {
 	const lines = pending.flatMap((migration) => [
 		`- ${migration.name}: ${migration.gist}`,
 		...(migration.path ? [`  [${migration.name}](${relative(ctx.cwd, migration.path).replace(/\\/g, "/")})`] : []),
-		`  nosedive crud ${migration.id}`,
+		`  nosedive crud --read ${migration.id}`,
 	]);
 	return new Error(`seed changed nothing: ${repo} has ${pending.length === 1 ? "a migration" : "migrations"} to run\n${lines.join("\n")}\nrerun with --migrate to run them all, or --no-migrate to seed without them`);
 }
