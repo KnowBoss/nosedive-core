@@ -227,8 +227,8 @@ test("migrates an older config first, its backlog becoming its one root, and say
 	git(["commit", "-qm", "older"], dir);
 	const said = ok(await run(["seed", "--no-capes"], dir));
 	assert.match(said, new RegExp(`^migrated ${basename(dir)}: legacy-capes\nmigrated ${basename(dir)}: baseline$`, "m"));
-	// A legacy hero now wears the work and legacy capes, which --no-capes does not build, so canonical-kinds waits for them.
-	assert.match(said, /^canonical-kinds: waiting for nosedive-work, nosedive-legacy to build/m);
+	// A legacy hero wears the legacy cape, which --no-capes does not build, so canonical-kinds waits for it.
+	assert.match(said, /^canonical-kinds: waiting for nosedive-legacy to build/m);
 	const after = parseDocument(readFileSync(config, "utf8")).toJS() as Record<string, unknown>;
 	assert.deepEqual(after, { migrations: MIGRATIONS.slice(0, 2).map((migration) => migration.id), id: root, roots: [`kb/${root}.md`] });
 	assert.match(readFileSync(join(dir, "kb", `${root}.md`), "utf8"), /\nkind: base\n/);
