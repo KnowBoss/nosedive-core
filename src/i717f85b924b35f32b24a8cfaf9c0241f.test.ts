@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
-import { declareDurable, declareKinds, git, ok, run, tempBridge, kbPath } from "../test/harness.ts";
+import { declareDurable, declareHanging, declareKinds, git, ok, run, tempBridge, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
@@ -111,4 +111,46 @@ test("refuses a doc the body of a root linking no .feat links, leaving that body
 	assert.match(refused.err, new RegExp(`\n {2}${rootPath} links it in its body: remove that link first`));
 	assert.equal(read(rootPath), body);
 	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+});
+
+/** A feat the root reaches, a `plan` of a kind naming `planned.dive` in meta.next that the feat links by it, and a memo linking the plan by a rel the kind does not name. */
+async function planned(label: string) {
+	const bridge = await tempBridge(label);
+	await declareHanging(bridge, "plan", "planned.dive");
+	const root = readRepoConfig(bridge)!.root!;
+	const feat = ok(await run(["crud", "core:memo", "the feat", "--name", "feat"], bridge));
+	const plan = ok(await run(["crud", "plan", "a plan"], bridge));
+	const note = ok(await run(["crud", "core:memo", "a note"], bridge));
+	ok(await run(["crud", root, "--links", "-"], bridge, `${feat}: {rel: work.feat}\n`));
+	ok(await run(["crud", idOf(feat), "--links", "-"], bridge, `${plan}: {rel: planned.dive}\n`));
+	return { bridge, feat, plan, note, read: (path: string) => readFileSync(join(bridge, path), "utf8") };
+}
+
+test("takes a doc from the doc linking it by a rel its kind names in meta.next, as it lists it, after that doc records it (drop-takes-declared-links)", async () => {
+	const { bridge, feat, plan, read } = await planned("crud-drop-declared");
+	assert.match(ok(await run(["next"], bridge)), new RegExp(`feat {2}${feat}\\n {2}plan a-plan-\\w{6} {2}${plan}`), "next lists it under the feat");
+	const head = git(["rev-parse", "HEAD"], bridge);
+	const refused = await run(["crud", "--drop", idOf(plan)], bridge);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, /plan a-plan-\w{6} was not dropped:\n {2}memo feat records nothing of what it held/);
+	assert.doesNotMatch(refused.err, /hangs from no doc|--sure/, "it hangs from the feat, so no --sure");
+	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+
+	ok(await run(["crud", idOf(feat), `--section:Dropped.${idOf(plan)}`, "-"], bridge, "Planned and carried out; the result is on the feat.\n"));
+	assert.equal(ok(await run(["crud", "--drop", idOf(plan)], bridge)), plan);
+	assert.equal(existsSync(join(bridge, plan)), false);
+	assert.doesNotMatch(read(feat), new RegExp(`${idOf(plan)}\\.md`), "the feat's link goes");
+	assert.match(read(feat), new RegExp(`### ${idOf(plan)}\\n\\nPlanned and carried out`), "its record stays");
+	assert.equal(git(["rev-list", "--count", `${head}..HEAD`], bridge), "2", "the record, then the drop with the link");
+	assert.equal(git(["status", "--porcelain"], bridge), "");
+});
+
+test("still refuses a doc a link by a rel its kind does not name holds, naming it", async () => {
+	const { bridge, feat, plan, note } = await planned("crud-drop-undeclared");
+	ok(await run(["crud", idOf(feat), `--section:Dropped.${idOf(plan)}`, "-"], bridge, "Planned and carried out.\n"));
+	ok(await run(["crud", idOf(note), "--links", "-"], bridge, `${plan}: {rel: seen.dive}\n`));
+	const refused = await run(["crud", "--drop", idOf(plan)], bridge);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, new RegExp(`\\n {2}${note} links it as seen\\.dive: remove that link first`));
+	assert.equal(existsSync(join(bridge, plan)), true);
 });

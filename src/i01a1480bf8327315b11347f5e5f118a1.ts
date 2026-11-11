@@ -19,7 +19,7 @@ import { i01a14a5504467ef08586b828ebabc148 as renderTree, rendersTree } from "./
 type Listed = ReturnType<typeof listKbDocs>[number];
 
 /**
- * Returns the dropped docs' paths relative to the bridge. A drop removes the `.feat` links to the docs it drops, from the docs they
+ * Returns the dropped docs' paths relative to the bridge. A drop removes the `.feat` links to the docs it drops, and those by a rel their kind names in `meta.next`, from the docs they
  * hang from, once one of those records it (drops-recorded); `sure` drops a doc that hangs from none.
  */
 export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], hard: boolean, capes: Cape[], sure = false): string[] {
@@ -46,6 +46,13 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 			repoDirs.push(repo.dir);
 		}
 	}
+	// The rels a dropped doc's kind names in `meta.next`, as next lists it by (kind-declared links); a durable kind's are none, as next's are.
+	const declared = new Map(
+		docs.map(({ id, doc }) => {
+			const { kind } = kindOfDoc(doc, bridge, capes);
+			return [id, new Set(kind && !isDurable(kind) ? (kind.next ?? []) : [])] as const;
+		}),
+	);
 	const blockers: string[] = [];
 	const block = (id: string, why: string) => blockers.push(one ? why : `${labelOf.get(id)}: ${why}`);
 	// The links the drop removes, by the doc holding them, and the docs each dropped one hangs from.
@@ -73,8 +80,8 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 							block(id, `${at(other.path)} hangs under it: drop it first`);
 							continue;
 						}
-						// Only the tree's links go with it; any other says something a drop must not undo unasked, as a worn cape's does.
-						if (!rel.endsWith(".feat")) {
+						// Only the tree's links and those its kind names in meta.next go with it; any other says something a drop must not undo unasked, as a worn cape's does.
+						if (!rel.endsWith(".feat") && !declared.get(id)!.has(rel)) {
 							block(id, `${at(other.path)} links it as ${rel || "a link"}: remove that link first`);
 							continue;
 						}
@@ -153,7 +160,7 @@ export function i01a1480bf8327315b11347f5e5f118a1(cwd: string, ids: string[], ha
 	for (const [other, { repoDir }] of unlinks) add(repoDir, other.path);
 	for (const id of rerender) add(bridge.dir, rendered.get(id)!.path);
 	// Named before the docs and links go, since their links are how a feat is found.
-	const subjects = new Map([...byRepo.keys()].map((repoDir) => [repoDir, commitSubject(bridge, "crud", "drop", [...dropping])]));
+	const subjects = new Map([...byRepo.keys()].map((repoDir) => [repoDir, commitSubject(bridge, "crud", "drop", [...dropping], capes)]));
 	for (const entry of docs) rmSync(entry.doc.path);
 	for (const [other, { at: positions }] of unlinks) {
 		for (const position of positions.sort((a, b) => b - a)) other.yaml.deleteIn(["links", position]);

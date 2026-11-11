@@ -1,9 +1,9 @@
 // crud --drop-list <source> [--hard]
 import assert from "node:assert/strict";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { declareDurable, declareKinds, git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
+import { declareDurable, declareHanging, declareKinds, git, ok, run, tempBridge, kbOf, kbPath } from "../test/harness.ts";
 
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 
@@ -61,4 +61,27 @@ test("ignores links in docs git does not track", async () => {
 	const a = idOf(ok(await run(["crud", "goal", "a"], bridge)));
 	writeFileSync(join(kbOf(bridge), "01a14a48-61cd-7c88-a0e1-b700d01901ed.md"), `---\nkind: memo\nid: 01a14a48-61cd-7c88-a0e1-b700d01901ed\nname: copy\n---\n\nSee [a](${a}.md).\n`);
 	ok(await run(["crud", "--drop-list", "-", "--sure"], bridge, `${a}\n`));
+});
+
+test("takes docs from the docs linking them by a rel their kind names in meta.next, a link by another rel still blocking (drop-takes-declared-links)", async () => {
+	const bridge = await tempBridge("crud-drop-list-declared");
+	await declareHanging(bridge, "plan", "planned.dive");
+	const holder = ok(await run(["crud", "core:memo", "holder"], bridge));
+	const a = ok(await run(["crud", "plan", "a"], bridge));
+	const b = ok(await run(["crud", "plan", "b"], bridge));
+	const outside = ok(await run(["crud", "core:memo", "outside"], bridge));
+	ok(await run(["crud", idOf(holder), "--links", "-"], bridge, `${kbPath(bridge, idOf(a))}: {rel: planned.dive}\n${kbPath(bridge, idOf(b))}: {rel: planned.dive}\n`));
+	ok(await run(["crud", idOf(outside), "--links", "-"], bridge, `${kbPath(bridge, idOf(b))}: {rel: seen.dive}\n`));
+	for (const doc of [a, b]) ok(await run(["crud", idOf(holder), `--section:Dropped.${idOf(doc)}`, "-"], bridge, "Carried out.\n"));
+
+	const refused = await run(["crud", "--drop-list", "-"], bridge, `${idOf(a)}\n${idOf(b)}\n`);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, new RegExp(`none of these was dropped:\\n {2}plan b-\\w{6}: ${outside} links it as seen\\.dive: remove that link first`));
+	assert.doesNotMatch(refused.err, /hangs from no doc/);
+	assert.equal(existsSync(join(bridge, a)), true);
+
+	ok(await run(["crud", idOf(outside), "--links", "-"], bridge, `${kbPath(bridge, idOf(b))}: null\n`));
+	assert.equal(ok(await run(["crud", "--drop-list", "-"], bridge, `${idOf(a)}\n${idOf(b)}\n`)), `${a}\n${b}`);
+	assert.doesNotMatch(readFileSync(join(bridge, holder), "utf8"), /planned\.dive/, "both links went with them");
+	assert.equal(git(["status", "--porcelain"], bridge), "");
 });
