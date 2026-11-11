@@ -70,13 +70,14 @@ const NAMESPACED_UUID = "01a13354-8014-7d06-8652-8aee80f8ee34";
 
 export const CAPE_TESTS_PASS = "01a138b2-b8f3-7d32-82d2-274fae0f5007";
 
-type Fixture = { gated?: boolean; plain?: boolean; name?: string };
+type Fixture = { gated?: boolean; plain?: boolean; name?: string; supersedes?: string[] };
 
 /** Makes a repo a cape by a cape root its config lists, linking core's cape-tests-pass when gated. */
 function asCape(name: string, files: Record<string, string>, options: Fixture): void {
 	if (options.plain) return;
 	const root = mintUuid();
-	const gate = options.gated ? `links:\n  - nosedive-core:${CAPE_TESTS_PASS}:\n      rel: test.gate\n` : "";
+	const entries = [...(options.gated ? [`  - nosedive-core:${CAPE_TESTS_PASS}:\n      rel: test.gate\n`] : []), ...(options.supersedes ?? []).map((key) => `  - ${key}:\n      rel: supersedes.cape\n`)];
+	const gate = entries.length > 0 ? `links:\n${entries.join("")}` : "";
 	const doc = `---\nkind: cape\nid: ${root}\nname: ${name}\n${CANONICAL}${gate}---\n`;
 	files[".nosedive/config.yaml"] = `id: ${mintUuid()}\nroots:\n  - kb/${root}.md\n`;
 	files[`kb/${root}.md`] = doc;
@@ -85,7 +86,7 @@ function asCape(name: string, files: Record<string, string>, options: Fixture): 
 /**
  * A committed cape repo with one action, `greet <who>`, whose impl imports core's namespaced-uuid.
  * `link: false` leaves that import unlinked; `importing` swaps the imported core doc. `gated`
- * links core's test gate from its root; `plain` makes it no bridge at all; `failing` fails its test; `name` names its root.
+ * links core's test gate from its root; `plain` makes it no bridge at all; `failing` fails its test; `name` names its root; `supersedes` links those cape ids from it as `supersedes.cape`.
  */
 export function greetCapeRepo(options: Fixture & { link?: boolean; importing?: string; failing?: boolean } = {}): string {
 	const dir = gitRepo("greet-cape");

@@ -1,6 +1,6 @@
 import type { Cape, Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
+import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes, providers } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a14b30eb0e72e28934c918000a26ac as loadCape } from "./i01a14b30eb0e72e28934c918000a26ac.ts";
 
 /** Loads the configured cape whose build provides `action`, or the one named `only`; undefined when none does. */
@@ -18,7 +18,8 @@ export async function i01a1337c825f7457b879d5c039ffeccd(ctx: Ctx, action: string
 		if (cape.build.actions[action] === undefined) throw new Error(`${only} has no action ${action}`);
 		return loadCape(bridge.dir, cape.build, core);
 	}
-	const providing = capes.filter((cape) => cape.build?.actions?.[action] !== undefined);
+	const { live: providing, cyclic } = providers(capes, action);
+	if (cyclic.length > 0) throw new Error(`${action} is an action of ${cyclic.map((cape) => cape.name).join(" and ")}, which supersede each other: name one, as ${cyclic.map((cape) => `\`${cape.name}:${action}\``).join(" or ")}`);
 	if (providing.length > 1) {
 		const names = providing.map((cape) => cape.name);
 		throw new Error(`${action} is an action of ${names.join(" and ")}: name one, as ${names.map((cape) => `\`${cape}:${action}\``).join(" or ")}`);

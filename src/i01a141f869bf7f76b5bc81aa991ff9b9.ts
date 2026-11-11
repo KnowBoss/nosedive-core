@@ -38,7 +38,7 @@ export function wornCapes(bridge: Bridge): { id: string; name: string; ref: stri
 	const links = Array.isArray(doc?.fm.links) ? (doc.fm.links as unknown[]) : [];
 	return links.flatMap((link) =>
 		Object.entries((link ?? {}) as Record<string, { rel?: unknown; ref?: unknown; commit?: unknown } | null>).flatMap(([key, value]) => {
-			if (typeof value?.rel !== "string" || value.rel.split(".").at(-1) !== "cape") return [];
+			if (typeof value?.rel !== "string" || value.rel.split(".").at(-1) !== "cape" || value.rel === "supersedes.cape") return [];
 			const id = QUID.exec(key)?.[1];
 			const repo = id ? findKbDoc(bridge.reposDir ?? join(bridge.dir, ".nosedive", "repos"), id) : undefined;
 			if (!repo) {
@@ -67,4 +67,19 @@ export function i01a141f869bf7f76b5bc81aa991ff9b9(bridge: Bridge, core: Cape): C
 			.at(-1);
 		return { spec: follow ? `${name}@${follow}` : name, name, ref, repo, build };
 	});
+}
+
+/**
+ * The capes answering for `action` among those that provide it: `live` is what no other provider supersedes, `dropped` what one does.
+ * Providers that supersede each other, directly or round a cycle, are `cyclic`, and then nothing is dropped.
+ */
+export function providers(capes: ConfiguredCape[], action: string): { live: ConfiguredCape[]; dropped: ConfiguredCape[]; cyclic: ConfiguredCape[] } {
+	const providing = capes.filter((cape) => cape.build?.actions?.[action] !== undefined);
+	const supersedes = (a: ConfiguredCape, b: ConfiguredCape) => a !== b && b.build?.owner !== undefined && (a.build?.supersedes ?? []).includes(b.build.owner);
+	const reaches = (from: ConfiguredCape, to: ConfiguredCape, seen: ConfiguredCape[] = []): boolean =>
+		providing.some((next) => supersedes(from, next) && (next === to || (!seen.includes(next) && reaches(next, to, [...seen, next]))));
+	const cyclic = providing.filter((cape) => reaches(cape, cape));
+	if (cyclic.length > 0) return { live: providing, dropped: [], cyclic };
+	const dropped = providing.filter((cape) => providing.some((other) => supersedes(other, cape)));
+	return { live: providing.filter((cape) => !dropped.includes(cape)), dropped, cyclic };
 }

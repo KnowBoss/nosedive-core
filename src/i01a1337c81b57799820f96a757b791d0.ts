@@ -19,6 +19,7 @@ import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177
 
 const COMMIT = /^[0-9a-f]{40}$/;
 const CORE = "nosedive-core";
+const SEEDED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const BARE_IMPORT = /import\s*\{([^}]*)\}\s*from\s*["']([^"'./][^"']*)["']/g;
 
 /** `dir` is where a local cape lies in the hero, which it is built from; a repo cape is built at its ref, from its clone. */
@@ -79,6 +80,10 @@ export async function i01a1337c81b57799820f96a757b791d0(
 	}
 	const owner = readRepoConfig(dir)?.id;
 	const shortName = String(root.fm.name);
+	const supersedes = supersededKeys(root.fm.links).map((key) => {
+		if (!SEEDED_ID.test(key)) throw new Error(`${repo.name} at ${commit.slice(0, 7)} supersedes ${key}, which is no cape's seeded id: key it by that id`);
+		return key;
+	});
 
 	const { sources, needs } = await capeImports(bridge, dir, repo.name, source, core, building, log);
 
@@ -113,7 +118,7 @@ export async function i01a1337c81b57799820f96a757b791d0(
 			.filter((doc) => doc.top && doc.kind === "action" && !gateUsage(doc.usages[0]?.text ?? ""))
 			.map((doc) => [doc.name, doc.gist]),
 	);
-	const build = { id, owner, shortName, repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString(), ...(local ? { source: dir } : {}) };
+	const build = { id, owner, shortName, ...(supersedes.length > 0 ? { supersedes } : {}), repo: repo.id, ref, commit, core: core.id, coreVersion: core.version, actions, kinds: source.kinds, needs, version, builtAt: new Date().toISOString(), ...(local ? { source: dir } : {}) };
 	capeManifest(bridge.dir, build);
 	return { ...build, fresh: true };
 }
@@ -233,6 +238,12 @@ function tryFindRepoDoc(bridge: Bridge, name: string): Repo | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+/** The keys of a root's `supersedes.cape` links. */
+function supersededKeys(links: unknown): string[] {
+	if (!Array.isArray(links)) return [];
+	return links.flatMap((link) => Object.entries((link ?? {}) as Record<string, { rel?: unknown } | null>).filter(([, value]) => value?.rel === "supersedes.cape").map(([key]) => key));
 }
 
 function linksOf(text: string): string[] {

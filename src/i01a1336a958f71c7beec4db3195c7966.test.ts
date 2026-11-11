@@ -5,6 +5,7 @@ import { join, relative, dirname } from "node:path";
 import { test } from "node:test";
 import { consoleCtx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
+import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { greetCapeRepo, kbOf, ok, registerRepo, run, setCapes, tempBridge, tempDir } from "../test/harness.ts";
 
 test("lists core's top-level actions, never internal functions", async () => {
@@ -78,4 +79,21 @@ test("refuses an unknown action, and an internal function by name", async () => 
 		assert.equal(result.code, 1);
 		assert.match(result.err, new RegExp(`^nosedive: unknown action: ${name}\n`));
 	}
+});
+
+test("lists an action a worn cape supersedes once, under the superseding cape, and --help --more says whose it replaces", async () => {
+	const old = greetCapeRepo({ name: "old-greet" });
+	const bridge = await tempBridge("launch-help-supersedes");
+	await registerRepo(bridge, "old-greet", old);
+	await registerRepo(bridge, "new-greet", greetCapeRepo({ name: "new-greet", supersedes: [readRepoConfig(old)!.id!] }));
+	setCapes(bridge, ["old-greet", "new-greet"]);
+	ok(await run(["seed"], bridge));
+	const help = ok(await run(["help"], bridge));
+	assert.equal(help.match(/ {2}greet {2}Greets/g)?.length, 1, "listed once");
+	assert.match(help, /\n\nold-greet\n\nnew-greet\n {2}greet {2}Greets\n/);
+	assert.match(ok(await run(["--help", "--more"], bridge)), /\n\nnew-greet \S+\n[^\n]*\n {2}greet {2}Greets \(in place of old-greet's\)\n/);
+
+	// Without the link both stay listed, as the clash is the hero's to see.
+	setCapes(bridge, ["old-greet"]);
+	assert.match(ok(await run(["help"], bridge)), /\n\nold-greet\n {2}greet {2}Greets\n/, "a cape no worn cape supersedes lists its own");
 });
