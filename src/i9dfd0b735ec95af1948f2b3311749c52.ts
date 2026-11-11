@@ -14,29 +14,54 @@ import { pathComponent } from "./i01a13c760de87562b4738946402010b8.ts";
 
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type RepoDoc = ReturnType<typeof listKbDocs>[number];
+export type RepoDoc = ReturnType<typeof listKbDocs>[number];
 /** One repo to dock: where, from which cache, and at what. A hero dock is on `branch`; any other is detached at `commit`. */
 type Plan = { name: string; at: string; cache: string; trunk: string; branch?: string; shown: string; commit: string; note?: string };
 
 /** Docks what `ref` finds; given `head`, every repo read-only at it. */
 export async function i9dfd0b735ec95af1948f2b3311749c52(ref: string, head: string | undefined, ctx: Ctx): Promise<void> {
-	const hero = findBridge(ctx.cwd);
-	if (!hero?.id) throw new Error("dock runs in a hero");
-	const primary = hero.roots.find((root) => root.id === hero.root);
-	const docker = primary && findKbDoc(primary.dir, primary.id)?.fm.name;
-	if (typeof docker !== "string" || !docker) throw new Error("the hero's primary root has no name to keep its docks under");
-	const repos = hero.reposDir && existsSync(hero.reposDir) ? listKbDocs(hero.reposDir) : [];
+	const hero = heroOf(ctx);
+	const repos = reposOf(hero);
 
 	const found = find(hero, repos, ref);
 	const wanted = found.repo ? [{ doc: found.repo, workBranch: undefined }] : scoped(found.feat!, repos);
 	// Checked before any fetch, so a bad name docks nothing.
-	pathComponent(docker, "the hero's primary root's name");
-	for (const { doc } of wanted) pathComponent(String(doc.fm.name), "a repo's name");
-	const plans = wanted.map(({ doc, workBranch }) => plan(hero, doc, join(userDir(), "docks", docker, String(doc.fm.name)), { head, workBranch, feat: !found.repo }, ctx));
+	const ats = wanted.map(({ doc }) => dockPath(hero, doc));
+	const plans = wanted.map(({ doc, workBranch }, i) => plan(hero, doc, ats[i]!, { head, workBranch, feat: !found.repo }, ctx));
 	// Every dock is checked before any is moved, so a refusal moves none.
 	const refused = plans.flatMap(refusal);
 	if (refused.length > 0) throw new Error(refused.join("\n"));
 	for (const each of plans) place(each, ctx);
+}
+
+/** The hero `ctx` runs in. */
+export function heroOf(ctx: Ctx): Bridge {
+	const hero = findBridge(ctx.cwd);
+	if (!hero?.id) throw new Error("dock runs in a hero");
+	return hero;
+}
+
+/** The hero's repo docs. */
+export function reposOf(hero: Bridge): RepoDoc[] {
+	return hero.reposDir && existsSync(hero.reposDir) ? listKbDocs(hero.reposDir) : [];
+}
+
+/** Where a repo is docked: under the hero's primary root's name, then the repo doc's. */
+export function dockPath(hero: Bridge, doc: RepoDoc): string {
+	const primary = hero.roots.find((root) => root.id === hero.root);
+	const docker = primary && findKbDoc(primary.dir, primary.id)?.fm.name;
+	if (typeof docker !== "string" || !docker) throw new Error("the hero's primary root has no name to keep its docks under");
+	pathComponent(docker, "the hero's primary root's name");
+	pathComponent(String(doc.fm.name), "a repo's name");
+	return join(userDir(), "docks", docker, String(doc.fm.name));
+}
+
+/** Docks a repo read-only at `commit` as dock does, but reports to stderr, for a caller whose stdout is something else. */
+export function dockAt(hero: Bridge, doc: RepoDoc, commit: string, ctx: Ctx): void {
+	const one = plan(hero, doc, dockPath(hero, doc), { head: commit, feat: false }, ctx);
+	const refused = refusal(one);
+	if (refused.length > 0) throw new Error(refused.join("\n"));
+	place(one, { ...ctx, out: ctx.err });
 }
 
 /** A quid's repo doc, else its doc as a feat; then the repo doc a remote or a name finds. */

@@ -1,7 +1,9 @@
+import { existsSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import type { Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import type { Cape, Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
-import { findDoc } from "./if4a09298430355a2a473394fbb5103f2.ts";
+import { dockAt, dockPath, heroOf, reposOf } from "./i9dfd0b735ec95af1948f2b3311749c52.ts";
+import { docFile, findDoc } from "./if4a09298430355a2a473394fbb5103f2.ts";
 
 const FENCE = /^\s{0,3}(`{3,}|~{3,})/;
 /** A code span, matched so it is skipped, or an inline link's target, bare or in angle brackets. */
@@ -11,11 +13,34 @@ const DEFINITION = /^(\s{0,3}\[(?!\^)[^\]]+\]:\s+)(<[^>]*>|\S+)/;
 /** A target to leave as written: one with a scheme (a cross-repo `<repo>:<path>` too), a bare anchor, or an absolute path. */
 const KEPT = /^(?:[a-z][a-z0-9+.-]*:|#|[\\/])/i;
 
-/** A doc with no file on disk, as one from a shipped build is, has nowhere to resolve its links from: they are printed as written. */
+/**
+ * A doc with a file has its links resolved from it. One a cape ships without a file is looked up in the cape's repo, docked read-only at
+ * the commit the cape was built at (read-docks-capes), and its links resolve into the dock; where it cannot be, they are printed as written.
+ */
 export async function ibccbde44f93254e0bb6a2af910bc03d9(quid: string, ctx: Ctx): Promise<void> {
 	const doc = await findDoc(quid, ctx);
 	const body = readKbDoc(doc.text).body.trim();
-	ctx.out(doc.path ? relinked(body, dirname(doc.path), ctx.cwd) : body);
+	const file = doc.path ?? (doc.cape ? dockedFile(doc.cape, quid, ctx) : undefined);
+	ctx.out(file ? relinked(body, dirname(file), ctx.cwd) : body);
+}
+
+/** A cape doc's file in its repo's dock, docked first when the dock is not there; undefined, with a line on stderr why, when it cannot be. */
+function dockedFile(cape: Cape, quid: string, ctx: Ctx): string | undefined {
+	try {
+		const hero = heroOf(ctx);
+		const repos = reposOf(hero).filter((doc) => doc.fm.name === cape.name);
+		if (repos.length !== 1) throw new Error(`the hero has ${repos.length === 0 ? "no repo doc" : `${repos.length} repo docs`} named ${cape.name}`);
+		const at = dockPath(hero, repos[0]!);
+		// A dock there that holds the doc is used as it is: the pilot may have docked it at another head.
+		if (!existsSync(docFile(at, quid))) {
+			dockAt(hero, repos[0]!, cape.commit, ctx);
+			if (!existsSync(docFile(at, quid))) throw new Error(`${at} does not hold the doc`);
+		}
+		return docFile(at, quid);
+	} catch (error) {
+		ctx.err(`nosedive: cannot dock ${cape.name} at ${cape.commit.slice(0, 12)} to resolve the links of ${quid}, so they are as written: ${(error as Error).message.replace(/\s*\n\s*/g, "; ")}`);
+		return undefined;
+	}
 }
 
 /** `body` with each relative link target, written relative to `from`, rewritten relative to `to`; code spans and fenced blocks are left alone. */

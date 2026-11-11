@@ -13,7 +13,7 @@ export async function if4a09298430355a2a473394fbb5103f2(quid: string, ctx: Ctx):
 }
 
 /** The doc crud reads, whole, and its file when it has one on disk: a cape's has one only where the cape runs from a checkout. */
-export async function findDoc(quid: string, ctx: Ctx): Promise<{ text: string; path?: string }> {
+export async function findDoc(quid: string, ctx: Ctx): Promise<{ text: string; path?: string; cape?: Cape }> {
 	const bridge = findBridge(ctx.cwd);
 	const doc = bridge ? locateKbDoc(bridge, quid) : undefined;
 	if (doc) return doc;
@@ -31,9 +31,14 @@ export async function findDoc(quid: string, ctx: Ctx): Promise<{ text: string; p
 	throw new Error(`no doc ${quid} in ${bridge ? "this bridge, its workspace or " : ""}the loaded capes`);
 }
 
-/** A cape's doc with its file: in the cape's kb when it runs from source, or from a build inside its checkout (`<repo>/dist/`). */
-function capeFile(cape: Cape, quid: string, text: string): { text: string; path?: string } {
+/** A cape's doc with its file: in the cape's kb when it runs from source, or from a build inside its checkout (`<repo>/dist/`); without one, the cape. */
+function capeFile(cape: Cape, quid: string, text: string): { text: string; path?: string; cape?: Cape } {
 	const repoDir = cape.repoDir ?? (cape.url?.startsWith("file:") ? dirname(dirname(fileURLToPath(cape.url))) : undefined);
-	const path = repoDir ? join(readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb"), `${quid}.md`) : undefined;
-	return path && existsSync(path) ? { text, path } : { text };
+	const path = repoDir ? docFile(repoDir, quid) : undefined;
+	return path && existsSync(path) ? { text, path } : { text, cape };
+}
+
+/** Where a doc's file is in a checkout of its repo, there or not. */
+export function docFile(repoDir: string, quid: string): string {
+	return join(readRepoConfig(repoDir)?.kbDir ?? join(repoDir, "kb"), `${quid}.md`);
 }
