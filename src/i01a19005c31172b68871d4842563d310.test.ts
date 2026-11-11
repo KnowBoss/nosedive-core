@@ -30,7 +30,7 @@ test("leaves a message that has one as it is, whatever its version", () => {
 test("tells a nosedive co-author from any other trailer", () => {
 	assert.equal(isCoAuthor(TRAILER), true);
 	assert.equal(isCoAuthor("Co-Authored-By: Claude <noreply@anthropic.com>"), false);
-	assert.equal(isCoAuthor("Nosedive-Dive: 01a15bb1"), false);
+	assert.equal(isCoAuthor("Nosedive-Dive: 01234567"), false);
 	assert.equal(hasCoAuthor(`subject\n\n${TRAILER}\n`), true);
 	assert.equal(hasCoAuthor("subject\n"), false);
 });
