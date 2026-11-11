@@ -7,7 +7,7 @@ import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c6
 import { i01a13354845c7253a55b60bba87285d8 as findKbDoc } from "./i01a13354845c7253a55b60bba87285d8.ts";
 import { i01a15baf13e27bd88dc880d4871f2210 as hydrateRepo } from "./i01a15baf13e27bd88dc880d4871f2210.ts";
 import { i01a17fba20d673c5b8dd8551943369a2 as dehydrateRepo } from "./i01a17fba20d673c5b8dd8551943369a2.ts";
-import { git, gitRepo, registerRepo, tempBridge } from "../test/harness.ts";
+import { bareGit, git, gitRepo, registerRepo, tempBridge } from "../test/harness.ts";
 
 /** A hero repo with repo `hello` registered, its origin a bare repo of one commit on main. */
 async function hello(label: string) {
@@ -40,7 +40,7 @@ test("pushes nothing, and refuses a checkout with commits origin lacks, on a bra
 	commit("feat work");
 	assert.throws(() => dehydrateRepo(hero, doc, say), /workspace\/hello has commits origin does not have, so it stays:\n {2}\w+ feat work/);
 	assert.equal(existsSync(checkout), true);
-	assert.equal(git(["for-each-ref", "refs/nosedive"], origin), "", "nothing was pushed");
+	assert.equal(bareGit(["for-each-ref", "refs/nosedive"], origin), "", "nothing was pushed");
 
 	// A cape keeps work under its own refs; once origin holds them, as last fetched, the checkout can go.
 	git(["push", "-q", "origin", "HEAD:refs/nosedive/dives/x"], checkout);

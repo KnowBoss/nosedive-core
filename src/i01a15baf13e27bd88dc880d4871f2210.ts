@@ -30,20 +30,20 @@ export function i01a15baf13e27bd88dc880d4871f2210(bridge: Bridge, doc: RepoDoc, 
 
 	let added;
 	if (feat && branch) {
-		if (!gitBare(cache, "rev-parse", "--verify", "-q", `refs/heads/${branch}`).ok) {
-			const start = [`refs/remotes/origin/${feat.workBranch}`, `refs/remotes/origin/${trunk}`].find((ref) => gitBare(cache, "rev-parse", "--verify", "-q", ref).ok)!;
-			gitBare(cache, "branch", "-q", "--no-track", branch, start);
+		if (!cacheGit(cache, "rev-parse", "--verify", "-q", `refs/heads/${branch}`).ok) {
+			const start = [`refs/remotes/origin/${feat.workBranch}`, `refs/remotes/origin/${trunk}`].find((ref) => cacheGit(cache, "rev-parse", "--verify", "-q", ref).ok)!;
+			cacheGit(cache, "branch", "-q", "--no-track", branch, start);
 		}
-		gitBare(cache, "config", `branch.${branch}.remote`, "origin");
-		gitBare(cache, "config", `branch.${branch}.merge`, `refs/heads/${feat.workBranch}`);
-		added = gitBare(cache, "worktree", "add", "-q", dir, branch);
+		cacheGit(cache, "config", `branch.${branch}.remote`, "origin");
+		cacheGit(cache, "config", `branch.${branch}.merge`, `refs/heads/${feat.workBranch}`);
+		added = cacheGit(cache, "worktree", "add", "-q", dir, branch);
 	} else {
 		// Detached: no branch, so nothing to push; work is done for a feat.
-		added = gitBare(cache, "worktree", "add", "-q", "--detach", dir, `refs/remotes/origin/${trunk}`);
+		added = cacheGit(cache, "worktree", "add", "-q", "--detach", dir, `refs/remotes/origin/${trunk}`);
 	}
 	if (!added.ok) throw new Error(`cannot check ${name} out at ${shown}: ${added.text}`);
 	// With per-worktree config on, as legacy caches have it, the cache's core.bare reaches the worktree unless it says otherwise.
-	if (gitBare(cache, "config", "--bool", "extensions.worktreeConfig").text === "true") git(dir, "config", "--worktree", "core.bare", "false");
+	if (cacheGit(cache, "config", "--bool", "extensions.worktreeConfig").text === "true") git(dir, "config", "--worktree", "core.bare", "false");
 	const at = git(dir, "rev-parse", "--short", "HEAD").text;
 	ctx.out(branch ? `${shown}: on ${branch} at ${at}` : `${shown}: detached at ${trunk} ${at}`);
 	return { dir, trunk };
@@ -115,7 +115,7 @@ function cacheOf(bridge: Bridge, doc: RepoDoc, ctx: Say): string {
 		ctx.err(`nosedive: cannot move ${name}'s cache from ${legacy} to ${keyed}, so it is used where it is: ${error instanceof Error ? error.message : String(error)}`);
 		return legacy;
 	}
-	const repaired = gitBare(keyed, "worktree", "repair");
+	const repaired = cacheGit(keyed, "worktree", "repair");
 	if (!repaired.ok) ctx.err(`nosedive: ${name}'s cache moved to ${keyed}, but git could not repair its checkouts, which may still point at ${legacy}: ${repaired.text}`);
 	return keyed;
 }
@@ -128,18 +128,18 @@ export function fetchCache(bridge: Bridge, doc: RepoDoc, ctx: Say): { cache: str
 	const made = !existsSync(cache);
 	if (made) {
 		mkdirSync(cache, { recursive: true });
-		gitBare(cache, "init", "-q", "--bare");
+		cacheGit(cache, "init", "-q", "--bare");
 	}
 	// A cache says whose it is, so two keys that hash alike never share one.
 	const key = cacheKey(remote);
-	const held = gitBare(cache, "config", "nosedive.key");
+	const held = cacheGit(cache, "config", "nosedive.key");
 	if (held.ok && held.text !== key) throw new Error(`${name}'s cache at ${cache} holds ${held.text}, not ${key}: move it aside to cache ${name} afresh`);
-	if (!held.ok) gitBare(cache, "config", "nosedive.key", key);
+	if (!held.ok) cacheGit(cache, "config", "nosedive.key", key);
 	// So a checkout can push, by naming its target: git push origin HEAD:<ref>.
-	gitBare(cache, "config", "remote.origin.url", remote);
-	gitBare(cache, "config", "--replace-all", "remote.origin.fetch", BRANCHES);
-	gitBare(cache, "config", "--add", "remote.origin.fetch", PACKED);
-	const fetched = gitBare(cache, "fetch", "-q", "--prune", "origin");
+	cacheGit(cache, "config", "remote.origin.url", remote);
+	cacheGit(cache, "config", "--replace-all", "remote.origin.fetch", BRANCHES);
+	cacheGit(cache, "config", "--add", "remote.origin.fetch", PACKED);
+	const fetched = cacheGit(cache, "fetch", "-q", "--prune", "origin");
 	if (!fetched.ok) {
 		if (made) {
 			rmSync(cache, { recursive: true, force: true });
@@ -147,16 +147,16 @@ export function fetchCache(bridge: Bridge, doc: RepoDoc, ctx: Say): { cache: str
 		}
 		ctx.err(`nosedive: cannot fetch ${name} from ${remote}, so its cache is used as it is: ${fetched.text}`);
 	} else {
-		const head = /^ref: refs\/heads\/(\S+)\tHEAD/m.exec(gitBare(cache, "ls-remote", "--symref", "origin", "HEAD").text)?.[1];
-		if (head) gitBare(cache, "symbolic-ref", "refs/remotes/origin/HEAD", `refs/remotes/origin/${head}`);
+		const head = /^ref: refs\/heads\/(\S+)\tHEAD/m.exec(cacheGit(cache, "ls-remote", "--symref", "origin", "HEAD").text)?.[1];
+		if (head) cacheGit(cache, "symbolic-ref", "refs/remotes/origin/HEAD", `refs/remotes/origin/${head}`);
 	}
 
 	const trunk = trunkOf(doc, cache);
 	const tip = `refs/remotes/origin/${trunk}`;
-	if (!gitBare(cache, "rev-parse", "--verify", "-q", tip).ok) throw new Error(`${name} has no branch ${trunk} to check out`);
+	if (!cacheGit(cache, "rev-parse", "--verify", "-q", tip).ok) throw new Error(`${name} has no branch ${trunk} to check out`);
 	// The cache alone owns the trunk, and only ever fast-forwards it.
 	const owned = `refs/heads/${trunk}`;
-	if (!gitBare(cache, "rev-parse", "--verify", "-q", owned).ok || gitBare(cache, "merge-base", "--is-ancestor", owned, tip).ok) gitBare(cache, "update-ref", owned, tip);
+	if (!cacheGit(cache, "rev-parse", "--verify", "-q", owned).ok || cacheGit(cache, "merge-base", "--is-ancestor", owned, tip).ok) cacheGit(cache, "update-ref", owned, tip);
 	else ctx.err(`nosedive: ${name}'s cache has a ${trunk} its remote does not, so it was left as it is`);
 	return { cache, trunk };
 }
@@ -165,7 +165,7 @@ export function fetchCache(bridge: Bridge, doc: RepoDoc, ctx: Say): { cache: str
 function trunkOf(doc: RepoDoc, cache: string): string {
 	const meta = (doc.fm.meta ?? {}) as { trunk?: unknown };
 	if (typeof meta.trunk === "string") return meta.trunk;
-	return gitBare(cache, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD").text.replace(/^origin\//, "") || "main";
+	return cacheGit(cache, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD").text.replace(/^origin\//, "") || "main";
 }
 
 /** The repo's origin, a path in it resolved against the bridge. */
@@ -181,7 +181,8 @@ function git(cwd: string, ...args: string[]): { ok: boolean; text: string } {
 	return { ok: result.status === 0, text: (result.status === 0 ? result.stdout : result.stderr || result.stdout || "").trim() };
 }
 
-function gitBare(dir: string, ...args: string[]): { ok: boolean; text: string } {
+/** Runs git on a cache, naming it with `--git-dir` so it works when git requires bare repositories to be named (`safe.bareRepository=explicit`); every git command core runs in a cache goes through it. */
+export function cacheGit(dir: string, ...args: string[]): { ok: boolean; text: string } {
 	const result = spawnSync("git", ["--git-dir", dir, ...args], { cwd: dir, encoding: "utf8" });
 	return { ok: result.status === 0, text: (result.status === 0 ? result.stdout : result.stderr || result.stdout || "").trim() };
 }

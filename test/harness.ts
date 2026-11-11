@@ -47,10 +47,24 @@ export function tempDir(label: string): string {
 // Repo caches are the user's; a test's go in a user dir of its own.
 process.env.NOSEDIVE_USER_DIR = tempDir("user");
 
+// Git here runs with safe.bareRepository=explicit, so a command that runs inside a bare repo without naming it fails a test. It is
+// appended to any GIT_CONFIG_* the developer has, at the next index, which git reads last-wins.
+{
+	const count = Number(process.env.GIT_CONFIG_COUNT) || 0;
+	process.env[`GIT_CONFIG_KEY_${count}`] = "safe.bareRepository";
+	process.env[`GIT_CONFIG_VALUE_${count}`] = "explicit";
+	process.env.GIT_CONFIG_COUNT = String(count + 1);
+}
+
 export function git(args: string[], cwd: string): string {
 	const result = spawnSync("git", args, { cwd, encoding: "utf8" });
 	assert.equal(result.status, 0, `git ${args.join(" ")}: ${result.stderr}`);
 	return result.stdout.trim();
+}
+
+/** Runs git on a bare repo, naming it as safe.bareRepository=explicit requires. */
+export function bareGit(args: string[], dir: string): string {
+	return git(["--git-dir", dir, ...args], dir);
 }
 
 export function gitRepo(label: string): string {
