@@ -45,6 +45,25 @@ test("checks a repo out detached at its trunk, a worktree of the user's cache, w
 	assert.throws(() => hydrateRepo(hero, doc, say, { id: "f", workBranch: "work" }), /workspace\/hello is detached, not on \S+\/main\/f: dehydrate it first/);
 });
 
+test("uses a cache when Git requires bare repositories to be named explicitly", async () => {
+	const { hero, doc, say, cache, checkout } = await hello("hydrate-repo-explicit-bare");
+	const saved = new Map(["GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_CONFIG_PARAMETERS"].map((key) => [key, process.env[key]]));
+	process.env.GIT_CONFIG_COUNT = "1";
+	process.env.GIT_CONFIG_KEY_0 = "safe.bareRepository";
+	process.env.GIT_CONFIG_VALUE_0 = "explicit";
+	delete process.env.GIT_CONFIG_PARAMETERS;
+	try {
+		assert.deepEqual(hydrateRepo(hero, doc, say), { dir: checkout, trunk: "trunk" });
+		assert.equal(existsSync(cache), true);
+		assert.equal(existsSync(checkout), true);
+	} finally {
+		for (const [key, value] of saved) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+	}
+});
+
 test("checks a repo out for a feat on a branch named after the hero, its branch and the feat, tracking the work branch", async () => {
 	const { source, hero, doc, said, say, cache, checkout } = await hello("hydrate-repo-feat");
 	git(["checkout", "-q", "-b", "work"], source);
