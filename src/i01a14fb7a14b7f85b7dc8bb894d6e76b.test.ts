@@ -1,10 +1,11 @@
 // bundle-cape
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
+import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a14fb7a14b7f85b7dc8bb894d6e76b as bundleCape } from "./i01a14fb7a14b7f85b7dc8bb894d6e76b.ts";
 import { CANONICAL, tempDir } from "../test/harness.ts";
@@ -43,4 +44,27 @@ test("a named import from core is read from the loaded core's named exports", as
 	(globalThis as { __nosediveCore?: unknown }).__nosediveCore = { id: CORE, index: {}, named: { shout: (text: string) => `${text}!` } };
 	const bundle = await import(pathToFileURL(outfile).href);
 	assert.equal(bundle.index[namespacedUuid(FN, exports.id)]("hey"), "hey!");
+});
+
+test("a bundle carries each usage's description, so it stays with the build when the source is gone", async () => {
+	const dir = tempDir("bundle-cape-usage-block");
+	for (const sub of ["kb", "src"]) mkdirSync(join(dir, sub));
+	const usage = usageId("twice <text>", FN);
+	writeFileSync(join(dir, "kb", `${FN}.md`), `---\nkind: action\nid: ${FN}\nname: twice\nmeta:\n  usages:\n    - twice <text>\n${CANONICAL}---\n`);
+	writeFileSync(join(dir, "src", `i${HEX}.ts`), `import { i${usage} } from "./i${usage}.ts";\n\nexport async function i${HEX}() {\n\treturn i${usage}();\n}\n`);
+	writeFileSync(join(dir, "src", `i${usage}.ts`), `/**\n * Says it twice.\n *\n * Whatever it is given.\n *\n * @param args The text.\n * @returns Nothing.\n * @nosedive-feat ${BUNDLE}\n */\nexport async function i${usage}() {\n\treturn 1;\n}\n`);
+	const outfile = join(dir, "out", "bundle.js");
+	const exports = { id: BUNDLE, name: "twice-cape", commit: "", version: "v", core: CORE, needs: {} };
+	await bundleCape(dir, describeCapeSource(dir), exports, [], outfile);
+	rmSync(join(dir, "src"), { recursive: true });
+	rmSync(join(dir, "kb"), { recursive: true });
+
+	const bundle = await import(pathToFileURL(outfile).href);
+	assert.deepEqual(bundle.docs[FN].usages, [
+		{
+			id: usage,
+			text: "twice <text>",
+			description: { summary: "Says it twice.", body: "Whatever it is given.", params: [{ name: "args", text: "The text." }], returns: "Nothing.", attributes: [{ key: "feat", value: BUNDLE }] },
+		},
+	]);
 });

@@ -1,10 +1,12 @@
 // scaffold-cape
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { i01a1335480c776ba8945020d0af333eb as mintUuid } from "./i01a1335480c776ba8945020d0af333eb.ts";
 import { i01a133547f5f7c45a3fb2ac0e3a7678e as scaffoldCape } from "./i01a133547f5f7c45a3fb2ac0e3a7678e.ts";
+import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a133548178739398941123114401ad as usageId } from "./i01a133548178739398941123114401ad.ts";
 import { CANONICAL, gitRepo, kbOf, kbPath, ok, run } from "../test/harness.ts";
 
 const ACTION = "01a1335b-f253-7b80-ab64-d2f9a03c9634";
@@ -76,4 +78,50 @@ test("never enters node_modules, .git or .nosedive/capes, leaves a seeded repo n
 	assert.ok(written.every((each) => !each.includes("node_modules") && !each.startsWith(".git") && !each.startsWith("capes/")), written.join(", "));
 	assert.match(lines.join("\n"), new RegExp(`error ${kbPath(dir, broken).replace(/\./g, "\\.")}: `));
 	assert.equal(existsSync(join(nested, "src")), false, "the nested repo is scaffolded when it is seeded");
+});
+
+test("a usage impl it creates opens with a seeded jsdoc block: the gist, a body to write, a param each, returns, and the feat the doc names", async () => {
+	const dir = await capeRepo("scaffold-cape-block");
+	const feat = mintUuid();
+	writeFileSync(join(kbOf(dir), `${feat}.md`), `---\nkind: memo\nid: ${feat}\nname: the-feat\n---\n`);
+	writeFileSync(join(kbOf(dir), `${ACTION}.md`), `---\nkind: action\nid: ${ACTION}\nname: greet\ngist: "Greets */ someone"\nmeta:\n  usages:\n    - greet <who> [--loud <how>]\n${CANONICAL}links:\n  - kb/${feat}.md:\n      rel: parent.feat\n---\n`);
+	scaffoldCape(dir);
+	const impl = `src/i${usageId("greet <who> [--loud <how>]", ACTION)}.ts`;
+	const text = readFileSync(join(dir, impl), "utf8");
+	assert.equal(
+		text.split("\n").slice(2, 13).join("\n"),
+		[
+			"/**",
+			" * Greets * / someone",
+			" *",
+			" * Describe what this usage does.",
+			" *",
+			" * @param args What the usage matched: <who>, <how>.",
+			" * @param ctx Where it runs, and how it reads and prints.",
+			" * @returns Nothing; it throws to fail.",
+			` * @nosedive-feat ${feat}`,
+			" */",
+			`export async function i${usageId("greet <who> [--loud <how>]", ACTION)}(args: Args, ctx: Ctx): Promise<void> {`,
+		].join("\n"),
+	);
+	const described = describeCapeSource(dir).docs[ACTION]!.usages[0]!.description!;
+	assert.equal(described.summary, "Greets * / someone");
+	assert.deepEqual(described.attributes, [{ key: "feat", value: feat }]);
+	assert.deepEqual(described.params!.map(({ name }) => name), ["args", "ctx"]);
+});
+
+test("the block names no feat when the doc has no parent.feat link, takes no args for a gate, and a file that exists is left as it is", async () => {
+	const dir = await capeRepo("scaffold-cape-block-bare");
+	actionDoc(kbOf(dir), ACTION, "ready", "pass --ready <device>");
+	const gate = `src/i${usageId("pass --ready <device>", ACTION)}.ts`;
+	mkdirSync(join(dir, "src"), { recursive: true });
+	const own = "export async function mine() {}\n";
+	writeFileSync(join(dir, gate), own);
+	scaffoldCape(dir);
+	assert.equal(readFileSync(join(dir, gate), "utf8"), own, "never touched");
+	rmSync(join(dir, gate));
+	scaffoldCape(dir);
+	const text = readFileSync(join(dir, gate), "utf8");
+	assert.match(text, /\/\*\*\n \* ready\n \*\n \* Describe what this usage does\.\n \*\n \* @param ctx [^\n]*\n \* @returns [^\n]*\n \*\/\nexport async function i[0-9a-f]{32}\(ctx: GateCtx\)/);
+	assert.doesNotMatch(text, /@nosedive-feat|@param args/);
 });

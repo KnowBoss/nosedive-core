@@ -12,6 +12,16 @@ import { i01a1901e263b7209a4b5f39a71c568b3 as featWalk, linkedIds } from "./i01a
 
 type Listed = { fm: Record<string, unknown>; path: string; repoDir: string };
 
+/**
+ * Lists what is left to do: the open work under the hero's feats.
+ *
+ * Walks the hero's roots and lists, under the doc reaching it, each droppable leaf doc and each doc a kind's `meta.next` rel names. It fetches origin first and warns on stderr when the hero lacks trunk's commits, when an agent file has drifted, and, once a week, when npm has a newer nosedive. It writes nothing but its record of npm's answer.
+ *
+ * @param _args None: next takes no arguments.
+ * @param ctx Where it runs, and how it reads and prints.
+ * @returns Nothing; it prints the list.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
+ */
 export async function ibc5113a84ba55195add71cac33f0bf20(_args: Args, ctx: Ctx): Promise<void> {
 	const bridge = findBridge(ctx.cwd);
 	if (!bridge) throw new Error("not in a bridge: run `nosedive seed` first");

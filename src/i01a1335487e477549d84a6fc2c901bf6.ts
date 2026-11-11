@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import type { CapeDoc } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import type { CapeDoc, UsageDescription } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { i01a14fdf275b70b48f86f7f5c651719d as kbDocKind } from "./i01a14fdf275b70b48f86f7f5c651719d.ts";
@@ -57,7 +57,7 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = fal
 			kind: kind.name === "action" ? "action" : "function",
 			name: String(doc.fm.name ?? ""),
 			gist: String(doc.fm.gist ?? ""),
-			usages: usages.map((text) => ({ id: usageId(text, id), text })),
+			usages: usages.map((text) => describedUsage(repoDir, usageId(text, id), text)),
 			top: true,
 			text: doc.text,
 			body: doc.body.trim(),
@@ -69,6 +69,55 @@ export function i01a1335487e477549d84a6fc2c901bf6(repoDir: string, fromSrc = fal
 	// An action under another action is nested: reachable by name, not listed.
 	for (const [id, ids] of parents) docs[id]!.top = !ids.some((parent) => parent in docs);
 	return { docs, entries, kinds };
+}
+
+/** A usage, with the description its impl file's jsdoc block gives it when the file has one. */
+function describedUsage(repoDir: string, id: string, text: string): CapeDoc["usages"][number] {
+	const file = join(repoDir, "src", `i${id}.ts`);
+	const description = existsSync(file) ? usageDescription(readFileSync(file, "utf8"), `i${id}`) : undefined;
+	return description ? { id, text, description } : { id, text };
+}
+
+/**
+ * What the jsdoc block just before a file's default export, `export default` or `export [async] function <name>`, says; nothing when
+ * it has none. The summary is its first non-empty line, the body the prose up to the first tag, and `@param`, `@returns` and
+ * `@nosedive-<key>` are kept, other tags dropped (usage-help-from-jsdoc).
+ */
+export function usageDescription(source: string, name: string): UsageDescription | undefined {
+	const exported = new RegExp(`^export\\s+(?:default\\b|(?:async\\s+)?function\\s+${name}\\b)`, "m").exec(source);
+	if (!exported) return undefined;
+	const before = source.slice(0, exported.index).trimEnd();
+	const start = before.lastIndexOf("/**");
+	if (!before.endsWith("*/") || start < 0) return undefined;
+	const inner = before.slice(start + 3, -2);
+	if (inner.includes("*/")) return undefined;
+	const lines = inner.split(/\r?\n/).map((line) => line.replace(/^\s*\*?\s?/, "").trimEnd());
+	const firstTag = lines.findIndex((line) => line.startsWith("@"));
+	const prose = (firstTag < 0 ? lines : lines.slice(0, firstTag)).map((line) => line.trim());
+	const at = prose.findIndex((line) => line !== "");
+	const summary = at < 0 ? "" : prose[at]!;
+	const body = (at < 0 ? [] : prose.slice(at + 1)).join("\n").trim();
+	const tags: { tag: string; text: string }[] = [];
+	for (const line of firstTag < 0 ? [] : lines.slice(firstTag)) {
+		const opens = /^@([A-Za-z][\w-]*)\s*(.*)$/.exec(line);
+		if (opens) tags.push({ tag: opens[1]!, text: opens[2]! });
+		else if (line.trim() !== "" && tags.length > 0) tags.at(-1)!.text += ` ${line.trim()}`;
+	}
+	const untyped = (text: string) => text.replace(/^\{[^}]*\}\s*/, "");
+	const params = tags.filter(({ tag }) => tag === "param").map(({ text }) => {
+		const [, paramName = "", rest = ""] = /^(\S+)\s*([\s\S]*)$/.exec(untyped(text)) ?? [];
+		return { name: paramName, text: rest.replace(/^-\s*/, "") };
+	});
+	const returns = tags.find(({ tag }) => tag === "returns" || tag === "return");
+	const attributes = tags.filter(({ tag }) => tag.startsWith("nosedive-") && tag.length > 9).map(({ tag, text }) => ({ key: tag.slice(9), value: text }));
+	if (summary === "" && params.length === 0 && !returns && attributes.length === 0) return undefined;
+	return {
+		summary,
+		...(body ? { body } : {}),
+		...(params.length > 0 ? { params } : {}),
+		...(returns ? { returns: untyped(returns.text) } : {}),
+		...(attributes.length > 0 ? { attributes } : {}),
+	};
 }
 
 /** How many action, function and migration docs the repo has that do not name core as their kind's owner: bare core kinds, written before canonical kinds, which a cape cannot export. */

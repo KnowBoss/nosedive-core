@@ -27,11 +27,22 @@ export type Args = Record<string, string | string[] | boolean | Record<string, s
 /** `gate` is set when pass calls a gate: what its usage impl takes. */
 export type ActionCall = { usage: string; args: Args; ctx: Ctx; gate?: GateCtx };
 
+/** What a usage's jsdoc block says, as describe-cape-source reads it. */
+export type UsageDescription = {
+	summary: string;
+	body?: string;
+	params?: { name: string; text: string }[];
+	returns?: string;
+	/** Its `@nosedive-<key> <value>` tags, in order. */
+	attributes?: { key: string; value: string }[];
+};
+
 export type CapeDoc = {
 	kind: "action" | "function";
 	name: string;
 	gist: string;
-	usages: { id: string; text: string }[];
+	/** `description` is absent when the usage's file has no block, and in a build that predates blocks. */
+	usages: { id: string; text: string; description?: UsageDescription }[];
 	/** False for an action under another action: it runs by name, and help does not list it. */
 	top: boolean;
 	/** The whole doc, frontmatter included. */
@@ -139,7 +150,7 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		// An action that takes its command line as it is reads its own --help.
 		const raw = doc.usages.some((usage) => /<argv>\.\.\.\]?$/.test(usage.text));
 		if (!raw && rest[0] === "--help") {
-			ctx.out(renderHelp(doc, rest[1] === "--more"));
+			ctx.out(renderHelp(doc, rest.slice(1)));
 			return 0;
 		}
 		const matched = matchUsage(
@@ -225,10 +236,61 @@ export async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 	return ["Usage: nosedive [--at <target>] <action> [<args>]", ...lines, "", `nosedive <action> --help for its usages${more ? "" : "; nosedive --help --more for each cape's version and where it was built from"}.`].join("\n");
 }
 
-function renderHelp(doc: CapeDoc, more: boolean): string {
-	const lines = [doc.gist, "", ...doc.usages.map((usage) => `  ${usage.text}`)];
-	const usage = /(?:^|\n)## Usage\n([\s\S]*?)(?=\n## |$)/.exec(doc.body)?.[1]?.trim();
-	if (more) lines.push("", usage ?? "Its doc has no ## Usage section.");
-	else if (usage) lines.push("", `nosedive ${doc.name} --help --more for what each usage does.`);
+/** What `--help` printed after it: `--more`, which may name one usage by its hash, or nothing. */
+function renderHelp(doc: CapeDoc, args: string[]): string {
+	const more = args[0] === "--more";
+	if (more && args.length > 1) return usageHelp.block(usageHelp.find(doc.usages, args.slice(1), doc.name), doc.gist);
+	const lines = [doc.gist, "", ...doc.usages.flatMap((usage) => usageHelp.lines(usage, more))];
+	const section = /(?:^|\n)## Usage\n([\s\S]*?)(?=\n## |$)/.exec(doc.body)?.[1]?.trim();
+	if (more) lines.push("", section ?? "Its doc has no ## Usage section.");
+	lines.push("", usageHelp.pointer(doc.name, more));
 	return lines.join("\n");
 }
+
+type HelpUsage = { id: string; text: string; description?: UsageDescription };
+
+/** How help shows a usage and the jsdoc block behind it, for an action's `--help` and for pass's (usage-help-from-jsdoc). */
+export const usageHelp = {
+	/** The hash help gives a usage: `u` and the first 8 hex digits of its id. */
+	hash: (usage: { id: string }) => `u${usage.id.slice(0, 8)}`,
+
+	/** A usage as listed, indented, with its summary under it; with `more`, its `@nosedive-` attributes as `<key>: <value>` and its hash too. */
+	lines(usage: HelpUsage, more: boolean, indent = "  "): string[] {
+		const under = `${indent}  `;
+		const { summary, attributes = [] } = usage.description ?? {};
+		return [
+			`${indent}${usage.text}`,
+			...(summary ? [`${under}${summary}`] : []),
+			...(more ? [...attributes.map(({ key, value }) => `${under}${key}: ${value}`), `${under}hash: ${usageHelp.hash(usage)}`] : []),
+		];
+	},
+
+	/** The last line of a listing, which says what `--help --more` is for. */
+	pointer: (action: string, more: boolean) =>
+		more ? `nosedive ${action} --help --more <u-hash> prints the rest of a usage's block.` : `nosedive ${action} --help --more for each usage's attributes and hash.`,
+
+	/** One usage's whole block; a usage with no block shows the gist and says so. */
+	block(usage: HelpUsage, gist: string): string {
+		const { summary, body, params = [], returns, attributes = [] } = usage.description ?? {};
+		const width = Math.max(0, ...params.map(({ name }) => name.length));
+		const lines = [usage.text, `hash: ${usageHelp.hash(usage)}`, "", summary || (usage.description ? "" : gist)];
+		if (body) lines.push("", body);
+		if (!usage.description) lines.push("", "Its impl file has no jsdoc block.");
+		if (params.length > 0) lines.push("", "Params", ...params.map(({ name, text }) => `  ${name.padEnd(width)}  ${text}`.trimEnd()));
+		if (returns) lines.push("", "Returns", `  ${returns}`);
+		if (attributes.length > 0) lines.push("", ...attributes.map(({ key, value }) => `${key}: ${value}`));
+		return lines.join("\n");
+	},
+
+	/** The one usage a hash, or any prefix of it of 4 or more hex digits after the `u`, names; a hash that names none, or more than one, is refused, naming the usages. */
+	find<T extends HelpUsage>(usages: T[], args: string[], action: string): T {
+		const given = /^u([0-9a-f]{4,})$/i.exec(args[0] ?? "");
+		if (args.length !== 1 || !given) throw new Error(`--help --more takes one usage hash, u and at least 4 hex digits, as \`nosedive ${action} --help --more\` lists them`);
+		const names = (some: T[]) => some.map((usage) => `  ${usageHelp.hash(usage)}  ${usage.text}`).join("\n");
+		const unique = usages.filter((usage, at) => usages.findIndex((other) => other.id === usage.id) === at);
+		const matches = unique.filter((usage) => usage.id.startsWith(given[1]!.toLowerCase()));
+		if (matches.length === 1) return matches[0]!;
+		if (matches.length === 0) throw new Error(`no usage of ${action} has a hash starting u${given[1]}; its usages:\n${names(unique)}`);
+		throw new Error(`u${given[1]} starts the hash of ${matches.length} usages of ${action}; give more of it:\n${names(matches)}`);
+	},
+};

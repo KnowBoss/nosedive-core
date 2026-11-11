@@ -2,6 +2,18 @@ import type { KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i01a14717207d7277a493c7adb10ed32f as splitTitle } from "./i01a14717207d7277a493c7adb10ed32f.ts";
 import { i01a14717221479ddbcac26cce4b2a059 as updateKbDocBody } from "./i01a14717221479ddbcac26cce4b2a059.ts";
 
+/**
+ * Writes the section a heading names in a doc's body.
+ *
+ * The heading is found in any case, and the section is added at the end of the body when the doc lacks it. An empty source removes the section, its subsections with it.
+ *
+ * @param edit The edit this change is made in, which the caller commits.
+ * @param quid The doc to change: its quid, or a path ending `<quid>.md`.
+ * @param heading The section's `##` heading.
+ * @param source The section's text, read from its source.
+ * @returns Nothing; the change is in the edit.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
+ */
 export function i794ab6e0060f5ede8b0148203fe6df81(edit: KbEdit, quid: string, heading: string, source: string): void {
 	if (!heading.trim()) throw new Error("--section takes a heading");
 	writeSection(edit, quid, [heading.trim()], source);

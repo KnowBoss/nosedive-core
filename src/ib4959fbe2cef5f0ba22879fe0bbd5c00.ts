@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
-import type { Args, Cape, CapeDoc, Ctx, GateCtx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { usageHelp, type Args, type Cape, type CapeDoc, type Ctx, type GateCtx, type UsageDescription } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import { i01a1335482437c9eb145885f65f12aa1 as matchUsage } from "./i01a1335482437c9eb145885f65f12aa1.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge, type Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -21,7 +21,7 @@ const ANY = "any doc";
 const QUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 
 /** One gate usage, with the action that declares it. */
-type Usage = { cape: Cape; docId: string; doc: CapeDoc; id: string; text: string; sect: string; kind: string | undefined };
+type Usage = { cape: Cape; docId: string; doc: CapeDoc; id: string; text: string; description?: UsageDescription; sect: string; kind: string | undefined };
 
 export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx): Promise<void> {
 	const bridge = findBridge(ctx.cwd);
@@ -49,9 +49,21 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 				: [],
 		),
 	);
-	const listing = groupedListing(usages, bridge, all) + missing;
+	const listing = groupedListing(usages, bridge, all, false) + missing;
 	if (argv.length === 0 || argv[0] === "--help") {
-		ctx.out([Object.values(core.docs).find((candidate) => candidate.name === "pass")!.gist, "", listing || "  (no gate declares a usage)"].join("\n"));
+		const pass = Object.values(core.docs).find((candidate) => candidate.name === "pass")!;
+		const more = argv[1] === "--more";
+		// --help --more <u-hash> prints that one gate usage's block.
+		if (more && argv.length > 2) {
+			const usage = usageHelp.find(usages, argv.slice(2), "pass");
+			ctx.out(usageHelp.block(usage, usage.doc.gist));
+			return;
+		}
+		const lines = [pass.gist, "", (more ? groupedListing(usages, bridge, all, true) + missing : listing) || "  (no gate declares a usage)"];
+		const section = /(?:^|\n)## Usage\n([\s\S]*?)(?=\n## |$)/.exec(pass.body)?.[1]?.trim();
+		if (more) lines.push("", section ?? "Its doc has no ## Usage section.");
+		lines.push("", usageHelp.pointer("pass", more));
+		ctx.out(lines.join("\n"));
 		return;
 	}
 	const matched = new Map<Usage, Args>();
@@ -146,15 +158,15 @@ async function runGates(runs: Usage[], matched: Map<Usage, Args>, key: string, s
 }
 
 /** The gate usages under each kind that links their gate as `<sect>.gate`, by the kind's spelling, then the rest under `any doc`. */
-function groupedListing(usages: Usage[], bridge: Bridge, capes: Cape[]): string {
+function groupedListing(usages: Usage[], bridge: Bridge, capes: Cape[], more: boolean): string {
 	const kinds = listKinds(bridge, capes).flatMap((group) => group.kinds);
-	const groups = new Map<string, Set<string>>();
+	const groups = new Map<string, Map<string, Usage>>();
 	for (const usage of usages) {
 		const linking = kinds.filter((kind) => gateIds((kind.meta as { links?: unknown }).links, usage.sect).includes(usage.docId));
-		for (const name of linking.length > 0 ? linking.map((kind) => kind.spellings[0]!) : [ANY]) groups.set(name, (groups.get(name) ?? new Set()).add(usage.text));
+		for (const name of linking.length > 0 ? linking.map((kind) => kind.spellings[0]!) : [ANY]) groups.set(name, (groups.get(name) ?? new Map()).set(usage.text, usage));
 	}
 	const names = [...groups.keys()].sort((a, b) => Number(a === ANY) - Number(b === ANY) || a.localeCompare(b));
-	return names.map((name) => [name, ...[...groups.get(name)!].sort().map((text) => `  ${text}`)].join("\n")).join("\n\n");
+	return names.map((name) => [name, ...[...groups.get(name)!].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).flatMap(([, usage]) => usageHelp.lines(usage, more))].join("\n")).join("\n\n");
 }
 
 /** What a sect's option holds: a quid, or the path of a directory of the hero seeded on its own, read as the quid of its primary root. */

@@ -8,6 +8,15 @@ import { wornCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 
 const COMMIT = /^[0-9a-f]{40}$/;
 
+/**
+ * Attaches a registered cape: builds it at a ref, and links it from the base's root.
+ *
+ * Resolves the ref, a branch, a tag or a commit, on the repo's origin, else the ref the cape follows already, else the trunk; builds the cape at that commit; and links it from the active root as a `.cape`, pinned there. Attaching a cape that is worn again rebuilds and repins it.
+ *
+ * @param ctx What the pass gives the gate: the repo doc passing through, and its `--ref` in its args.
+ * @returns Nothing; it prints what it attached.
+ * @nosedive-feat 01a14b30-ee4e-722f-961d-32bbb99bdb8a
+ */
 export async function ib1271b71723d57c39b4dd36252311704(ctx: GateCtx): Promise<void> {
 	const { bridge, doc } = ctx;
 	if (!bridge.activeRoot) throw new Error("the hero has no root to wear a cape");

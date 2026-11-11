@@ -5,6 +5,17 @@ import { i01a133588bcc7f8bae725ff70d8f6800 as updateKbDocField } from "./i01a133
 
 const LOCAL = /^(?:[^:]*\/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.md)?$/;
 
+/**
+ * Makes one doc the only parent of another.
+ *
+ * The doc's other `parent.feat` links go, with those parents' `child.feat` links back to it, and the parent gains a `child.feat` link to it. Refuses a parent that is the doc itself, is under it, or lies in another kb.
+ *
+ * @param edit The edit this change is made in, which the caller commits.
+ * @param quid The doc to change: its quid, or a path ending `<quid>.md`.
+ * @param parent The doc to make its parent.
+ * @returns Nothing; the change is in the edit.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
+ */
 export function i112fbf4a4c7153da8d321f828607a1d0(edit: KbEdit, quid: string, parent: string): void {
 	if (parent === quid) throw new Error(`${quid} cannot be its own parent`);
 	const child = edit.doc(quid);

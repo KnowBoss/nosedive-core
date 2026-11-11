@@ -4,6 +4,15 @@ import { i01a1934563e77ed886f06d04416385ef as localCapes } from "./i01a1934563e7
 import { i01a1337c81b57799820f96a757b791d0 as buildCape } from "./i01a1337c81b57799820f96a757b791d0.ts";
 import { wornCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 
+/**
+ * Attaches a local cape: builds it from its directory, and links it from the base's root.
+ *
+ * The cape's root must be listed in the hero's config roots: seed one with `--at <dir> seed --root-kind cape`. Refuses a cape the base wears already.
+ *
+ * @param ctx What the pass gives the gate: the cape's root passing through.
+ * @returns Nothing; it prints what it attached.
+ * @nosedive-feat 01a14b30-ee4e-722f-961d-32bbb99bdb8a
+ */
 export async function i6d6986eba3bd53549b85b7321c069d98(ctx: GateCtx): Promise<void> {
 	const { bridge, doc } = ctx;
 	if (!bridge.activeRoot) throw new Error("the hero has no root to wear a cape");

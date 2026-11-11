@@ -18,7 +18,17 @@ export type RepoDoc = ReturnType<typeof listKbDocs>[number];
 /** One repo to dock: where, from which cache, and at what. A hero dock is on `branch`; any other is detached at `commit`. */
 type Plan = { name: string; at: string; cache: string; trunk: string; branch?: string; shown: string; commit: string; note?: string };
 
-/** Docks what `ref` finds; given `head`, every repo read-only at it. */
+/**
+ * Checks a repo, or a feat's repos, out under the hero's docks.
+ *
+ * The `ref` is a quid, a git remote, or a repo doc's name, tried in that order. The hero's own repo is docked on its dock branch, any other read-only. Every dock is checked before any is moved, so a refusal moves none.
+ *
+ * @param ref What to dock: a repo or feat quid, a remote, or a repo name.
+ * @param head A head to dock every repo read-only at, when given.
+ * @param ctx Where it runs, and how it reads and prints.
+ * @returns Nothing; it prints where it docked.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
+ */
 export async function i9dfd0b735ec95af1948f2b3311749c52(ref: string, head: string | undefined, ctx: Ctx): Promise<void> {
 	const hero = heroOf(ctx);
 	const repos = reposOf(hero);

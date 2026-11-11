@@ -87,8 +87,9 @@ function asCape(name: string, files: Record<string, string>, options: Fixture): 
  * A committed cape repo with one action, `greet <who>`, whose impl imports core's namespaced-uuid.
  * `link: false` leaves that import unlinked; `importing` swaps the imported core doc. `gated`
  * links core's test gate from its root; `plain` makes it no bridge at all; `failing` fails its test; `name` names its root; `supersedes` links those cape ids from it as `supersedes.cape`.
+ * `blocked` opens its usage's impl with a jsdoc block.
  */
-export function greetCapeRepo(options: Fixture & { link?: boolean; importing?: string; failing?: boolean } = {}): string {
+export function greetCapeRepo(options: Fixture & { link?: boolean; importing?: string; failing?: boolean; blocked?: boolean } = {}): string {
 	const dir = gitRepo("greet-cape");
 	const imported = (options.importing ?? NAMESPACED_UUID).replace(/-/g, "");
 	const usage = usageId("greet <who>", GREET);
@@ -98,7 +99,7 @@ export function greetCapeRepo(options: Fixture & { link?: boolean; importing?: s
 	const files: Record<string, string> = {
 		[`kb/${GREET}.md`]: `---\nkind: action\nid: ${GREET}\nname: greet\ngist: "Greets"\nmeta:\n  usages:\n    - greet <who>\n${CANONICAL}${links}---\n${codeSection("\n# Greet\n", doc, `i${hex}`)}`,
 		[`src/i${hex}.ts`]: `import type { ActionCall } from "nosedive-core";\nimport { i${usage} } from "./i${usage}.ts";\n\nexport async function i${hex}(call: ActionCall) {\n\tif (call.usage === "u${usage}") return i${usage}(String(call.args.who), call.ctx);\n}\n`,
-		[`src/i${usage}.ts`]: `import { i${imported} as namespacedUuid } from "nosedive-core";\n\nexport async function i${usage}(who: string, ctx: { out(text: string): void }) {\n\tctx.out(\`hello \${who} \${namespacedUuid(who, "${GREET}")}\`);\n}\n`,
+		[`src/i${usage}.ts`]: `import { i${imported} as namespacedUuid } from "nosedive-core";\n\n${options.blocked ? `/**\n * Greets someone by name.\n *\n * Tells who it is to hello.\n *\n * @param who Who to greet.\n * @param ctx Where to print.\n * @returns Nothing.\n * @nosedive-feat ${GREET}\n */\n` : ""}export async function i${usage}(who: string, ctx: { out(text: string): void }) {\n\tctx.out(\`hello \${who} \${namespacedUuid(who, "${GREET}")}\`);\n}\n`,
 		[`src/i${usage}.test.ts`]: [
 			'import assert from "node:assert/strict";',
 			'import { test } from "node:test";',

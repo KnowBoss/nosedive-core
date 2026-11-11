@@ -20,6 +20,16 @@ import { sectionPath, writeSection } from "./i794ab6e0060f5ede8b0148203fe6df81.t
 const KIND_OF_KINDS = "01a138b2-b8e9-7f63-9068-f1439b9cb8c9";
 const REPO_KIND = "01a138b2-b8eb-79e8-9d77-6e8379ec18e3";
 
+/**
+ * Mints a new doc of a kind from a gist, and commits it.
+ *
+ * The doc is written to the target, the hero's kb unless `--at` names another directory (kinds and repos always go where the hero reads them), with a new id. Its meta is checked against its kind's schema, its sections are written, its kind's crud gates may shape it, and it is committed; whatever fails leaves nothing behind. A repo needs a name and a reachable `meta.remotes.origin`.
+ *
+ * @param doc What to mint: its kind, its gist, and optionally its name, its `--meta` source, its `--meta:<path>` values and its `--section:<path>` texts.
+ * @param ctx Where it runs, and how it reads and prints.
+ * @returns Nothing; it prints the new doc's path from the hero.
+ * @nosedive-feat 01a1336b-c0b8-7cde-b7c6-285196062297
+ */
 export async function ie9ce704f3ee25e028d2fbff7cd47bfc8(
 	doc: { kind: string; gist: string; name: string | undefined; meta: string | undefined; keyed?: Record<string, unknown>; sections?: Record<string, string> },
 	ctx: Ctx,
