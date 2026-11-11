@@ -11,7 +11,7 @@ import { git, gitRepo } from "../test/harness.ts";
 
 const ROOT = "01a1b14c-0000-7000-8000-000000000001";
 const OTHER = "01a1b14c-0000-7000-8000-000000000002";
-const WORK = "01a15ba8-0bff-7ce3-83dc-e08af3633e26";
+const EXISTING_CAPE = "01a1b14c-0000-7000-8000-000000000003";
 const LEGACY = "01a1b13e-111d-73de-8f7d-41b47af07703";
 
 function legacy(label: string, rootLinks = "") {
@@ -41,11 +41,11 @@ test("a legacy repo gets the legacy cape at the commit core names", () => {
 });
 
 test("a cape the backlog already links keeps its pin, and a repo doc already in .nosedive/repos is not written again", () => {
-	const dir = legacy("legacy-capes-kept", `links:\n  - .nosedive/repos/${WORK}.md:\n      rel: .cape\n      commit: abc1111111111111111111111111111111111111\n`);
+	const dir = legacy("legacy-capes-kept", `links:\n  - .nosedive/repos/${EXISTING_CAPE}.md:\n      rel: .cape\n      commit: abc1111111111111111111111111111111111111\n`);
 	mkdirSync(join(dir, ".nosedive", "repos"));
-	writeFileSync(join(dir, ".nosedive", "repos", `${WORK}.md`), `---\nkind: repo\nid: ${WORK}\nname: nosedive-work\ngist: "Mine"\n---\n\n# nosedive-work\n`);
+	writeFileSync(join(dir, ".nosedive", "repos", `${EXISTING_CAPE}.md`), `---\nkind: repo\nid: ${EXISTING_CAPE}\nname: example-cape\ngist: "Mine"\n---\n\n# example-cape\n`);
 	legacyCapes(dir, ctx);
-	assert.equal(existsSync(join(dir, "kb", `${WORK}.md`)), false);
+	assert.equal(existsSync(join(dir, "kb", `${EXISTING_CAPE}.md`)), false);
 	const root = readFileSync(join(dir, "kb", `${ROOT}.md`), "utf8");
 	assert.ok(root.includes("commit: abc1111111111111111111111111111111111111"));
 	assert.equal(root.split("rel: .cape").length - 1, 2, "only the legacy cape is added");
