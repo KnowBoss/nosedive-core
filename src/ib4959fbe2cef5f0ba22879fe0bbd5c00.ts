@@ -119,17 +119,33 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 		if (added.status !== 0) throw new Error(`git add -N ${made.path}: ${(added.stderr || added.stdout).trim()}`);
 		return made;
 	};
+	const heard: Committed[] = [];
 	try {
-		await runGates(runs, matched, key, { core, capes, bridge, doc, edit, mint }, ctx);
+		await runGates(runs, matched, key, { core, capes, bridge, doc, edit, mint }, heard, ctx);
 		const written = edit.commit({ action: "pass", what: sect });
 		if (written.length > 0) ctx.out(written.join("\n"));
 	} catch (error) {
 		discardMinted(minted);
 		throw error;
 	}
+	// The commit is made, so a failing fn leaves it, and the fns after it still run.
+	const failures: string[] = [];
+	if (edit.commits.length > 0) {
+		for (const fn of heard) {
+			try {
+				await fn([...edit.commits]);
+			} catch (error) {
+				failures.push(error instanceof Error ? error.message : String(error));
+			}
+		}
+	}
+	if (failures.length > 0) throw new Error(`committed, but ${failures.length} committed callback(s) failed: ${failures.join("; ")}`);
 }
 
-async function runGates(runs: Usage[], matched: Map<Usage, Args>, key: string, shared: Pick<GateCtx, "core" | "capes" | "bridge" | "doc" | "edit" | "mint">, ctx: Ctx): Promise<void> {
+/** What a gate asked to be called with the pass's commits. */
+type Committed = Parameters<NonNullable<GateCtx["committed"]>>[0];
+
+async function runGates(runs: Usage[], matched: Map<Usage, Args>, key: string, shared: Pick<GateCtx, "core" | "capes" | "bridge" | "doc" | "edit" | "mint">, heard: Committed[], ctx: Ctx): Promise<void> {
 	const { core, capes, bridge, doc, edit, mint } = shared;
 	for (const usage of runs) {
 		const args = { ...matched.get(usage)! };
@@ -142,6 +158,7 @@ async function runGates(runs: Usage[], matched: Map<Usage, Args>, key: string, s
 			args,
 			edit,
 			mint,
+			committed: (fn) => void heard.push(fn),
 			crud: (target, field, value) => crudEdit(edit, target, field, value, ctx),
 			out: ctx.out,
 			err: ctx.err,

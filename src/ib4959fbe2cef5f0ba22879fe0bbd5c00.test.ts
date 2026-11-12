@@ -197,3 +197,96 @@ test("--help shows each gate's summary, --help --more its attributes and hash, a
 	assert.match((await run(["pass", "--help", "--more", "u0000"], bridge)).err, /^nosedive: no usage of pass has a hash starting u0000; its usages:\n {2}u[0-9a-f]{8} {2}pass --test <cape>\n[^]*\n {2}u[0-9a-f]{8} {2}pass --stamp <quid> \[--refuse\]$/);
 	assert.match((await run(["pass", "--help", "--more", "ue91"], bridge)).err, /takes one usage hash, u and at least 4 hex digits/);
 });
+
+const HEAR_ROOT = "01a1cdd2-4f93-752f-8351-ad2d3ba6b4b3";
+const HEAR_IDS = ["01a1cdd2-4f95-769b-bbf2-ae29bb558dcc", "01a1cdd2-4f96-77e5-9c94-f423f041cfa8", "01a1cdd2-4f97-726a-aea0-a877cc30153f"];
+const HEAR_USAGE = "pass --hear <quid> [--idle] [--boom] [--refuse]";
+
+/** A cape of three gates in the hear sect, A, B and C, each asking `committed` for a fn that prints its letter; B's throws on `--boom`, C refuses on `--refuse` once it has asked, and none edits on `--idle`. */
+function hearCapeRepo(): string {
+	const dir = gitRepo("hear-cape");
+	const codes = [
+		'\tif (!ctx.args.idle) ctx.crud(ctx.doc.id, "gist", "heard");\n\tctx.committed((commits: any[]) => ctx.out(`A ${commits.map((c) => `${c.sha} ${c.repoDir}`).join(" | ")}`));',
+		'\tctx.committed(() => {\n\t\tif (ctx.args.boom) throw new Error("B blew");\n\t\tctx.out("B");\n\t});',
+		'\tctx.committed(() => ctx.out("C"));\n\tif (ctx.args.refuse) throw new Error("C refused");',
+	];
+	const files: Record<string, string> = {
+		".nosedive/config.yaml": `roots:\n  - kb/${HEAR_ROOT}.md\n`,
+		[`kb/${HEAR_ROOT}.md`]: `---\nkind: cape\nid: ${HEAR_ROOT}\nname: hear-cape\n${CANONICAL}---\n`,
+	};
+	HEAR_IDS.forEach((id, at) => {
+		const name = `hear-${"abc"[at]}`;
+		const hex = id.replace(/-/g, "");
+		const usage = { id: usageId(HEAR_USAGE, id), text: HEAR_USAGE };
+		const doc = { kind: "action" as const, name, gist: name, usages: [usage], top: true, text: "", body: "" };
+		files[`kb/${id}.md`] = `---\nkind: action\nid: ${id}\nname: ${name}\ngist: "${name}"\nmeta:\n  usages:\n    - ${HEAR_USAGE}\n${CANONICAL}---\n${codeSection(`\n# ${name}\n`, doc, `i${hex}`)}`;
+		files[`src/i${hex}.ts`] = `import { i${usage.id} } from "./i${usage.id}.ts";\n\nexport function i${hex}(call: any) {\n\tif (call.usage === "u${usage.id}") return i${usage.id}(call.gate);\n}\n`;
+		files[`src/i${usage.id}.ts`] = `export function i${usage.id}(ctx: any) {\n${codes[at]}\n}\n`;
+	});
+	for (const [file, text] of Object.entries(files)) {
+		mkdirSync(join(dir, dirname(file)), { recursive: true });
+		writeFileSync(join(dir, file), text);
+	}
+	git(["add", "-A"], dir);
+	git(["commit", "-qm", "hear cape"], dir);
+	return dir;
+}
+
+async function hearBridge(label: string): Promise<{ bridge: string; memo: string; path: string }> {
+	const bridge = await tempBridge(label);
+	await registerRepo(bridge, "hear-cape", hearCapeRepo());
+	setCapes(bridge, ["hear-cape"]);
+	ok(await run(["seed"], bridge));
+	const path = ok(await run(["crud", "core:memo", "a", "memo"], bridge));
+	const memo = idOf(path);
+	ok(await run(["crud", memo, "--links", "-"], bridge, HEAR_IDS.map((id) => `hear-cape:${id}:\n  rel: hear.gate\n`).join("")));
+	return { bridge, memo, path };
+}
+
+test("a gate's committed fns are called in the order asked, once the commit is made, with its repo and sha", async () => {
+	const { bridge, memo, path } = await hearBridge("pass-committed");
+	const head = git(["rev-parse", "HEAD"], bridge);
+	const out = ok(await run(["pass", "--hear", memo], bridge));
+	const sha = git(["rev-parse", "HEAD"], bridge);
+	assert.notEqual(sha, head);
+	const lines = out.split("\n");
+	assert.deepEqual(lines.slice(0, 4), ["gate hear-a: passed", "gate hear-b: passed", "gate hear-c: passed", path], "the commit is printed before the fns run");
+	assert.match(lines[4]!, new RegExp(`^A ${sha} `));
+	assert.deepEqual(lines.slice(5), ["B", "C"]);
+	const repoDir = lines[4]!.slice(`A ${sha} `.length);
+	assert.equal(git(["rev-parse", "--show-toplevel"], repoDir), git(["rev-parse", "--show-toplevel"], bridge));
+	assert.equal(lines[4]!.split(" | ").length, 1, "one commit for one repo");
+});
+
+test("committed fns are not called when a later gate fails", async () => {
+	const { bridge, memo } = await hearBridge("pass-committed-refused");
+	const head = git(["rev-parse", "HEAD"], bridge);
+	const refused = await run(["pass", "--hear", memo, "--refuse"], bridge);
+	assert.equal(refused.code, 1);
+	assert.match(refused.err, /gate hear-c failed, so nothing was written: C refused/);
+	assert.equal(refused.out, "gate hear-a: passed\ngate hear-b: passed");
+	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+});
+
+test("committed fns are not called when the pass commits nothing", async () => {
+	const { bridge, memo } = await hearBridge("pass-committed-idle");
+	const head = git(["rev-parse", "HEAD"], bridge);
+	const idle = await run(["pass", "--hear", memo, "--idle"], bridge);
+	assert.equal(idle.code, 0);
+	assert.equal(idle.out, "gate hear-a: passed\ngate hear-b: passed\ngate hear-c: passed");
+	assert.equal(git(["rev-parse", "HEAD"], bridge), head);
+});
+
+test("a committed fn that throws leaves the commit, fails the pass on stderr, and the next fn still runs", async () => {
+	const { bridge, memo, path } = await hearBridge("pass-committed-throws");
+	const head = git(["rev-parse", "HEAD"], bridge);
+	const failed = await run(["pass", "--hear", memo, "--boom"], bridge);
+	const sha = git(["rev-parse", "HEAD"], bridge);
+	assert.notEqual(sha, head, "the commit stays");
+	assert.equal(failed.code, 1);
+	const lines = failed.out.split("\n");
+	assert.deepEqual([...lines.slice(0, 4), lines[5]], ["gate hear-a: passed", "gate hear-b: passed", "gate hear-c: passed", path, "C"]);
+	assert.match(lines[4]!, new RegExp(`^A ${sha} `));
+	assert.equal(lines.length, 6, "B printed nothing");
+	assert.match(failed.err, /^nosedive: .*B blew/);
+});

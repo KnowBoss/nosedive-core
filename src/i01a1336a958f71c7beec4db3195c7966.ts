@@ -91,6 +91,13 @@ export type GateCtx = {
 	when?: "before" | "after";
 	before?: { fm: Record<string, unknown>; body: string };
 	after?: { fm: Record<string, unknown>; body: string };
+	/**
+	 * For a pass gate: asks for `fn` to be called once the pass has committed, with each commit it made, its repo's directory and its sha.
+	 * Calls run in the order asked, once, after every repo's commit; none when the pass fails or commits nothing. A `fn` that throws
+	 * leaves the commit made: pass prints what it committed, then the failure on stderr, exits 1, and still calls the `fn`s after it.
+	 * Absent for a crud gate, and on a core older than this: a gate that may run on one checks `ctx.committed` first.
+	 */
+	committed?(fn: (commits: { repoDir: string; sha: string }[]) => void | Promise<void>): void;
 	out(text: string): void;
 	err(text: string): void;
 };
