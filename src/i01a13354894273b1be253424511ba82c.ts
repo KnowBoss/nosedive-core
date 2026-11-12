@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { i01a19005c31172b68871d4842563d310 as coAuthored } from "./i01a19005c31172b68871d4842563d310.ts";
 
-/** `version` is the core's, named in the co-author trailer the message ends with. */
-export function i01a13354894273b1be253424511ba82c(repoDir: string, paths: string[], message: string, version: string): void {
+/** `version` is the core's, named in the co-author trailer the message ends with. Returns the new commit's sha. */
+export function i01a13354894273b1be253424511ba82c(repoDir: string, paths: string[], message: string, version: string): string {
 	// Paths go on stdin, not the command line, which caps how many fit on Windows.
 	const input = `${paths.join("\n")}\n`;
 	for (const args of [["add", "--pathspec-from-file=-"], ["commit", "-q", "-m", coAuthored(message, version), "--pathspec-from-file=-"]]) {
@@ -11,4 +11,5 @@ export function i01a13354894273b1be253424511ba82c(repoDir: string, paths: string
 			throw new Error(`git ${args[0]} failed: ${(result.stderr || result.stdout || result.error?.message || "").trim()}`);
 		}
 	}
+	return spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoDir, encoding: "utf8" }).stdout.trim();
 }

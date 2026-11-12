@@ -10,7 +10,8 @@ test("commits only the given files", () => {
 	const dir = gitRepo("commit-files");
 	writeFileSync(join(dir, "a.txt"), "a");
 	writeFileSync(join(dir, "b.txt"), "b");
-	commitFiles(dir, [join(dir, "a.txt")], "add a", "test");
+	const sha = commitFiles(dir, [join(dir, "a.txt")], "add a", "test");
+	assert.equal(sha, git(["rev-parse", "HEAD"], dir), "it returns the commit's sha");
 	assert.equal(git(["log", "--format=%s"], dir), "add a");
 	assert.equal(git(["log", "-1", "--format=%B"], dir).trim(), "add a\n\nCo-Authored-By: nosedive test <noreply@nosedive.dev>", "the message ends with nosedive's co-author");
 	writeFileSync(join(dir, "a.txt"), "a again");

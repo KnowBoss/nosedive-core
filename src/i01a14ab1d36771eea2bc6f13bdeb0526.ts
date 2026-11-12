@@ -31,6 +31,8 @@ export type KbEdit = {
 	 * to the bridge. `include` names docs already on disk, as one just minted, to commit with them whether or not they changed.
 	 */
 	commit(subject?: { action: string; what: string }, include?: EditedDoc[]): string[];
+	/** Each commit `commit` has made so far: the repo's directory and the commit's sha, in the order made. */
+	commits: { repoDir: string; sha: string }[];
 	/** When set, kind and meta edits leave their schema check to the caller, collecting the docs here. */
 	unchecked?: Set<EditedDoc>;
 };
@@ -45,9 +47,11 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 	const docs = new Map<string, EditedDoc>();
 	const changed = new Set<EditedDoc>();
 	const edits: string[] = [];
+	const commits: { repoDir: string; sha: string }[] = [];
 	return {
 		bridge,
 		edits,
+		commits,
 		doc(id) {
 			const known = docs.get(id);
 			if (known) return known;
@@ -84,7 +88,8 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 			for (const [repoDir, written] of byRepo) {
 				for (const { doc, write } of written) if (write) writeKbDoc(doc.path, doc.yaml, doc.body);
 				const { action, what } = given ?? { action: "crud", what: [...new Set(edits)].join(", ") || "edit" };
-				commitFiles(repoDir, written.map(({ doc }) => doc.path), commitSubject(bridge, action, what, written.map(({ doc }) => doc.id), capes), version);
+				const sha = commitFiles(repoDir, written.map(({ doc }) => doc.path), commitSubject(bridge, action, what, written.map(({ doc }) => doc.id), capes), version);
+				commits.push({ repoDir, sha });
 			}
 			return [...new Set([...include, ...changed])].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));
 		},
