@@ -1,6 +1,5 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import type { CapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a133588c7971b5b116d9c8c1706e04 as capeIndex } from "./i01a133588c7971b5b116d9c8c1706e04.ts";
@@ -18,24 +17,19 @@ export type BundleSource = { specifier: string; capeId: string; ids: Iterable<st
 /** `repoDir` is the repo the source is in, whose `node_modules` and `assets/` the bundle takes what the code imports from. */
 export async function i01a14fb7a14b7f85b7dc8bb894d6e76b(repoDir: string, source: CapeSource, exports: BundleExports, sources: BundleSource[], outfile: string): Promise<void> {
 	const { names, entries } = capeIndex(source, exports.id);
-	const buildDir = `${outfile}.build`;
-	rmSync(buildDir, { recursive: true, force: true });
-	mkdirSync(buildDir, { recursive: true });
-	const toEntry = (file: string) => `./${relative(buildDir, file).replace(/\\/g, "/")}`;
-	writeFileSync(
-		`${buildDir}/entry.ts`,
-		[
-			...Object.values(entries).map((entry) => `import { ${entry.name} } from ${JSON.stringify(toEntry(entry.file))};`),
-			...Object.entries(exports).map(([key, value]) => `export const ${key} = ${JSON.stringify(value)};`),
-			`export const docs = ${JSON.stringify(source.docs)};`,
-			`export const kinds = ${JSON.stringify(source.kinds)};`,
-			"export const index = {",
-			...Object.entries(names).map(([key, docId]) => `\t${JSON.stringify(key)}: ${JSON.stringify(docId)},`),
-			...Object.entries(entries).map(([key, entry]) => `\t${JSON.stringify(key)}: ${entry.name},`),
-			"};",
-			"",
-		].join("\n"),
-	);
+	// The entry goes to esbuild as text and paths are taken from repoDir, so the output names no path of where it was built.
+	const toEntry = (file: string) => `./${relative(repoDir, file).replace(/\\/g, "/")}`;
+	const entry = [
+		...Object.values(entries).map((each) => `import { ${each.name} } from ${JSON.stringify(toEntry(each.file))};`),
+		...Object.entries(exports).map(([key, value]) => `export const ${key} = ${JSON.stringify(value)};`),
+		`export const docs = ${JSON.stringify(source.docs)};`,
+		`export const kinds = ${JSON.stringify(source.kinds)};`,
+		"export const index = {",
+		...Object.entries(names).map(([key, docId]) => `\t${JSON.stringify(key)}: ${JSON.stringify(docId)},`),
+		...Object.entries(entries).map(([key, each]) => `\t${JSON.stringify(key)}: ${each.name},`),
+		"};",
+		"",
+	].join("\n");
 
 	const esbuild = await import("esbuild").catch(() => {
 		throw new Error("building capes needs esbuild: install it next to nosedive (`npm install esbuild`)");
@@ -51,30 +45,27 @@ export async function i01a14fb7a14b7f85b7dc8bb894d6e76b(repoDir: string, source:
 			...[...named].map((name) => `export const ${name} = from.named[${JSON.stringify(name)}];`),
 			...[...ids].map((docId) => `export const i${docId.replace(/-/g, "")} = from.index[${JSON.stringify(namespacedUuid(docId, from))}];`),
 		].join("\n");
-	try {
-		await esbuild.build({
-			entryPoints: [`${buildDir}/entry.ts`],
-			bundle: true,
-			platform: "node",
-			format: "esm",
-			target: "node24",
-			outfile,
-			logLevel: "warning",
-			banner: { js: REQUIRE },
-			plugins: [
-				assets(esbuild, join(repoDir, "assets") + sep),
-				{
-					name: "nosedive-capes",
-					setup(build) {
-						build.onResolve({ filter: /^[^./]/ }, (args) => (bySpecifier.has(args.path) ? { path: args.path, namespace: "cape" } : undefined));
-						build.onLoad({ filter: /.*/, namespace: "cape" }, (args) => ({ contents: shim(bySpecifier.get(args.path)!), loader: "js" }));
-					},
+	await esbuild.build({
+		stdin: { contents: entry, sourcefile: "entry.ts", resolveDir: repoDir, loader: "ts" },
+		absWorkingDir: repoDir,
+		bundle: true,
+		platform: "node",
+		format: "esm",
+		target: "node24",
+		outfile,
+		logLevel: "warning",
+		banner: { js: REQUIRE },
+		plugins: [
+			assets(esbuild, join(repoDir, "assets") + sep),
+			{
+				name: "nosedive-capes",
+				setup(build) {
+					build.onResolve({ filter: /^[^./]/ }, (args) => (bySpecifier.has(args.path) ? { path: args.path, namespace: "cape" } : undefined));
+					build.onLoad({ filter: /.*/, namespace: "cape" }, (args) => ({ contents: shim(bySpecifier.get(args.path)!), loader: "js" }));
 				},
-			],
-		});
-	} finally {
-		rmSync(buildDir, { recursive: true, force: true });
-	}
+			},
+		],
+	});
 }
 
 type Esbuild = typeof import("esbuild");
@@ -87,7 +78,7 @@ function assets(esbuild: Esbuild, dir: string): import("esbuild").Plugin {
 			build.onLoad({ filter: /.*/, namespace: "file" }, async (args) => {
 				if (!args.path.toLowerCase().startsWith(dir.toLowerCase())) return undefined;
 				if (args.path.endsWith(".client.ts")) {
-					const client = await esbuild.build({ entryPoints: [args.path], bundle: true, platform: "browser", format: "esm", target: "es2022", write: false, logLevel: "warning" });
+					const client = await esbuild.build({ entryPoints: [args.path], absWorkingDir: resolve(dir, ".."), bundle: true, platform: "browser", format: "esm", target: "es2022", write: false, logLevel: "warning" });
 					return { contents: client.outputFiles[0]!.text, loader: "text" };
 				}
 				const ext = args.path.slice(args.path.lastIndexOf(".")).toLowerCase();
