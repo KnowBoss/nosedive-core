@@ -13,7 +13,7 @@ export const LEGACY_CAPES = [
 		name: "nosedive-legacy",
 		gist: "The cape holding jump, pack, land, bail and legacy nosedive's test, hydrate-repo.workspace, dehydrate-repo.workspace, record.gate and note",
 		origin: "https://github.com/KnowBoss/nosedive-legacy.git",
-		commit: "dffd6ffd56af6480934a1055cb86c648939daeaf",
+		commit: "11f106bb8f71c7205781e081cf81ff1953dfad1c",
 	},
 ];
 
