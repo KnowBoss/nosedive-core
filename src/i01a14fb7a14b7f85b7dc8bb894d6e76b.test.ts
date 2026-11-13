@@ -1,6 +1,6 @@
 // bundle-cape
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
@@ -67,4 +67,18 @@ test("a bundle carries each usage's description, so it stays with the build when
 			description: { summary: "Says it twice.", body: "Whatever it is given.", params: [{ name: "args", text: "The text." }], returns: "Nothing.", attributes: [{ key: "feat", value: BUNDLE }] },
 		},
 	]);
+});
+
+test("the same source bundles to the same bytes from different directories, so a bundle names no path of where it was built", async () => {
+	const built: string[] = [];
+	for (const label of ["bundle-cape-same-a", "bundle-cape-same-b"]) {
+		const dir = tempDir(label);
+		for (const sub of ["kb", "src"]) mkdirSync(join(dir, sub), { recursive: true });
+		writeFileSync(join(dir, "kb", `${FN}.md`), `---\nkind: function\nid: ${FN}\nname: twice\n${CANONICAL}---\n`);
+		writeFileSync(join(dir, "src", `i${HEX}.ts`), `export function i${HEX}(text: string): string {\n\treturn text + text;\n}\n`);
+		const outfile = join(dir, "out", "bundle.js");
+		await bundleCape(dir, describeCapeSource(dir), { id: BUNDLE, name: "twice-cape", commit: "", version: "v", core: CORE, needs: {} }, [], outfile);
+		built.push(readFileSync(outfile, "utf8"));
+	}
+	assert.equal(built[0], built[1]);
 });
