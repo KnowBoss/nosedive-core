@@ -178,6 +178,17 @@ test("refuses an unknown action, and an internal function by name", async () => 
 	}
 });
 
+// @see kb/01a1d65f-d8bf-7cc7-ad56-4398d3a06697.md
+test("answers legacy's pre-push.hook as a silent no-op, anywhere, and keeps it out of help", async () => {
+	for (const dir of [tempDir("launch-hook"), await tempBridge("launch-hook-bridge")]) {
+		const result = await run(["pre-push.hook", "origin", "git@example.com:x/y.git"], dir);
+		assert.equal(result.code, 0);
+		assert.equal(result.out, "");
+		assert.equal(result.err, "");
+		for (const help of [["help"], ["help", "--more"]]) assert.doesNotMatch(ok(await run(help, dir)), /pre-push/);
+	}
+});
+
 test("lists an action a worn cape supersedes once, under the superseding cape, and --help --more says whose it replaces", async () => {
 	const old = greetCapeRepo({ name: "old-greet" });
 	const bridge = await tempBridge("launch-help-supersedes");
