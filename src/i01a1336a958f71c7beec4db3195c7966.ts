@@ -106,6 +106,8 @@ export type GateCtx = {
 export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx): Promise<number> {
 	const base = process.env.NOSEDIVE_AT;
 	try {
+		// Legacy nosedive's pre-push hook still calls this in old clones; it is a silent no-op, left out of help. @see kb/01a1d65f-d8bf-7cc7-ad56-4398d3a06697.md
+		if (argv[0] === "pre-push.hook") return 0;
 		// A workspace checkout is never a hero, so nothing acts on one by running inside it.
 		const inside = process.env.NOSEDIVE_HERO ? undefined : insideWorkspace(ctx.cwd);
 		if (inside) {
