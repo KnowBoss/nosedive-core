@@ -1,6 +1,6 @@
 // dock <ref>
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { i9dfd0b735ec95af1948f2b3311749c52 as dock } from "./i9dfd0b735ec95af1948f2b3311749c52.ts";
@@ -106,10 +106,12 @@ test("refuses to move a dirty read-only dock, naming its files, and for a feat m
 	assert.equal(head(at("plain")), plain);
 });
 
-test("refuses a dock of the other kind at the path", async () => {
-	const { ids, ctx } = dockHero();
-	await dock(ids.feat, undefined, ctx);
-	await assert.rejects(dock(ids.docked, undefined, ctx), /docked is detached, not on \S+\/dock as a dock of a hero is: move it first/);
+test("refuses a writable dock where a read-only one is wanted, and one on another branch than its dock branch", async () => {
+	const { ids, ctx, at } = dockHero();
+	await dock(ids.docked, undefined, ctx);
+	await assert.rejects(dock(ids.feat, undefined, ctx), /docked is on \S+\/dock, not detached as a read-only dock is: move it first/);
+	git(["checkout", "-q", "-b", "other"], at("docked"));
+	await assert.rejects(dock(ids.docked, undefined, ctx), /docked is on other, not on \S+\/dock as a writable dock is: move it first/);
 });
 
 test("fast-forwards a hero dock already there, and refuses any other directory there", async () => {
@@ -134,4 +136,84 @@ test("docks to the same place from any branch of the docking hero, leaving the h
 	await dock(ids.docked, undefined, ctx);
 	assert.equal(git(["symbolic-ref", "--short", "HEAD"], at("docked")), `${heroId}/dock`);
 	assert.equal(git(["status", "--porcelain", "--ignored"], hero), "");
+});
+
+const pushable = (origin: string) => git(["config", "receive.denyCurrentBranch", "ignore"], origin);
+
+test("docks a base on its dock branch tracking trunk, so a commit made there is pushed to trunk, and fast-forwards it when docked again", async () => {
+	const { heroId, ids, origins, ctx, out, at } = dockHero("base");
+	pushable(origins.docked);
+	await dock(ids.docked, undefined, ctx);
+	assert.equal(git(["symbolic-ref", "--short", "HEAD"], at("docked")), `${heroId}/dock`);
+	assert.equal(git(["rev-parse", "--abbrev-ref", "@{upstream}"], at("docked")), "origin/main");
+	assert.match(out.join("\n"), new RegExp(`docked: on ${heroId}/dock at \\w+\\nnosedive seed there builds its capes`));
+	const mine = commitAll(at("docked"), { "mine.md": "mine\n" });
+	git(["push", "-q"], at("docked"));
+	assert.equal(git(["rev-parse", "main"], origins.docked), mine);
+	const tip = commitAll(origins.docked, { "more.md": "more\n" });
+	await dock(ids.docked, undefined, ctx);
+	assert.equal(head(at("docked")), tip);
+	assert.equal(git(["symbolic-ref", "--short", "HEAD"], at("docked")), `${heroId}/dock`);
+});
+
+test("docks a cape, and a repo that is not seeded, read-only and detached", async () => {
+	const { ids, origins, ctx, at } = dockHero("cape");
+	await dock(ids.docked, undefined, ctx);
+	detached(at("docked"));
+	await dock(ids.plain, undefined, ctx);
+	detached(at("plain"));
+	assert.equal(head(at("plain")), head(origins.plain));
+});
+
+test("docks a base in a feat's scopes read-only", async () => {
+	const { ids, ctx, at } = dockHero("base");
+	await dock(ids.feat, undefined, ctx);
+	detached(at("docked"));
+});
+
+test("moves a detached dock of a base onto its dock branch when docked as a base", async () => {
+	const { heroId, ids, origins, ctx, at } = dockHero("base");
+	await dock(ids.feat, undefined, ctx);
+	detached(at("docked"));
+	const tip = commitAll(origins.docked, { "more.md": "more\n" });
+	await dock(ids.docked, undefined, ctx);
+	assert.equal(git(["symbolic-ref", "--short", "HEAD"], at("docked")), `${heroId}/dock`);
+	assert.equal(git(["rev-parse", "--abbrev-ref", "@{upstream}"], at("docked")), "origin/main");
+	assert.equal(head(at("docked")), tip);
+});
+
+test("refuses to move a detached dock of a base that is dirty, or holds a commit trunk lacks, leaving it as it is", async () => {
+	const { ids, ctx, at } = dockHero("base");
+	await dock(ids.feat, undefined, ctx);
+	const was = head(at("docked"));
+	writeFileSync(join(at("docked"), "stray.txt"), "stray\n");
+	await assert.rejects(dock(ids.docked, undefined, ctx), /docked has changed or untracked files, so it was not moved: stray\.txt/);
+	detached(at("docked"));
+	assert.equal(head(at("docked")), was);
+	assert.equal(readFileSync(join(at("docked"), "stray.txt"), "utf8"), "stray\n");
+	rmSync(join(at("docked"), "stray.txt"));
+
+	const mine = commitAll(at("docked"), { "mine.md": "mine\n" });
+	await assert.rejects(dock(ids.docked, undefined, ctx), /docked is detached at a commit that origin\/main lacks, so it was not moved onto \S+\/dock/);
+	detached(at("docked"));
+	assert.equal(head(at("docked")), mine);
+});
+
+test("leaves a writable dock of a base as it is, and says why, when it diverges from trunk or a change of its own would be overwritten", async () => {
+	const { heroId, ids, origins, ctx, out, at } = dockHero("base");
+	await dock(ids.docked, undefined, ctx);
+	const mine = commitAll(at("docked"), { "mine.md": "mine\n" });
+	commitAll(origins.docked, { "theirs.md": "theirs\n" });
+	await dock(ids.docked, undefined, ctx);
+	assert.match(out.join("\n"), /docked cannot be fast-forwarded to origin\/main, so it was left as it is/);
+	assert.equal(head(at("docked")), mine);
+
+	git(["reset", "-q", "--hard", "origin/main"], at("docked"));
+	writeFileSync(join(at("docked"), "more.md"), "dirty\n");
+	commitAll(origins.docked, { "more.md": "again\n" });
+	out.length = 0;
+	await dock(ids.docked, undefined, ctx);
+	assert.match(out.join("\n"), /cannot be fast-forwarded/);
+	assert.equal(readFileSync(join(at("docked"), "more.md"), "utf8"), "dirty\n");
+	assert.equal(git(["symbolic-ref", "--short", "HEAD"], at("docked")), `${heroId}/dock`);
 });

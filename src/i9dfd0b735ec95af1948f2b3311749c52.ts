@@ -15,13 +15,13 @@ import { pathComponent } from "./i01a13c760de87562b4738946402010b8.ts";
 const QUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type RepoDoc = ReturnType<typeof listKbDocs>[number];
-/** One repo to dock: where, from which cache, and at what. A hero dock is on `branch`; any other is detached at `commit`. */
+/** One repo to dock: where, from which cache, and at what. A hero or base dock is on `branch`; any other is detached at `commit`. */
 type Plan = { name: string; at: string; cache: string; trunk: string; branch?: string; shown: string; commit: string; note?: string };
 
 /**
  * Checks a repo, or a feat's repos, out under the hero's docks.
  *
- * The `ref` is a quid, a git remote, or a repo doc's name, tried in that order. The hero's own repo is docked on its dock branch, any other read-only. Every dock is checked before any is moved, so a refusal moves none.
+ * The `ref` is a quid, a git remote, or a repo doc's name, tried in that order. A hero or base repo is docked on its dock branch, any other read-only. Every dock is checked before any is moved, so a refusal moves none.
  *
  * @param ref What to dock: a repo or feat quid, a remote, or a repo name.
  * @param head A head to dock every repo read-only at, when given.
@@ -127,12 +127,12 @@ function plan(hero: Bridge, doc: RepoDoc, at: string, { head, workBranch, feat }
 	}
 	const tip = `refs/remotes/origin/${trunk}`;
 	const docked = { ...base, shown: `origin/${trunk}`, commit: commit(tip).text, note };
-	// A hero in a feat's scopes is docked read-only, as the feat's work is read there (dock-read-only-detached).
-	return !feat && holdsHero(cache, tip) ? { ...docked, branch: `${hero.id}/dock` } : docked;
+	// A hero or base in a feat's scopes is docked read-only, as the feat's work is read there (dock-read-only-detached).
+	return !feat && holdsHeroOrBase(cache, tip) ? { ...docked, branch: `${hero.id}/dock` } : docked;
 }
 
-/** Whether a commit's config names a primary root of kind hero: the root whose quid is its `id`, else its first. */
-function holdsHero(cache: string, tip: string): boolean {
+/** Whether a commit's config names a primary root of kind hero or base: the root whose quid is its `id`, else its first. @see kb/01a1bd83-70eb-761d-998c-c4d957a14cfd.md */
+function holdsHeroOrBase(cache: string, tip: string): boolean {
 	const config = cacheGit(cache, "show", `${tip}:.nosedive/config.yaml`);
 	if (!config.ok) return false;
 	let parsed: { id?: unknown; roots?: unknown };
@@ -148,22 +148,24 @@ function holdsHero(cache: string, tip: string): boolean {
 	if (!root.ok) return false;
 	try {
 		const kind = readKbDoc(root.text, primary).fm.kind;
-		return typeof kind === "string" && /^(?:.*:)?hero$/.test(kind);
+		return typeof kind === "string" && /^(?:.*:)?(?:hero|base)$/.test(kind);
 	} catch {
 		return false;
 	}
 }
 
 /** Why the dock at a plan's path cannot be moved there, if it cannot. */
-function refusal({ name, at, cache, branch }: Plan): string[] {
+function refusal({ name, at, cache, branch, shown, commit }: Plan): string[] {
 	if (!existsSync(at)) return [];
 	const common = git(at, "rev-parse", "--path-format=absolute", "--git-common-dir");
 	if (!common.ok || !same(common.text, cache)) return [`${at} is there already and is no dock of ${name}: move it first`];
 	const on = git(at, "symbolic-ref", "-q", "--short", "HEAD");
-	if (branch) return on.text === branch ? [] : [`${at} is ${on.ok ? `on ${on.text}` : "detached"}, not on ${branch} as a dock of a hero is: move it first`];
+	if (branch && on.ok) return on.text === branch ? [] : [`${at} is on ${on.text}, not on ${branch} as a writable dock is: move it first`];
 	if (on.ok) return [`${at} is on ${on.text}, not detached as a read-only dock is: move it first`];
 	const files = [...git(at, "diff", "--name-only", "HEAD").text.split("\n"), ...git(at, "ls-files", "--others", "--exclude-standard").text.split("\n")].filter(Boolean);
-	return files.length > 0 ? [`${at} has changed or untracked files, so it was not moved: ${[...new Set(files)].join(", ")}`] : [];
+	if (files.length > 0) return [`${at} has changed or untracked files, so it was not moved: ${[...new Set(files)].join(", ")}`];
+	// A detached dock becomes writable only if its HEAD is on trunk's history, so no commit is left behind on the move.
+	return branch && !git(at, "merge-base", "--is-ancestor", "HEAD", commit).ok ? [`${at} is detached at a commit that ${shown} lacks, so it was not moved onto ${branch}`] : [];
 }
 
 function place({ name, at, cache, trunk, branch, shown, commit, note }: Plan, ctx: Ctx): void {
@@ -173,13 +175,21 @@ function place({ name, at, cache, trunk, branch, shown, commit, note }: Plan, ct
 		// A dock's branch is not named as trunk is, so a plain push goes to its upstream.
 		cacheGit(cache, "config", "push.default", "upstream");
 		const tip = `refs/remotes/origin/${trunk}`;
-		if (there) {
-			const ff = git(at, "merge", "-q", "--ff-only", tip);
-			if (!ff.ok) ctx.err(`dock: ${at} cannot be fast-forwarded to origin/${trunk}, so it was left as it is: ${ff.text}`);
-		} else {
+		const track = () => {
 			if (!cacheGit(cache, "rev-parse", "--verify", "-q", `refs/heads/${branch}`).ok) must(cacheGit(cache, "branch", "-q", "--no-track", branch, tip), `cannot make ${branch}`);
 			cacheGit(cache, "config", `branch.${branch}.remote`, "origin");
 			cacheGit(cache, "config", `branch.${branch}.merge`, `refs/heads/${trunk}`);
+		};
+		if (there) {
+			// A detached dock, left read-only from before it could be writable, goes onto the branch first; refusal has checked that loses nothing.
+			if (!git(at, "symbolic-ref", "-q", "HEAD").ok) {
+				track();
+				must(git(at, "checkout", "-q", branch), `cannot move ${at} onto ${branch}`);
+			}
+			const ff = git(at, "merge", "-q", "--ff-only", tip);
+			if (!ff.ok) ctx.err(`dock: ${at} cannot be fast-forwarded to origin/${trunk}, so it was left as it is: ${ff.text}`);
+		} else {
+			track();
 			add(cache, at, name, [at, branch]);
 		}
 		ctx.out(`${at}: on ${branch} at ${short(at)}\nnosedive seed there builds its capes`);
