@@ -148,7 +148,9 @@ function placePrePushHook(top: string, ctx: Ctx): void {
 	if (resolve(pilotDir) !== resolve(managedDir) && existsSync(pilotDir)) {
 		for (const entry of readdirSync(pilotDir, { withFileTypes: true })) {
 			if (!entry.isFile() || entry.name === "pre-push" || entry.name.endsWith(".sample")) continue;
-			const proxy = `#!/bin/sh\nexec ${quote(join(pilotDir, entry.name))} "$@"\n`;
+			// A hook the pilot later deletes is skipped, as git skips a missing one, instead of failing until the next seed.
+			const target = quote(join(pilotDir, entry.name));
+			const proxy = `#!/bin/sh\n[ -x ${target} ] || exit 0\nexec ${target} "$@"\n`;
 			if (readIfThere(join(managedDir, entry.name)) !== proxy) writeHook(join(managedDir, entry.name), proxy);
 		}
 	}

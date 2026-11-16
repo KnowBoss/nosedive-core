@@ -490,8 +490,10 @@ test("chains a pilot pre-push under a configured core.hooksPath and re-exports i
 	assert.equal(hooksPath(dir), posix(hooksDir(dir)));
 	assert.equal(readFileSync(join(hooksDir(dir), "original-hooks-dir"), "utf8"), `${posix(join(dir, ".githooks"))}\n`);
 	assert.match(readFileSync(join(hooksDir(dir), "pre-push"), "utf8"), /pilot_hook=.*\.githooks\/pre-push/);
-	assert.match(readFileSync(join(hooksDir(dir), "pre-commit"), "utf8"), /^#!\/bin\/sh\nexec '.*\.githooks\/pre-commit' "\$@"\n$/);
+	assert.match(readFileSync(join(hooksDir(dir), "pre-commit"), "utf8"), /^#!\/bin\/sh\n\[ -x '.*\.githooks\/pre-commit' \] \|\| exit 0\nexec '.*\.githooks\/pre-commit' "\$@"\n$/);
 	assert.equal(runHook(join(hooksDir(dir), "pre-commit"), "").stdout, "committing\n");
+	rmSync(join(dir, ".githooks", "pre-commit"));
+	assert.equal(runHook(join(hooksDir(dir), "pre-commit"), "").status, 0, "a deleted pilot hook is skipped, as git skips it");
 	assert.equal(existsSync(join(dir, ".githooks", "pre-push")), true);
 });
 
