@@ -8,6 +8,7 @@ import { parseDocument } from "yaml";
 import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { stampVersion } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
@@ -434,7 +435,9 @@ test("seeds an unseeded repo nested under a seeded one, not the outer hero", asy
 	assert.equal(git(["rev-parse", "HEAD"], hero), before, "the outer hero is untouched");
 });
 
-const SHIM = '#!/bin/sh\n# nosedive-managed\nexec npx nosedive pre-push.hook "$@"\n';
+/** The gate is pinned to the nosedive that seeded, never a bare `npx nosedive`, which may find legacy. */
+const GATE = `npx -y nosedive@${stampVersion(core)} pre-push.hook "$@"`;
+const SHIM = `#!/bin/sh\n# nosedive-managed\nexec ${GATE}\n`;
 const posix = (path: string) => path.replace(/\\/g, "/");
 const hooksDir = (dir: string) => join(dir, ".git", "nosedive-hooks");
 const hooksPath = (dir: string) => git(["config", "--get", "core.hooksPath"], dir);
@@ -480,6 +483,7 @@ test("runs the pilot's own pre-push first, replaying stdin to both, and its fail
 	const before = readFileSync(hook, "utf8");
 	assert.equal(ok(await run(["seed"], dir)), `${basename(dir)} is already seeded`);
 	assert.equal(readFileSync(hook, "utf8"), before);
+	assert.equal(readFileSync(hook, "utf8").includes(`printf '%s\\n' "$refs" | ${GATE}\n`), true, "the pinned gate runs after the pilot's");
 });
 
 test("chains a pilot pre-push under a configured core.hooksPath and re-exports its other hooks", async () => {
@@ -508,4 +512,8 @@ test("removes a managed hook git no longer reads and rewrites a stale managed on
 	assert.equal(ok(await run(["seed"], dir)), `${basename(dir)} is already seeded`);
 	assert.equal(readFileSync(join(hooksDir(dir), "pre-push"), "utf8"), SHIM);
 	assert.equal(readFileSync(join(hooksDir(dir), "pre-push")).includes(Buffer.from("\r")), false);
+	// A shim pinned by an older core is re-pinned, quietly, when a newer one seeds: upgrading means seeding again.
+	writeFileSync(join(hooksDir(dir), "pre-push"), SHIM.replace(stampVersion(core), "2026.1.1-1"));
+	assert.equal(ok(await run(["seed"], dir)), `${basename(dir)} is already seeded`);
+	assert.equal(readFileSync(join(hooksDir(dir), "pre-push"), "utf8"), SHIM);
 });

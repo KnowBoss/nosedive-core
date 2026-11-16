@@ -103,9 +103,13 @@ const posix = (path: string) => path.replace(/\\/g, "/");
 const quote = (path: string) => `'${posix(path).replace(/'/g, `'\\''`)}'`;
 const readIfThere = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : undefined);
 
-/** The managed pre-push shim, running the pilot's own pre-push first when there is one: the refs on stdin are read once and replayed into both. */
-function prePushShim(pilotHook: string | undefined): string {
-	const gate = 'npx nosedive pre-push.hook "$@"';
+/**
+ * The managed pre-push shim, running the pilot's own pre-push first when there is one: the refs on stdin are read once and replayed into both.
+ * Its gate is pinned to the nosedive that seeded, as every cape this clone wears is built by it: a bare `npx nosedive` finds
+ * whatever nosedive is installed, legacy included, which has no such action. Upgrading means seeding again, which re-pins it.
+ */
+function prePushShim(pilotHook: string | undefined, version: string): string {
+	const gate = `npx -y nosedive@${version} pre-push.hook "$@"`;
 	if (!pilotHook) return `#!/bin/sh\n${MANAGED_MARK}\nexec ${gate}\n`;
 	return ["#!/bin/sh", MANAGED_MARK, "refs=$(cat)", `pilot_hook=${quote(pilotHook)}`, 'if [ -x "$pilot_hook" ]; then', `  printf '%s\\n' "$refs" | "$pilot_hook" "$@" || exit $?`, "fi", `printf '%s\\n' "$refs" | ${gate}`, ""].join("\n");
 }
@@ -142,7 +146,7 @@ function placePrePushHook(top: string, ctx: Ctx): void {
 	const pilotWroteIt = pilotText !== undefined && !pilotText.includes(MANAGED_MARK);
 
 	const managedHook = join(managedDir, "pre-push");
-	const body = prePushShim(pilotWroteIt ? join(pilotDir, "pre-push") : undefined);
+	const body = prePushShim(pilotWroteIt ? join(pilotDir, "pre-push") : undefined, stampVersion(ctx.capes[0]!));
 	const current = readIfThere(managedHook);
 	if (current === undefined || (current.includes(MANAGED_MARK) && current !== body)) writeHook(managedHook, body);
 	if (resolve(pilotDir) !== resolve(managedDir) && existsSync(pilotDir)) {
