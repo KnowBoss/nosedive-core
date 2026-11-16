@@ -16,12 +16,9 @@ export function surfaceDigest(surface: string): string {
 	return createHash("sha256").update(surface.trim()).digest("hex").slice(0, 8);
 }
 
-/**
- * The version a stamp names: the npm package's, when the running core ships in the `nosedive` package beside its
- * `package.json`, so legacy's `npm i -g nosedive@<stamp>` finds it; else core's own (stamp-installable).
- */
-export function stampVersion(core: { version: string; url?: string }): string {
-	if (!core.url?.startsWith("file:")) return core.version;
+/** The `nosedive` package's version, when the running core ships in it beside its `package.json`, so npm can serve it; else none. */
+export function packageVersion(core: { url?: string }): string | undefined {
+	if (!core.url?.startsWith("file:")) return undefined;
 	try {
 		const pkg: unknown = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", core.url)), "utf8"));
 		const { name, version } = (pkg ?? {}) as { name?: unknown; version?: unknown };
@@ -29,7 +26,15 @@ export function stampVersion(core: { version: string; url?: string }): string {
 	} catch {
 		// No package beside it: a build of core's own, or a source run.
 	}
-	return core.version;
+	return undefined;
+}
+
+/**
+ * The version a stamp names: the npm package's, so legacy's `npm i -g nosedive@<stamp>` finds it; else core's own
+ * (stamp-installable).
+ */
+export function stampVersion(core: { version: string; url?: string }): string {
+	return packageVersion(core) ?? core.version;
 }
 
 /** Whether a directory has a surface: a hero, a root of core's kind hero, at the top of its own checkout; never a cape, a base or a local cape, whatever workspace it names. */

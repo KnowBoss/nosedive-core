@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
+import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { parseDocument } from "yaml";
 import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
-import { stampVersion } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
+import { prePushGate } from "./ie4a628f20d785d3a941ca681bf26e3cf.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
@@ -435,8 +436,8 @@ test("seeds an unseeded repo nested under a seeded one, not the outer hero", asy
 	assert.equal(git(["rev-parse", "HEAD"], hero), before, "the outer hero is untouched");
 });
 
-/** The gate is pinned to the nosedive that seeded, never a bare `npx nosedive`, which may find legacy. */
-const GATE = `npx -y nosedive@${stampVersion(core)} pre-push.hook "$@"`;
+/** The gate runs the nosedive that seeded, never a bare `npx nosedive`, which may find legacy: here, the source's dev launcher. */
+const GATE = prePushGate(core);
 const SHIM = `#!/bin/sh\n# nosedive-managed\nexec ${GATE}\n`;
 const posix = (path: string) => path.replace(/\\/g, "/");
 const hooksDir = (dir: string) => join(dir, ".git", "nosedive-hooks");
@@ -513,7 +514,39 @@ test("removes a managed hook git no longer reads and rewrites a stale managed on
 	assert.equal(readFileSync(join(hooksDir(dir), "pre-push"), "utf8"), SHIM);
 	assert.equal(readFileSync(join(hooksDir(dir), "pre-push")).includes(Buffer.from("\r")), false);
 	// A shim pinned by an older core is re-pinned, quietly, when a newer one seeds: upgrading means seeding again.
-	writeFileSync(join(hooksDir(dir), "pre-push"), SHIM.replace(stampVersion(core), "2026.1.1-1"));
+	writeFileSync(join(hooksDir(dir), "pre-push"), '#!/bin/sh\n# nosedive-managed\nexec npx -y nosedive@2026.1.1-1 pre-push.hook "$@"\n');
 	assert.equal(ok(await run(["seed"], dir)), `${basename(dir)} is already seeded`);
 	assert.equal(readFileSync(join(hooksDir(dir), "pre-push"), "utf8"), SHIM);
+});
+
+test("the gate runs the nosedive that seeded: a published one pinned by its npm version, any other where it lies", () => {
+	const at = (dir: string, file: string, text: string) => {
+		mkdirSync(join(dir, dirname(file)), { recursive: true });
+		writeFileSync(join(dir, file), text);
+		return pathToFileURL(join(dir, file)).href;
+	};
+	const published = tempDir("gate-published");
+	at(published, "package.json", JSON.stringify({ name: "nosedive", version: "2026.11.16-1" }));
+	const url = at(published, "dist/core.js", "");
+	at(published, "dist/cli.js", "");
+	assert.equal(prePushGate({ version: "build", url }), 'npx -y nosedive@2026.11.16-1 pre-push.hook "$@"', "npm serves it, so a fresh clone needs no checkout of core");
+	const built = tempDir("gate-built");
+	at(built, "package.json", JSON.stringify({ name: "nosedive-core", version: "0.0.0" }));
+	const builtUrl = at(built, "dist/core.js", "");
+	const cli = join(built, "dist", "cli.js");
+	at(built, "dist/cli.js", "");
+	assert.equal(prePushGate({ version: "build", url: builtUrl }), `node '${cli.replace(/\\/g, "/")}' pre-push.hook "$@"`, "a build npm cannot serve runs its own cli");
+	assert.match(prePushGate(core), /^node --disable-warning=ExperimentalWarning '.*\/scripts\/dev\.mjs' pre-push\.hook "\$@"$/, "a source run runs the source");
+	assert.equal(prePushGate({ version: "lost" }), 'npx -y nosedive@lost pre-push.hook "$@"');
+});
+
+test("the hook a source seed places runs for real: its push reaches the gate, which passes", async () => {
+	const dir = gitRepo("seed-hook-real");
+	ok(await run(["seed"], dir));
+	const remote = tempDir("seed-hook-remote");
+	git(["init", "-q", "--bare", remote], dir);
+	git(["remote", "add", "origin", remote], dir);
+	// The stub npx is no help here: the source gate runs node, as a pilot's push would.
+	const push = spawnSync("git", ["push", "-q", "origin", "HEAD:refs/heads/main"], { cwd: dir, encoding: "utf8" });
+	assert.equal(push.status, 0, push.stderr);
 });

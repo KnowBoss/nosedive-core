@@ -40,3 +40,4 @@ jobs:
           TEMP: ${{ runner.temp }}
       - run: npm run build
       - run: node dist/cli.js --help --more
+      - run: node scripts/pre-push-e2e.mjs

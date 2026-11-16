@@ -4,7 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 import { fileURLToPath } from "node:url";
 import { Document, isSeq, parseDocument } from "yaml";
 import { renderActions, type Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
-import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, hasSurface, ownChange, stampVersion } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
+import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, hasSurface, ownChange, packageVersion, stampVersion } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { nestedRoot } from "./i01a1934563e77ed886f06d04416385ef.ts";
@@ -104,12 +104,23 @@ const quote = (path: string) => `'${posix(path).replace(/'/g, `'\\''`)}'`;
 const readIfThere = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : undefined);
 
 /**
- * The managed pre-push shim, running the pilot's own pre-push first when there is one: the refs on stdin are read once and replayed into both.
- * Its gate is pinned to the nosedive that seeded, as every cape this clone wears is built by it: a bare `npx nosedive` finds
- * whatever nosedive is installed, legacy included, which has no such action. Upgrading means seeding again, which re-pins it.
+ * What the pre-push shim runs: the nosedive that seeded, never a bare `npx nosedive`, which finds whatever nosedive is installed,
+ * legacy included, which has no such action. Every cape a clone wears is built by its own seed, so each clone seeds once and
+ * seeds again after an upgrade, which re-points the hook. A published core is pinned by its npm version; one npm cannot serve,
+ * a build of core's own or a source run, is run where it lies.
  */
-function prePushShim(pilotHook: string | undefined, version: string): string {
-	const gate = `npx -y nosedive@${version} pre-push.hook "$@"`;
+export function prePushGate(core: { version: string; url?: string; repoDir?: string }): string {
+	const published = packageVersion(core);
+	if (published) return `npx -y nosedive@${published} pre-push.hook "$@"`;
+	const cli = core.url?.startsWith("file:") ? fileURLToPath(new URL("cli.js", core.url)) : undefined;
+	if (cli && existsSync(cli)) return `node ${quote(cli)} pre-push.hook "$@"`;
+	const dev = core.repoDir ? join(core.repoDir, "scripts", "dev.mjs") : undefined;
+	if (dev && existsSync(dev)) return `node --disable-warning=ExperimentalWarning ${quote(dev)} pre-push.hook "$@"`;
+	return `npx -y nosedive@${core.version} pre-push.hook "$@"`;
+}
+
+/** The managed pre-push shim, running the pilot's own pre-push first when there is one: the refs on stdin are read once and replayed into both. */
+function prePushShim(pilotHook: string | undefined, gate: string): string {
 	if (!pilotHook) return `#!/bin/sh\n${MANAGED_MARK}\nexec ${gate}\n`;
 	return ["#!/bin/sh", MANAGED_MARK, "refs=$(cat)", `pilot_hook=${quote(pilotHook)}`, 'if [ -x "$pilot_hook" ]; then', `  printf '%s\\n' "$refs" | "$pilot_hook" "$@" || exit $?`, "fi", `printf '%s\\n' "$refs" | ${gate}`, ""].join("\n");
 }
@@ -146,7 +157,7 @@ function placePrePushHook(top: string, ctx: Ctx): void {
 	const pilotWroteIt = pilotText !== undefined && !pilotText.includes(MANAGED_MARK);
 
 	const managedHook = join(managedDir, "pre-push");
-	const body = prePushShim(pilotWroteIt ? join(pilotDir, "pre-push") : undefined, stampVersion(ctx.capes[0]!));
+	const body = prePushShim(pilotWroteIt ? join(pilotDir, "pre-push") : undefined, prePushGate(ctx.capes[0]!));
 	const current = readIfThere(managedHook);
 	if (current === undefined || (current.includes(MANAGED_MARK) && current !== body)) writeHook(managedHook, body);
 	if (resolve(pilotDir) !== resolve(managedDir) && existsSync(pilotDir)) {
