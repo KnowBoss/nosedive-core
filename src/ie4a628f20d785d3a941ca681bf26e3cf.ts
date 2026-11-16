@@ -137,7 +137,7 @@ function writeHook(path: string, body: string): void {
  * Says so only when it moves `core.hooksPath` or removes a hook: re-pinning is housekeeping.
  *
  * @see kb/01a1e522-f8d9-7983-b155-3a34c9dfa305.md
- * @see kb/01a1e523-00ac-7f81-afea-88a3c66afc89.md
+ * @see kb/01a1e6a2-b6ee-773e-a671-b5c1393bf190.md
  */
 function placePrePushHook(top: string, ctx: Ctx): void {
 	const gitOut = (...args: string[]) => {
