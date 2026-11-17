@@ -1,12 +1,15 @@
 // seed [--no-capes] [--root-kind <kind>] [--workspace] [--migrate] [--no-migrate]
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
+import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { parseDocument } from "yaml";
 import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
+import { prePushGate } from "./ie4a628f20d785d3a941ca681bf26e3cf.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
@@ -25,7 +28,7 @@ function configOf(dir: string): { id: string; roots: string[]; text: string } {
 test("makes a git repo a nosedive repo, its config naming its id and one root of kind base, in one commit", async () => {
 	const dir = gitRepo("seed");
 	const repo = basename(dir);
-	assert.equal(ok(await run(["seed"], dir)), `seeded ${repo}`);
+	assert.match(ok(await run(["seed"], dir)), new RegExp(`^seeded ${repo}\nInstalled nosedive pre-push hook: `));
 	const { id, roots, text } = configOf(dir);
 	const root = roots[0]!.replace(/^kb\/|\.md$/g, "");
 	assert.equal(text, `id: ${id}\nmigrations:\n${LISTED}roots:\n  - kb/${root}.md\n`, "already in today's shape, and no workspace unless asked");
@@ -428,7 +431,137 @@ test("seeds an unseeded repo nested under a seeded one, not the outer hero", asy
 	git(["config", "user.name", "Core Test"], nested);
 	git(["config", "user.email", "core@example.com"], nested);
 	const before = git(["rev-parse", "HEAD"], hero);
-	assert.equal(ok(await run(["seed"], nested)), "seeded foo");
+	assert.match(ok(await run(["seed"], nested)), /^seeded foo\nInstalled nosedive pre-push hook: /);
 	assert.equal(existsSync(join(nested, ".nosedive", "config.yaml")), true);
 	assert.equal(git(["rev-parse", "HEAD"], hero), before, "the outer hero is untouched");
+});
+
+/** The gate runs the nosedive that seeded, never a bare `npx nosedive`, which may find legacy: here, the source's dev launcher. */
+const GATE = prePushGate(core);
+const posix = (path: string) => path.replace(/\\/g, "/");
+const LAUNCHER = `'${posix(GATE.launcher!)}'`;
+const GUARD = `[ -f ${LAUNCHER} ] || { printf 'nosedive: %s is gone; run nosedive seed to re-point this pre-push hook\\n' ${LAUNCHER} >&2; exit 1; }`;
+const SHIM = `#!/bin/sh\n# nosedive-managed\n${GUARD}\nexec ${GATE.command}\n`;
+const hooksDir = (dir: string) => join(dir, ".git", "nosedive-hooks");
+const hooksPath = (dir: string) => git(["config", "--get", "core.hooksPath"], dir);
+/** Runs a hook as git does: argv from the remote, ref updates on stdin. */
+function runHook(hook: string, stdin: string) {
+	return spawnSync("sh", [posix(hook), "origin", "url"], { input: stdin, encoding: "utf8" });
+}
+/** A repo with a pilot hook at `path`, written as a pilot would. */
+function pilotRepo(label: string, path: string, body: string): string {
+	const dir = gitRepo(label);
+	mkdirSync(dirname(join(dir, path)), { recursive: true });
+	writeFileSync(join(dir, path), body, { mode: 0o755 });
+	return dir;
+}
+
+test("places an LF-only executable pre-push shim and claims core.hooksPath on every seed, saying so once (seed-pre-push-hook-home)", async () => {
+	const dir = gitRepo("seed-hook");
+	const out = ok(await run(["seed"], dir));
+	const hook = join(hooksDir(dir), "pre-push");
+	assert.equal(out, `seeded ${basename(dir)}\nInstalled nosedive pre-push hook: ${hook}`);
+	assert.equal(readFileSync(hook, "utf8"), SHIM);
+	if (process.platform !== "win32") assert.notEqual(statSync(hook).mode & 0o111, 0, "executable");
+	assert.equal(hooksPath(dir), posix(hooksDir(dir)));
+	assert.equal(existsSync(join(dir, ".git", "hooks", "pre-push")), false);
+	assert.equal(ok(await run(["seed"], dir)), `${basename(dir)} is already seeded`, "re-pinning is silent");
+	// A missing hook comes back.
+	rmSync(hook);
+	ok(await run(["seed"], dir));
+	assert.equal(readFileSync(hook, "utf8"), SHIM);
+});
+
+test("runs the pilot's own pre-push first, replaying stdin to both, and its failure fails the push (seed-pre-push-hook-shim)", async () => {
+	const dir = pilotRepo("seed-hook-chain", ".git/hooks/pre-push", '#!/bin/sh\ncat > "$(dirname "$0")/seen"\nexit 3\n');
+	ok(await run(["seed"], dir));
+	const hook = join(hooksDir(dir), "pre-push");
+	assert.equal(readFileSync(hook, "utf8").startsWith(`#!/bin/sh\n# nosedive-managed\n${GUARD}\nrefs=$(cat)\n`), true);
+	assert.equal(readFileSync(join(hooksDir(dir), "original-hooks-dir"), "utf8"), `${posix(join(dir, ".git", "hooks"))}\n`);
+	assert.equal(readFileSync(join(dir, ".git", "hooks", "pre-push"), "utf8").startsWith("#!/bin/sh\ncat"), true, "the pilot's hook is never rewritten");
+	const result = runHook(hook, "refs/heads/a 1 refs/heads/a 2\n");
+	assert.equal(result.status, 3, "the pilot's failure is the push's");
+	assert.equal(readFileSync(join(dir, ".git", "hooks", "seen"), "utf8"), "refs/heads/a 1 refs/heads/a 2\n");
+	// Seeding again chains the recorded hook, not the managed one it now points at.
+	const before = readFileSync(hook, "utf8");
+	assert.equal(ok(await run(["seed"], dir)), `${basename(dir)} is already seeded`);
+	assert.equal(readFileSync(hook, "utf8"), before);
+	assert.equal(readFileSync(hook, "utf8").includes(`printf '%s\\n' "$refs" | ${GATE.command}\n`), true, "the pinned gate runs after the pilot's");
+});
+
+test("chains a pilot pre-push under a configured core.hooksPath and re-exports its other hooks", async () => {
+	const dir = pilotRepo("seed-hook-path", ".githooks/pre-push", "#!/bin/sh\nexit 0\n");
+	writeFileSync(join(dir, ".githooks", "pre-commit"), "#!/bin/sh\necho committing\n", { mode: 0o755 });
+	git(["config", "core.hooksPath", ".githooks"], dir);
+	ok(await run(["seed"], dir));
+	assert.equal(hooksPath(dir), posix(hooksDir(dir)));
+	assert.equal(readFileSync(join(hooksDir(dir), "original-hooks-dir"), "utf8"), `${posix(join(dir, ".githooks"))}\n`);
+	assert.match(readFileSync(join(hooksDir(dir), "pre-push"), "utf8"), /pilot_hook=.*\.githooks\/pre-push/);
+	assert.match(readFileSync(join(hooksDir(dir), "pre-commit"), "utf8"), /^#!\/bin\/sh\n\[ -x '.*\.githooks\/pre-commit' \] \|\| exit 0\nexec '.*\.githooks\/pre-commit' "\$@"\n$/);
+	assert.equal(runHook(join(hooksDir(dir), "pre-commit"), "").stdout, "committing\n");
+	rmSync(join(dir, ".githooks", "pre-commit"));
+	assert.equal(runHook(join(hooksDir(dir), "pre-commit"), "").status, 0, "a deleted pilot hook is skipped, as git skips it");
+	assert.equal(existsSync(join(dir, ".githooks", "pre-push")), true);
+});
+
+test("removes a managed hook git no longer reads and rewrites a stale managed one, saying so (seed-pre-push-hook-shim)", async () => {
+	const legacy = '#!/bin/sh\n# nosedive-managed\nexec npx -y nosedive@2026.1.1 _pre-push.hook "$@"\n';
+	const dir = pilotRepo("seed-hook-legacy", ".git/hooks/pre-push", legacy);
+	assert.match(ok(await run(["seed"], dir)), /Removed managed nosedive pre-push hook: /);
+	assert.equal(existsSync(join(dir, ".git", "hooks", "pre-push")), false);
+	assert.equal(readFileSync(join(hooksDir(dir), "pre-push"), "utf8"), SHIM, "no pilot hook, so the plain shim");
+	// Legacy had claimed the path itself: its pinned shim there is rewritten, quietly.
+	writeFileSync(join(hooksDir(dir), "pre-push"), legacy);
+	assert.equal(ok(await run(["seed"], dir)), `${basename(dir)} is already seeded`);
+	assert.equal(readFileSync(join(hooksDir(dir), "pre-push"), "utf8"), SHIM);
+	assert.equal(readFileSync(join(hooksDir(dir), "pre-push")).includes(Buffer.from("\r")), false);
+	// A shim pinned by an older core is re-pinned, quietly, when a newer one seeds: upgrading means seeding again.
+	writeFileSync(join(hooksDir(dir), "pre-push"), '#!/bin/sh\n# nosedive-managed\nexec npx -y nosedive@2026.1.1-1 pre-push.hook "$@"\n');
+	assert.equal(ok(await run(["seed"], dir)), `${basename(dir)} is already seeded`);
+	assert.equal(readFileSync(join(hooksDir(dir), "pre-push"), "utf8"), SHIM);
+});
+
+test("the gate runs the nosedive that seeded: a published one pinned by its npm version, any other where it lies", () => {
+	const at = (dir: string, file: string, text: string) => {
+		mkdirSync(join(dir, dirname(file)), { recursive: true });
+		writeFileSync(join(dir, file), text);
+		return pathToFileURL(join(dir, file)).href;
+	};
+	const published = tempDir("gate-published");
+	at(published, "package.json", JSON.stringify({ name: "nosedive", version: "2026.11.16-1" }));
+	const url = at(published, "dist/core.js", "");
+	at(published, "dist/cli.js", "");
+	assert.deepEqual(prePushGate({ version: "build", url }), { command: 'npx -y nosedive@2026.11.16-1 pre-push.hook "$@"' }, "npm serves it, so a fresh clone needs no checkout of core");
+	const built = tempDir("gate-built");
+	at(built, "package.json", JSON.stringify({ name: "nosedive-core", version: "0.0.0" }));
+	const builtUrl = at(built, "dist/core.js", "");
+	const cli = join(built, "dist", "cli.js");
+	at(built, "dist/cli.js", "");
+	assert.deepEqual(prePushGate({ version: "build", url: builtUrl }), { command: `node '${cli.replace(/\\/g, "/")}' pre-push.hook "$@"`, launcher: cli }, "a build npm cannot serve runs its own cli");
+	assert.match(prePushGate(core).command, /^node --disable-warning=ExperimentalWarning '.*\/scripts\/dev\.mjs' pre-push\.hook "\$@"$/, "a source run runs the source");
+	assert.match(posix(prePushGate(core).launcher!), /\/scripts\/dev\.mjs$/);
+	assert.deepEqual(prePushGate({ version: "lost" }), { command: 'npx -y nosedive@lost pre-push.hook "$@"' });
+});
+
+test("a hook whose launcher is gone refuses the push and says to seed again (pre-push-hook-missing-launcher)", async () => {
+	const dir = gitRepo("seed-hook-gone");
+	ok(await run(["seed"], dir));
+	const hook = join(hooksDir(dir), "pre-push");
+	// The source checkout cannot be moved under the suite, so the hook is pointed at one that has gone.
+	const gone = posix(join(tempDir("seed-hook-gone-core"), "scripts", "dev.mjs"));
+	writeFileSync(hook, readFileSync(hook, "utf8").replaceAll(posix(GATE.launcher!), gone));
+	const result = runHook(hook, "refs/heads/a 1 refs/heads/a 2\n");
+	assert.equal(result.status, 1);
+	assert.equal(result.stderr, `nosedive: ${gone} is gone; run nosedive seed to re-point this pre-push hook\n`);
+});
+
+test("the hook a source seed places runs for real: its push reaches the gate, which passes", async () => {
+	const dir = gitRepo("seed-hook-real");
+	ok(await run(["seed"], dir));
+	const remote = tempDir("seed-hook-remote");
+	git(["init", "-q", "--bare", remote], dir);
+	git(["remote", "add", "origin", remote], dir);
+	// The stub npx is no help here: the source gate runs node, as a pilot's push would.
+	const push = spawnSync("git", ["push", "-q", "origin", "HEAD:refs/heads/main"], { cwd: dir, encoding: "utf8" });
+	assert.equal(push.status, 0, push.stderr);
 });

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { delimiter, dirname, join, relative } from "node:path";
 import { parseDocument } from "yaml";
 import { i01a133548178739398941123114401ad as usageId } from "../src/i01a133548178739398941123114401ad.ts";
 import { i01a1336cb234701bb0338faf5183960c as codeSection } from "../src/i01a1336cb234701bb0338faf5183960c.ts";
@@ -46,6 +46,14 @@ export function tempDir(label: string): string {
 
 // Repo caches are the user's; a test's go in a user dir of its own.
 process.env.NOSEDIVE_USER_DIR = tempDir("user");
+
+// Seed's pre-push shim calls `npx nosedive pre-push.hook`, whose gate is a no-op for now; a stub npx keeps every test push from
+// spawning a real one, which is slow and, unpublished or offline, can fail.
+{
+	const stub = tempDir("npx");
+	writeFileSync(join(stub, "npx"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+	process.env.PATH = `${stub}${delimiter}${process.env.PATH}`;
+}
 
 // Git here runs with safe.bareRepository=explicit, so a command that runs inside a bare repo without naming it fails a test. It is
 // appended to any GIT_CONFIG_* the developer has, at the next index, which git reads last-wins.

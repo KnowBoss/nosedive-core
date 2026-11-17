@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Document, isSeq, parseDocument } from "yaml";
 import { renderActions, type Ctx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
-import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, hasSurface, ownChange, stampVersion } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
+import { i01a19f5c60f879c28541aa6759d2b221 as writeAgentSurface, hasSurface, ownChange, packageVersion, stampVersion } from "./i01a19f5c60f879c28541aa6759d2b221.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { nestedRoot } from "./i01a1934563e77ed886f06d04416385ef.ts";
@@ -94,6 +94,101 @@ function nearestRepo(cwd: string, top: string): string {
 	const found = findBridge(cwd)?.dir;
 	const rel = found === undefined ? undefined : relative(top, found);
 	return found !== undefined && rel !== undefined && !rel.startsWith("..") && !isAbsolute(rel) ? found : top;
+}
+
+const HOOKS_DIRNAME = "nosedive-hooks";
+const MANAGED_MARK = "# nosedive-managed";
+
+const posix = (path: string) => path.replace(/\\/g, "/");
+const quote = (path: string) => `'${posix(path).replace(/'/g, `'\\''`)}'`;
+const readIfThere = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : undefined);
+
+/**
+ * What the pre-push shim runs: the nosedive that seeded, never a bare `npx nosedive`, which finds whatever nosedive is installed,
+ * legacy included, which has no such action. Every cape a clone wears is built by its own seed, so each clone seeds once and
+ * seeds again after an upgrade, which re-points the hook. A published core is pinned by its npm version; one npm cannot serve,
+ * a build of core's own or a source run, is run where it lies, and `launcher` names the file that must still be there.
+ */
+export function prePushGate(core: { version: string; url?: string; repoDir?: string }): { command: string; launcher?: string } {
+	const published = packageVersion(core);
+	if (published) return { command: `npx -y nosedive@${published} pre-push.hook "$@"` };
+	const cli = core.url?.startsWith("file:") ? fileURLToPath(new URL("cli.js", core.url)) : undefined;
+	if (cli && existsSync(cli)) return { command: `node ${quote(cli)} pre-push.hook "$@"`, launcher: cli };
+	const dev = core.repoDir ? join(core.repoDir, "scripts", "dev.mjs") : undefined;
+	if (dev && existsSync(dev)) return { command: `node --disable-warning=ExperimentalWarning ${quote(dev)} pre-push.hook "$@"`, launcher: dev };
+	return { command: `npx -y nosedive@${core.version} pre-push.hook "$@"` };
+}
+
+/**
+ * The managed pre-push shim, running the pilot's own pre-push first when there is one: the refs on stdin are read once and replayed into both.
+ * A launcher since moved or removed refuses the push with what to do, not node's module-not-found error.
+ *
+ * @see kb/01a1e70b-f348-7494-b348-dd3fa36b7d6d.md
+ */
+function prePushShim(pilotHook: string | undefined, gate: { command: string; launcher?: string }): string {
+	const guard = gate.launcher ? [`[ -f ${quote(gate.launcher)} ] || { printf 'nosedive: %s is gone; run nosedive seed to re-point this pre-push hook\\n' ${quote(gate.launcher)} >&2; exit 1; }`] : [];
+	if (!pilotHook) return ["#!/bin/sh", MANAGED_MARK, ...guard, `exec ${gate.command}`, ""].join("\n");
+	return ["#!/bin/sh", MANAGED_MARK, ...guard, "refs=$(cat)", `pilot_hook=${quote(pilotHook)}`, 'if [ -x "$pilot_hook" ]; then', `  printf '%s\\n' "$refs" | "$pilot_hook" "$@" || exit $?`, "fi", `printf '%s\\n' "$refs" | ${gate.command}`, ""].join("\n");
+}
+
+function writeHook(path: string, body: string): void {
+	mkdirSync(dirname(path), { recursive: true });
+	writeFileSync(path, body);
+	chmodSync(path, 0o755);
+}
+
+/**
+ * Places the pre-push hook in the git common dir's `nosedive-hooks` and points `core.hooksPath` at it, whatever hooks the pilot had.
+ * The pilot's own pre-push runs first and its other hooks are re-exported, so claiming the path switches nothing off; managed hooks elsewhere, which git no longer reads, are removed.
+ * Says so only when it moves `core.hooksPath` or removes a hook: re-pinning is housekeeping.
+ *
+ * @see kb/01a1e522-f8d9-7983-b155-3a34c9dfa305.md
+ * @see kb/01a1e6a2-b6ee-773e-a671-b5c1393bf190.md
+ */
+function placePrePushHook(top: string, ctx: Ctx): void {
+	const gitOut = (...args: string[]) => {
+		const result = spawnSync("git", args, { cwd: top, encoding: "utf8" });
+		return result.status === 0 ? result.stdout.trim() : "";
+	};
+	const common = gitOut("rev-parse", "--path-format=absolute", "--git-common-dir");
+	if (!common) return;
+	const managedDir = join(common, HOOKS_DIRNAME);
+	const defaultDir = join(common, "hooks");
+	const record = join(managedDir, "original-hooks-dir");
+	const configured = gitOut("config", "--get", "core.hooksPath");
+	const claimed = configured !== "" && resolve(top, configured) === resolve(managedDir);
+	// Once claimed, core.hooksPath names nosedive's own directory, so where the pilot's hooks lived comes off the record.
+	const pilotDir = claimed ? readIfThere(record)?.trim() || defaultDir : configured ? resolve(top, configured) : defaultDir;
+	const pilotText = readIfThere(join(pilotDir, "pre-push"));
+	const pilotWroteIt = pilotText !== undefined && !pilotText.includes(MANAGED_MARK);
+
+	const managedHook = join(managedDir, "pre-push");
+	const body = prePushShim(pilotWroteIt ? join(pilotDir, "pre-push") : undefined, prePushGate(ctx.capes[0]!));
+	const current = readIfThere(managedHook);
+	if (current === undefined || (current.includes(MANAGED_MARK) && current !== body)) writeHook(managedHook, body);
+	if (resolve(pilotDir) !== resolve(managedDir) && existsSync(pilotDir)) {
+		for (const entry of readdirSync(pilotDir, { withFileTypes: true })) {
+			if (!entry.isFile() || entry.name === "pre-push" || entry.name.endsWith(".sample")) continue;
+			// A hook the pilot later deletes is skipped, as git skips a missing one, instead of failing until the next seed.
+			const target = quote(join(pilotDir, entry.name));
+			const proxy = `#!/bin/sh\n[ -x ${target} ] || exit 0\nexec ${target} "$@"\n`;
+			if (readIfThere(join(managedDir, entry.name)) !== proxy) writeHook(join(managedDir, entry.name), proxy);
+		}
+	}
+	mkdirSync(managedDir, { recursive: true });
+	writeFileSync(record, `${posix(pilotDir)}\n`);
+	if (!claimed) {
+		const set = spawnSync("git", ["config", "core.hooksPath", posix(managedDir)], { cwd: top, encoding: "utf8" });
+		if (set.status !== 0) throw new Error(`failed to point core.hooksPath at ${managedDir}: ${set.stderr.trim()}`);
+		ctx.out(`Installed nosedive pre-push hook: ${managedHook}`);
+	}
+	// Git reads one hooks directory, so a managed hook in another never runs and nothing would refresh it.
+	for (const dir of new Set([defaultDir, pilotDir])) {
+		const stray = join(dir, "pre-push");
+		if (resolve(dir) === resolve(managedDir) || !readIfThere(stray)?.includes(MANAGED_MARK)) continue;
+		rmSync(stray);
+		ctx.out(`Removed managed nosedive pre-push hook: ${stray}`);
+	}
 }
 
 /**
@@ -209,6 +304,8 @@ export async function ie4a628f20d785d3a941ca681bf26e3cf(options: { noCapes: bool
 	} else {
 		ctx.out(`${repo} is already seeded`);
 	}
+
+	placePrePushHook(top, ctx);
 
 	// A cape's code files exist as soon as its docs call for them (seed-scaffolds-capes).
 	if (findRoot(dir, "cape")) {

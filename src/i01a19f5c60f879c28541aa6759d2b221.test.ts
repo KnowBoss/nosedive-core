@@ -178,7 +178,7 @@ test("next reports no drift for --at another root, nor inside a local cape holdi
 
 test("seed writes no surface for a cape, with a workspace or not, nor a base: only a hero gets one", async () => {
 	const cape = gitRepo("agent-surface-cape");
-	assert.equal(ok(await run(["seed", "--root-kind", "cape"], cape)), `seeded ${basename(cape)}`);
+	assert.match(ok(await run(["seed", "--root-kind", "cape"], cape)), new RegExp(`^seeded ${basename(cape)}\nInstalled nosedive pre-push hook: `));
 	assert.equal(existsSync(join(cape, "AGENTS.md")), false);
 	const core = gitRepo("agent-surface-core");
 	ok(await run(["seed", "--root-kind", "cape", "--workspace"], core));
