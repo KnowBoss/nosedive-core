@@ -438,8 +438,10 @@ test("seeds an unseeded repo nested under a seeded one, not the outer hero", asy
 
 /** The gate runs the nosedive that seeded, never a bare `npx nosedive`, which may find legacy: here, the source's dev launcher. */
 const GATE = prePushGate(core);
-const SHIM = `#!/bin/sh\n# nosedive-managed\nexec ${GATE}\n`;
 const posix = (path: string) => path.replace(/\\/g, "/");
+const LAUNCHER = `'${posix(GATE.launcher!)}'`;
+const GUARD = `[ -f ${LAUNCHER} ] || { printf 'nosedive: %s is gone; run nosedive seed to re-point this pre-push hook\\n' ${LAUNCHER} >&2; exit 1; }`;
+const SHIM = `#!/bin/sh\n# nosedive-managed\n${GUARD}\nexec ${GATE.command}\n`;
 const hooksDir = (dir: string) => join(dir, ".git", "nosedive-hooks");
 const hooksPath = (dir: string) => git(["config", "--get", "core.hooksPath"], dir);
 /** Runs a hook as git does: argv from the remote, ref updates on stdin. */
@@ -474,7 +476,7 @@ test("runs the pilot's own pre-push first, replaying stdin to both, and its fail
 	const dir = pilotRepo("seed-hook-chain", ".git/hooks/pre-push", '#!/bin/sh\ncat > "$(dirname "$0")/seen"\nexit 3\n');
 	ok(await run(["seed"], dir));
 	const hook = join(hooksDir(dir), "pre-push");
-	assert.match(readFileSync(hook, "utf8"), /^#!\/bin\/sh\n# nosedive-managed\nrefs=\$\(cat\)\n/);
+	assert.equal(readFileSync(hook, "utf8").startsWith(`#!/bin/sh\n# nosedive-managed\n${GUARD}\nrefs=$(cat)\n`), true);
 	assert.equal(readFileSync(join(hooksDir(dir), "original-hooks-dir"), "utf8"), `${posix(join(dir, ".git", "hooks"))}\n`);
 	assert.equal(readFileSync(join(dir, ".git", "hooks", "pre-push"), "utf8").startsWith("#!/bin/sh\ncat"), true, "the pilot's hook is never rewritten");
 	const result = runHook(hook, "refs/heads/a 1 refs/heads/a 2\n");
@@ -484,7 +486,7 @@ test("runs the pilot's own pre-push first, replaying stdin to both, and its fail
 	const before = readFileSync(hook, "utf8");
 	assert.equal(ok(await run(["seed"], dir)), `${basename(dir)} is already seeded`);
 	assert.equal(readFileSync(hook, "utf8"), before);
-	assert.equal(readFileSync(hook, "utf8").includes(`printf '%s\\n' "$refs" | ${GATE}\n`), true, "the pinned gate runs after the pilot's");
+	assert.equal(readFileSync(hook, "utf8").includes(`printf '%s\\n' "$refs" | ${GATE.command}\n`), true, "the pinned gate runs after the pilot's");
 });
 
 test("chains a pilot pre-push under a configured core.hooksPath and re-exports its other hooks", async () => {
@@ -529,15 +531,28 @@ test("the gate runs the nosedive that seeded: a published one pinned by its npm 
 	at(published, "package.json", JSON.stringify({ name: "nosedive", version: "2026.11.16-1" }));
 	const url = at(published, "dist/core.js", "");
 	at(published, "dist/cli.js", "");
-	assert.equal(prePushGate({ version: "build", url }), 'npx -y nosedive@2026.11.16-1 pre-push.hook "$@"', "npm serves it, so a fresh clone needs no checkout of core");
+	assert.deepEqual(prePushGate({ version: "build", url }), { command: 'npx -y nosedive@2026.11.16-1 pre-push.hook "$@"' }, "npm serves it, so a fresh clone needs no checkout of core");
 	const built = tempDir("gate-built");
 	at(built, "package.json", JSON.stringify({ name: "nosedive-core", version: "0.0.0" }));
 	const builtUrl = at(built, "dist/core.js", "");
 	const cli = join(built, "dist", "cli.js");
 	at(built, "dist/cli.js", "");
-	assert.equal(prePushGate({ version: "build", url: builtUrl }), `node '${cli.replace(/\\/g, "/")}' pre-push.hook "$@"`, "a build npm cannot serve runs its own cli");
-	assert.match(prePushGate(core), /^node --disable-warning=ExperimentalWarning '.*\/scripts\/dev\.mjs' pre-push\.hook "\$@"$/, "a source run runs the source");
-	assert.equal(prePushGate({ version: "lost" }), 'npx -y nosedive@lost pre-push.hook "$@"');
+	assert.deepEqual(prePushGate({ version: "build", url: builtUrl }), { command: `node '${cli.replace(/\\/g, "/")}' pre-push.hook "$@"`, launcher: cli }, "a build npm cannot serve runs its own cli");
+	assert.match(prePushGate(core).command, /^node --disable-warning=ExperimentalWarning '.*\/scripts\/dev\.mjs' pre-push\.hook "\$@"$/, "a source run runs the source");
+	assert.match(posix(prePushGate(core).launcher!), /\/scripts\/dev\.mjs$/);
+	assert.deepEqual(prePushGate({ version: "lost" }), { command: 'npx -y nosedive@lost pre-push.hook "$@"' });
+});
+
+test("a hook whose launcher is gone refuses the push and says to seed again (pre-push-hook-missing-launcher)", async () => {
+	const dir = gitRepo("seed-hook-gone");
+	ok(await run(["seed"], dir));
+	const hook = join(hooksDir(dir), "pre-push");
+	// The source checkout cannot be moved under the suite, so the hook is pointed at one that has gone.
+	const gone = posix(join(tempDir("seed-hook-gone-core"), "scripts", "dev.mjs"));
+	writeFileSync(hook, readFileSync(hook, "utf8").replaceAll(posix(GATE.launcher!), gone));
+	const result = runHook(hook, "refs/heads/a 1 refs/heads/a 2\n");
+	assert.equal(result.status, 1);
+	assert.equal(result.stderr, `nosedive: ${gone} is gone; run nosedive seed to re-point this pre-push hook\n`);
 });
 
 test("the hook a source seed places runs for real: its push reaches the gate, which passes", async () => {

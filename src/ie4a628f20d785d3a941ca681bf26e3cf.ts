@@ -107,22 +107,28 @@ const readIfThere = (path: string) => (existsSync(path) ? readFileSync(path, "ut
  * What the pre-push shim runs: the nosedive that seeded, never a bare `npx nosedive`, which finds whatever nosedive is installed,
  * legacy included, which has no such action. Every cape a clone wears is built by its own seed, so each clone seeds once and
  * seeds again after an upgrade, which re-points the hook. A published core is pinned by its npm version; one npm cannot serve,
- * a build of core's own or a source run, is run where it lies.
+ * a build of core's own or a source run, is run where it lies, and `launcher` names the file that must still be there.
  */
-export function prePushGate(core: { version: string; url?: string; repoDir?: string }): string {
+export function prePushGate(core: { version: string; url?: string; repoDir?: string }): { command: string; launcher?: string } {
 	const published = packageVersion(core);
-	if (published) return `npx -y nosedive@${published} pre-push.hook "$@"`;
+	if (published) return { command: `npx -y nosedive@${published} pre-push.hook "$@"` };
 	const cli = core.url?.startsWith("file:") ? fileURLToPath(new URL("cli.js", core.url)) : undefined;
-	if (cli && existsSync(cli)) return `node ${quote(cli)} pre-push.hook "$@"`;
+	if (cli && existsSync(cli)) return { command: `node ${quote(cli)} pre-push.hook "$@"`, launcher: cli };
 	const dev = core.repoDir ? join(core.repoDir, "scripts", "dev.mjs") : undefined;
-	if (dev && existsSync(dev)) return `node --disable-warning=ExperimentalWarning ${quote(dev)} pre-push.hook "$@"`;
-	return `npx -y nosedive@${core.version} pre-push.hook "$@"`;
+	if (dev && existsSync(dev)) return { command: `node --disable-warning=ExperimentalWarning ${quote(dev)} pre-push.hook "$@"`, launcher: dev };
+	return { command: `npx -y nosedive@${core.version} pre-push.hook "$@"` };
 }
 
-/** The managed pre-push shim, running the pilot's own pre-push first when there is one: the refs on stdin are read once and replayed into both. */
-function prePushShim(pilotHook: string | undefined, gate: string): string {
-	if (!pilotHook) return `#!/bin/sh\n${MANAGED_MARK}\nexec ${gate}\n`;
-	return ["#!/bin/sh", MANAGED_MARK, "refs=$(cat)", `pilot_hook=${quote(pilotHook)}`, 'if [ -x "$pilot_hook" ]; then', `  printf '%s\\n' "$refs" | "$pilot_hook" "$@" || exit $?`, "fi", `printf '%s\\n' "$refs" | ${gate}`, ""].join("\n");
+/**
+ * The managed pre-push shim, running the pilot's own pre-push first when there is one: the refs on stdin are read once and replayed into both.
+ * A launcher since moved or removed refuses the push with what to do, not node's module-not-found error.
+ *
+ * @see kb/01a1e70b-f348-7494-b348-dd3fa36b7d6d.md
+ */
+function prePushShim(pilotHook: string | undefined, gate: { command: string; launcher?: string }): string {
+	const guard = gate.launcher ? [`[ -f ${quote(gate.launcher)} ] || { printf 'nosedive: %s is gone; run nosedive seed to re-point this pre-push hook\\n' ${quote(gate.launcher)} >&2; exit 1; }`] : [];
+	if (!pilotHook) return ["#!/bin/sh", MANAGED_MARK, ...guard, `exec ${gate.command}`, ""].join("\n");
+	return ["#!/bin/sh", MANAGED_MARK, ...guard, "refs=$(cat)", `pilot_hook=${quote(pilotHook)}`, 'if [ -x "$pilot_hook" ]; then', `  printf '%s\\n' "$refs" | "$pilot_hook" "$@" || exit $?`, "fi", `printf '%s\\n' "$refs" | ${gate.command}`, ""].join("\n");
 }
 
 function writeHook(path: string, body: string): void {
