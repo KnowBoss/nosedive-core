@@ -420,6 +420,26 @@ test("fetchExact reads each sha once from the remote, and null for a ref it lack
 	assert.deepEqual(found, { "refs/heads/main": moved, "refs/nosedive/h/dives/none": null });
 });
 
+test("a push that itself sets the local copy of a non-branch ref, through a fetch refspec, is the move already made", () => {
+	const w = world("pp-refspec");
+	sh(w.a, ["config", "--add", "remote.origin.fetch", "+refs/nosedive/*:refs/nosedive/*"]);
+	const next = commit(w.a, "f.txt", "two", true);
+	sh(w.a, ["reset", "-q", "--hard", w.main]);
+	const ref = "refs/nosedive/h/dives/d1";
+	const step: Step = {
+		repo: "a",
+		dir: w.a,
+		remote: { name: "origin", updates: [{ ref, old: null, new: next, fastForward: false, publishes: new Set([next]) }] },
+		local: { moves: [{ ref, old: null, new: next }] },
+	};
+	assert.deepEqual(commitPlan({ steps: [step] }), { ok: true });
+	assert.equal(remoteOf(w, ref), next);
+	assert.equal(sh(w.a, ["rev-parse", ref]), next);
+	const del: Step = { repo: "a", dir: w.a, remote: { name: "origin", updates: [{ ref, old: next, new: null, fastForward: false }] }, local: { moves: [{ ref, old: next, new: null }] } };
+	assert.deepEqual(commitPlan({ steps: [del] }), { ok: true });
+	assert.equal(remoteOf(w, ref), undefined);
+});
+
 test("no reset --hard and no bare git push in the primitive's file, which is the only place that pushes", () => {
 	const text = readFileSync(new URL("./i01a1ffce2ea27db19c84f1fec56c9a3d.ts", import.meta.url), "utf8");
 	assert.ok(!/reset["', ]+--hard|"--hard"/.test(text));

@@ -178,7 +178,7 @@ function transaction(dir: string, lines: string[], message: string, noDeref = fa
 }
 
 function moveLines(moves: LocalMove[]): string[] {
-	return moves.map((move) => {
+	return moves.filter((move) => move.old !== null || move.new !== null).map((move) => {
 		if (move.new === null) return move.old === null ? `delete ${move.ref}` : `delete ${move.ref} ${move.old}`;
 		return move.old === null ? `create ${move.ref} ${move.new}` : `update ${move.ref} ${move.new} ${move.old}`;
 	});
@@ -192,7 +192,8 @@ function stateOf(step: Step): string {
 }
 
 function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "kind" | "detail" | "state"> | undefined {
-	const { remote, local } = step;
+	const { remote } = step;
+	let local = step.local;
 	if (remote && remote.updates.length > 0) {
 		const args = ["push", "--atomic", "--porcelain", remote.name];
 		for (const update of remote.updates) args.push(`--force-with-lease=${update.ref}:${update.old ?? ""}`);
@@ -210,6 +211,13 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 		}
 	}
 	if (!local) return undefined;
+	// A push may itself move a local copy of a ref that is not a branch (a fetch refspec that maps it): that is the move already made, not a race.
+	const pushed = (moves: LocalMove[] | undefined) =>
+		moves?.map((move) => {
+			const update = remote?.updates.find((each) => each.ref === move.ref && !each.ref.startsWith("refs/heads/"));
+			return update && refValue(step.dir, move.ref) === update.new ? { ...move, old: update.new } : move;
+		});
+	local = { ...local, ...(local.moves ? { moves: pushed(local.moves)! } : {}), ...(local.drop ? { drop: pushed(local.drop)! } : {}) };
 	const checked = verifyLocal(step, local);
 	if (checked) return checked;
 	const files = local.files;
