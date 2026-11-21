@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, rmSync } from "node:fs";
 import { join, relative, dirname } from "node:path";
 import { test } from "node:test";
-import { consoleCtx, i01a1336a958f71c7beec4db3195c7966 as launch, type Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
+import { consoleCtx, i01a1336a958f71c7beec4db3195c7966 as launch, renderActions, type Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
@@ -15,6 +15,16 @@ test("lists core's top-level actions, never internal functions", async () => {
 	assert.doesNotMatch(out, /\n {2}scaf /, "seed scaffolds now (seed-scaffolds-capes)");
 	assert.match(out, /\n {2}seed {2}Makes the current git repo a bridge/);
 	assert.doesNotMatch(out, /match-usage|launch/);
+});
+
+test("a dotted action is a subcommand: help hides it, --more lists it", async () => {
+	const doc = (name: string) => ({ kind: "action" as const, name, gist: `Does ${name}`, usages: [{ id: "abcd0000", text: name }], top: true, text: "", body: "" });
+	const core = { id: "01a1336b-c0b8-7cde-b7c6-285196062297", name: "core", commit: "0".repeat(40), version: "test", docs: { one: doc("tool"), two: doc("tool.sub"), three: doc("other") }, index: {}, kinds: {} } satisfies Cape;
+	const ctx = { cwd: tempDir("launch-help-dotted"), capes: [core], out() {}, err() {}, stdin: async () => "" };
+	const help = await renderActions(ctx, false);
+	assert.deepEqual(help.split("\n").slice(3, 5), ["  other  Does other", "  tool   Does tool"]);
+	assert.doesNotMatch(help, /tool\.sub/);
+	assert.deepEqual((await renderActions(ctx, true)).split("\n").slice(4, 7), ["  other     Does other", "  tool      Does tool", "  tool.sub  Does tool.sub"]);
 });
 
 test("lists the actions of the capes config names under each cape, once built, from the manifest", async () => {

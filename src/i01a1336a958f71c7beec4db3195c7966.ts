@@ -236,6 +236,8 @@ export async function renderActions(ctx: Ctx, more: boolean): Promise<string> {
 		const header = build ? `${build.shortName ?? cape.name}${more ? ` ${build.version}\n  ${from} at ${build.commit.slice(0, 12)}, repo ${cape.repo?.id ?? "unregistered"}` : ""}` : cape.name;
 		groups.push([header, build ? rows : [["", "not built: run `nosedive seed`"]]]);
 	}
+	// A dotted action, `verdict.moot`, is a subcommand of the action before the dot: only `--more` lists it.
+	for (const group of groups) group[1] = group[1].filter(([action]) => more || !action.includes("."));
 	const width = Math.max(0, ...groups.flatMap(([, rows]) => rows.map(([name]) => name.length)));
 	const lines = groups.flatMap(([name, rows]) => [
 		"",
