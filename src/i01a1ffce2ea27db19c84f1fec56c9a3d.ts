@@ -151,8 +151,10 @@ function verifyLocal(step: Step, local: NonNullable<Step["local"]>): Pick<Refusa
 	const files = local.files;
 	if (files && files.from !== files.to) {
 		git(step.dir, ["update-index", "-q", "--refresh"]);
-		if (!git(step.dir, ["diff-index", "--cached", "--quiet", files.from]).ok) return { kind: "dirty", detail: `the index of ${step.dir} is not at ${files.from.slice(0, 7)}, so its files are left alone` };
-		if (!git(step.dir, ["diff-files", "--quiet"]).ok) return { kind: "dirty", detail: `${step.dir} has uncommitted changes, which moving its files would risk` };
+		const staged = git(step.dir, ["diff-index", "--cached", "--name-only", "--ignore-submodules=all", files.from]);
+		if (!staged.ok || staged.out) return { kind: "dirty", detail: `the index of ${step.dir} is not at ${files.from.slice(0, 7)}, so its files are left alone: ${staged.out.split("\n").slice(0, 3).join(", ")}` };
+		const changed = git(step.dir, ["diff-files", "--name-only", "--ignore-submodules=all"]);
+		if (!changed.ok || changed.out) return { kind: "dirty", detail: `${step.dir} has uncommitted changes, which moving its files would risk: ${changed.out.split("\n").slice(0, 3).join(", ")}` };
 	}
 	return undefined;
 }
@@ -232,7 +234,7 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 		if (!moved.ok) {
 			let state: string | undefined;
 			if (moving) {
-				const back = !git(step.dir, ["diff-index", "--cached", "--quiet", files.to]).ok || !git(step.dir, ["diff-files", "--quiet"]).ok ? { ok: false } : git(step.dir, ["read-tree", "-m", "-u", files.to, files.from]);
+				const back = !git(step.dir, ["diff-index", "--cached", "--quiet", "--ignore-submodules=all", files.to]).ok || !git(step.dir, ["diff-files", "--quiet", "--ignore-submodules=all"]).ok ? { ok: false } : git(step.dir, ["read-tree", "-m", "-u", files.to, files.from]);
 				if (!back.ok) state = stateOf(step);
 			}
 			return { kind: "stale", detail: `refs were not moved: ${trimmed(moved.err)}`, ...(state ? { state } : {}) };
@@ -247,7 +249,7 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 		if (!moved.ok) {
 			let state: string | undefined;
 			if (moving) {
-				const back = !git(step.dir, ["diff-index", "--cached", "--quiet", files.to]).ok || !git(step.dir, ["diff-files", "--quiet"]).ok ? { ok: false } : git(step.dir, ["read-tree", "-m", "-u", files.to, files.from]);
+				const back = !git(step.dir, ["diff-index", "--cached", "--quiet", "--ignore-submodules=all", files.to]).ok || !git(step.dir, ["diff-files", "--quiet", "--ignore-submodules=all"]).ok ? { ok: false } : git(step.dir, ["read-tree", "-m", "-u", files.to, files.from]);
 				if (!back.ok) state = stateOf(step);
 			}
 			return { kind: "stale", detail: `HEAD was not moved: ${trimmed(moved.err)}; refs are as published`, state: state ?? stateOf(step) };
