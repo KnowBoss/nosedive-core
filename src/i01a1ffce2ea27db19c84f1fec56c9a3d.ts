@@ -30,7 +30,7 @@ export type Step = {
 	/** Display name. */
 	repo: string;
 	dir: string;
-	/** One atomic push. */
+	/** Ordered per-ref pushes. Every prefix must be a safe state. */
 	remote?: { name: string; updates: RemoteUpdate[] };
 	local?: {
 		/** One `update-ref` transaction. */
@@ -46,12 +46,15 @@ export type Step = {
 	};
 };
 
+/** A teardown step can only change local state. */
+export type LocalStep = Omit<Step, "remote"> & { remote?: never };
+
 /** `after` is local-only teardown, run once every step is done. */
-export type Plan = { steps: Step[]; after?: Step[] };
+export type Plan = { steps: Step[]; after?: LocalStep[] };
 
 export type Refusal = {
-	/** `stale`: a lease or a compare-and-swap found a ref moved, so re-plan. `dirty`: the index or tree is not clean where files must follow. `boundary`: a publishes or fast-forward invariant failed, a planner bug, never retried. `unsupported`: the remote lacks atomic push. `failed`: git said no for another reason. */
-	kind: "stale" | "dirty" | "boundary" | "unsupported" | "failed";
+	/** `stale`: a lease or a compare-and-swap found a ref moved, so re-plan. `dirty`: the index or tree is not clean where files must follow. `boundary`: a plan invariant failed, a planner bug, never retried. `failed`: git said no for another reason. */
+	kind: "stale" | "dirty" | "boundary" | "failed";
 	repo: string;
 	/** Index into `steps`, then `after`. */
 	step: number;
@@ -127,9 +130,8 @@ function supportsSymrefUpdate(): boolean {
 	return major > 2 || (major === 2 && minor >= 46);
 }
 
-function atomicOutcome(text: string): "stale" | "unsupported" | "failed" {
-	if (/does not support --atomic/i.test(text)) return "unsupported";
-	if (/stale info|rejected|fetch first|cannot lock ref|but expected|atomic push failed|failed to update ref|failed to push/i.test(text) && !/Could not resolve|unable to access|Connection|Permission denied|Authentication|not appear to be a git repository|does not exist/i.test(text)) return "stale";
+function pushOutcome(text: string): "stale" | "failed" {
+	if (/stale info|rejected|fetch first|cannot lock ref|but expected|failed to update ref|failed to push/i.test(text) && !/Could not resolve|unable to access|Connection|Permission denied|Authentication|not appear to be a git repository|does not exist/i.test(text)) return "stale";
 	return "failed";
 }
 
@@ -197,19 +199,27 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 	const { remote } = step;
 	let local = step.local;
 	if (remote && remote.updates.length > 0) {
-		// One ref is atomic by itself, so a remote without atomic support still takes it.
-		const args = ["push", ...(remote.updates.length > 1 ? ["--atomic"] : []), "--porcelain", remote.name];
-		for (const update of remote.updates) args.push(`--force-with-lease=${update.ref}:${update.old ?? ""}`);
-		for (const update of remote.updates) args.push(`${update.new ?? ""}:${update.ref}`);
-		const pushed = git(step.dir, args);
-		if (!pushed.ok) return { kind: atomicOutcome(`${pushed.err}\n${pushed.out}`), detail: trimmed(`${pushed.err}\n${pushed.out}`) || "git push failed" };
-		// A tracking ref is a cache, so a failure to update it is no refusal.
-		if (tracking) {
-			for (const update of remote.updates) {
-				if (!update.ref.startsWith("refs/heads/")) continue;
+		for (const [index, update] of remote.updates.entries()) {
+			// A previous attempt may have completed this exact ref. Seeing the planned value makes it done, not stale.
+			const observed = git(step.dir, ["ls-remote", remote.name, update.ref]);
+			if (!observed.ok) return { kind: "failed", detail: `cannot check ${update.ref} before pushing it: ${trimmed(observed.err)}` };
+			const current = observed.out.split("\t")[0] || null;
+			if (current !== update.new) {
+				const args = ["push", "--porcelain", remote.name, `--force-with-lease=${update.ref}:${update.old ?? ""}`, `${update.new ?? ""}:${update.ref}`];
+				const pushed = git(step.dir, args);
+				if (!pushed.ok) {
+					const detail = trimmed(`${pushed.err}\n${pushed.out}`) || "git push failed";
+					return { kind: pushOutcome(`${pushed.err}\n${pushed.out}`), detail: `${update.ref} was not pushed after ${index} ref${index === 1 ? "" : "s"} in this step: ${detail}` };
+				}
+			}
+			// A tracking ref is a cache, so a failure to update it is no refusal.
+			if (tracking && update.ref.startsWith("refs/heads/")) {
 				const tracked = `refs/remotes/${remote.name}/${update.ref.slice("refs/heads/".length)}`;
 				if (update.new === null) git(step.dir, ["update-ref", "-d", tracked]);
-				else git(step.dir, update.old === null ? ["update-ref", tracked, update.new] : ["update-ref", tracked, update.new, update.old]);
+				else {
+					const trackedOld = refValue(step.dir, tracked);
+					git(step.dir, trackedOld === null ? ["update-ref", tracked, update.new] : ["update-ref", tracked, update.new, trackedOld]);
+				}
 			}
 		}
 	}
@@ -272,13 +282,16 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 
 /**
  * The only place a plan is carried out. Everything is verified first, changing nothing; then each step runs in order: one
- * atomic push with an exact-sha lease per ref, then the local refs by compare-and-swap, HEAD in a transaction of its own, and
+ * one push per remote ref in the safe order the plan declares, with an exact-sha lease, then the local refs by compare-and-swap, HEAD in a transaction of its own, and
  * files only where the index and tree are clean. It never retries and never undoes a push: a refusal says how many steps
  * were done (`done`), and a command re-plans from a fresh fetch on `stale`.
  */
 export function commitPlan(plan: Plan, command = "commit"): Outcome {
 	const all = [...plan.steps, ...(plan.after ?? [])];
 	const refuse = (index: number, found: Pick<Refusal, "kind" | "detail" | "state">): Outcome => ({ ok: false, refusal: { kind: found.kind, repo: all[index]!.repo, step: index, done: index, detail: found.detail, ...(found.state ? { state: found.state } : {}) } });
+	for (const [offset, step] of (plan.after ?? []).entries()) {
+		if ((step as Step).remote) return { ok: false, refusal: { kind: "boundary", repo: step.repo, step: plan.steps.length + offset, done: 0, detail: "after is local-only and cannot contain a remote update" } };
+	}
 	for (const [index, step] of plan.steps.entries()) {
 		const found = (step.remote && verifyRemote(step.remote, step.dir)) || (step.local && verifyLocal(step, step.local));
 		if (found) return { ok: false, refusal: { kind: found.kind, repo: step.repo, step: index, done: 0, detail: found.detail } };

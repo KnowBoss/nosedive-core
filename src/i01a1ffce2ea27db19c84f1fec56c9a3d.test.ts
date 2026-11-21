@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { commitOffside, commitPlan, docAt, fetchExact, ownedRange, replay, snapshot, stampRange, type Plan, type Step } from "./i01a1ffce2ea27db19c84f1fec56c9a3d.ts";
+import { commitOffside, commitPlan, docAt, fetchExact, ownedRange, replay, snapshot, stampRange, type LocalStep, type Plan, type Step } from "./i01a1ffce2ea27db19c84f1fec56c9a3d.ts";
 import { git, tempDir } from "../test/harness.ts";
 
 const NOSEDIVE = { GIT_COMMITTER_NAME: "nosedive", GIT_COMMITTER_EMAIL: "noreply@nosedive.dev" };
@@ -149,17 +149,45 @@ test("a fast-forward update whose old is not an ancestor of new is a boundary re
 	assert.equal(remoteOf(w, "refs/heads/main"), other);
 });
 
-test("T11: a remote that lacks atomic push is refused as unsupported and nothing is pushed", () => {
+test("T11: a re-plan finishes a multi-ref push stopped after its first ref without republishing it", () => {
 	const w = world("pp-t11");
 	const next = commit(w.a, "f.txt", "two", true);
 	sh(w.a, ["reset", "-q", "--hard", w.main]);
 	git(["--git-dir", w.origin, "config", "receive.advertiseAtomic", "false"], w.origin);
-	const two = pushMain(w, w.main, next);
-	two.remote!.updates.push({ ref: "refs/nosedive/h/dives/d", old: null, new: next, fastForward: false, publishes: new Set([next]) });
-	const done = commitPlan({ steps: [two] });
-	assert.ok(!done.ok && done.refusal.kind === "unsupported", JSON.stringify(done));
-	assert.equal(remoteOf(w, "refs/heads/main"), w.main);
-	assert.deepEqual(commitPlan({ steps: [pushMain(w, w.main, next)] }), { ok: true }, "a single ref needs no atomic support");
+	const work = "refs/nosedive/h/dives/d";
+	const step: Step = {
+		repo: "a",
+		dir: w.a,
+		remote: {
+			name: "origin",
+			updates: [
+				{ ref: work, old: null, new: next, fastForward: false, publishes: new Set([next]) },
+				{ ref: "refs/heads/main", old: w.main, new: next, fastForward: true, publishes: new Set([next]) },
+			],
+		},
+		local: { moves: [{ ref: "refs/heads/main", old: w.main, new: next }], files: { from: w.main, to: next } },
+	};
+	const hook = join(w.a, ".git", "hooks", "pre-push");
+	const count = join(w.a, ".git", "t11-count").replace(/\\/g, "/");
+	writeFileSync(hook, `#!/bin/sh
+count=0
+[ ! -e "${count}" ] || count=$(cat "${count}")
+count=$((count + 1))
+echo "$count" > "${count}"
+[ "$count" -ne 2 ] || exit 1
+if [ "$count" -gt 2 ] && grep -q '${work}'; then exit 42; fi
+exit 0
+`, { mode: 0o755 });
+	const stopped = commitPlan({ steps: [step] });
+	assert.ok(!stopped.ok, JSON.stringify(stopped));
+	assert.equal(remoteOf(w, work), next, "the first ref is a safe published prefix");
+	assert.equal(remoteOf(w, "refs/heads/main"), w.main, "the record ref was stopped");
+	assert.equal(sh(w.a, ["rev-parse", "main"]), w.main, "local state waits for every remote ref");
+
+	assert.deepEqual(commitPlan({ steps: [step] }), { ok: true }, "the same plan skips the completed ref and finishes");
+	assert.equal(remoteOf(w, work), next);
+	assert.equal(remoteOf(w, "refs/heads/main"), next);
+	assert.equal(sh(w.a, ["rev-parse", "main"]), next);
 });
 
 test("T6: a remote rewound while the push is made is refused by the lease, not republished", () => {
@@ -365,12 +393,22 @@ test("after steps run only once every step is done, and not otherwise", () => {
 	const w = world("pp-after");
 	sh(w.a, ["branch", "dive", w.main]);
 	sh(w.a, ["checkout", "-q", "dive"]);
-	const after: Step = { repo: "a", dir: w.a, local: { head: { from: { branch: "dive" }, to: { branch: "main" } }, drop: [{ ref: "refs/heads/dive", old: w.main, new: null }] } };
+	const after: LocalStep = { repo: "a", dir: w.a, local: { head: { from: { branch: "dive" }, to: { branch: "main" } }, drop: [{ ref: "refs/heads/dive", old: w.main, new: null }] } };
 	const blocked = commitPlan({ steps: [{ repo: "a", dir: w.a, local: { moves: [{ ref: "refs/heads/zzz", old: w.main, new: w.main }] } }], after: [after] });
 	assert.ok(!blocked.ok);
 	assert.equal(sh(w.a, ["symbolic-ref", "HEAD"]), "refs/heads/dive", "the teardown did not run");
 	assert.deepEqual(commitPlan({ steps: [], after: [after] }), { ok: true });
 	assert.equal(sh(w.a, ["symbolic-ref", "HEAD"]), "refs/heads/main");
+});
+
+test("after rejects a remote update at runtime before anything changes", () => {
+	const w = world("pp-after-remote");
+	const next = commit(w.a, "f.txt", "two", true);
+	sh(w.a, ["reset", "-q", "--hard", w.main]);
+	const unsafe = { steps: [], after: [pushMain(w, w.main, next)] } as unknown as Plan;
+	const done = commitPlan(unsafe);
+	assert.ok(!done.ok && done.refusal.kind === "boundary" && done.refusal.done === 0, JSON.stringify(done));
+	assert.equal(remoteOf(w, "refs/heads/main"), w.main);
 });
 
 test("stampRange makes commits again with trailers and moves no ref", () => {
@@ -451,3 +489,7 @@ test("no reset --hard and no bare git push in the primitive's file, which is the
 // Plan type is exercised above; keep the import used for documentation of the shape.
 const _shape: Plan = { steps: [] };
 void _shape;
+
+// @ts-expect-error after is local-only, including at the public type boundary.
+const _unsafeAfter: Plan = { steps: [], after: [{ repo: "x", dir: ".", remote: { name: "origin", updates: [] } }] };
+void _unsafeAfter;
