@@ -195,7 +195,8 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 	const { remote } = step;
 	let local = step.local;
 	if (remote && remote.updates.length > 0) {
-		const args = ["push", "--atomic", "--porcelain", remote.name];
+		// One ref is atomic by itself, so a remote without atomic support still takes it.
+		const args = ["push", ...(remote.updates.length > 1 ? ["--atomic"] : []), "--porcelain", remote.name];
 		for (const update of remote.updates) args.push(`--force-with-lease=${update.ref}:${update.old ?? ""}`);
 		for (const update of remote.updates) args.push(`${update.new ?? ""}:${update.ref}`);
 		const pushed = git(step.dir, args);

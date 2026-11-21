@@ -154,9 +154,12 @@ test("T11: a remote that lacks atomic push is refused as unsupported and nothing
 	const next = commit(w.a, "f.txt", "two", true);
 	sh(w.a, ["reset", "-q", "--hard", w.main]);
 	git(["--git-dir", w.origin, "config", "receive.advertiseAtomic", "false"], w.origin);
-	const done = commitPlan({ steps: [pushMain(w, w.main, next)] });
+	const two = pushMain(w, w.main, next);
+	two.remote!.updates.push({ ref: "refs/nosedive/h/dives/d", old: null, new: next, fastForward: false, publishes: new Set([next]) });
+	const done = commitPlan({ steps: [two] });
 	assert.ok(!done.ok && done.refusal.kind === "unsupported", JSON.stringify(done));
 	assert.equal(remoteOf(w, "refs/heads/main"), w.main);
+	assert.deepEqual(commitPlan({ steps: [pushMain(w, w.main, next)] }), { ok: true }, "a single ref needs no atomic support");
 });
 
 test("T6: a remote rewound while the push is made is refused by the lease, not republished", () => {
