@@ -21,9 +21,11 @@ function isSeptemberHero(start: string): boolean {
 	}
 }
 
-/** One argument as a shell takes it literally: bare when it is plain, else single-quoted, PowerShell's way on Windows and POSIX's elsewhere. */
+/** One argument as bash and PowerShell both take it literally: bare when plain, else in the quotes that need no escape in either, else the host shell's own escape. */
 function quote(arg: string): string {
 	if (/^[\w@%+=:,./-]+$/.test(arg)) return arg;
+	if (!arg.includes("'")) return `'${arg}'`;
+	if (!/["$`\\!]/.test(arg)) return `"${arg}"`;
 	return process.platform === "win32" ? `'${arg.replace(/'/g, "''")}'` : `'${arg.replace(/'/g, `'\\''`)}'`;
 }
 
