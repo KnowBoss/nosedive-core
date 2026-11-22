@@ -10,7 +10,7 @@ import { LEGACY_CAPES } from "./i01a1b14c48f277e79466d8ed690da136.ts";
 import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
-import { prePushGate } from "./ie4a628f20d785d3a941ca681bf26e3cf.ts";
+import { ie4a628f20d785d3a941ca681bf26e3cf as seed, prePushGate } from "./ie4a628f20d785d3a941ca681bf26e3cf.ts";
 import type { Cape } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 // @ts-expect-error the shared loader is plain JavaScript
 import { sourceCape } from "../scripts/source-cape.mjs";
@@ -19,6 +19,14 @@ import { CORE, git, gitRepo, greetCapeRepo, kbOf, kbPath, ok, registerRepo, run,
 const core: Cape = await sourceCape();
 /** The config lines that list every migration core has. */
 const LISTED = MIGRATIONS.map((migration) => `  - ${migration.id}\n`).join("");
+
+/** Seeds a repo of September's shape, which launch refuses to run anything on (legacy-hero-guard), by calling the action itself. */
+async function seedSeptember(dir: string, noCapes: boolean): Promise<string> {
+	const out: string[] = [];
+	const ctx = { cwd: dir, capes: [core], out: (text: string) => void out.push(text), err: () => {}, stdin: async () => "" };
+	await seed({ noCapes, rootKind: "base", workspace: false, migrate: false, noMigrate: false }, ctx);
+	return out.join("\n");
+}
 
 /** The id and roots a repo's config lists. */
 function configOf(dir: string): { id: string; roots: string[]; text: string } {
@@ -229,7 +237,7 @@ test("migrates an older config first, its backlog becoming its one root, and say
 	writeFileSync(config, `kb: ./kb\nbacklog: ${root}\n`);
 	git(["add", "-A"], dir);
 	git(["commit", "-qm", "older"], dir);
-	const said = ok(await run(["seed", "--no-capes"], dir));
+	const said = await seedSeptember(dir, true);
 	assert.match(said, new RegExp(`^migrated ${basename(dir)}: legacy-capes\nmigrated ${basename(dir)}: baseline$`, "m"));
 	// A legacy hero wears the legacy cape, which --no-capes does not build, so canonical-kinds waits for it.
 	assert.match(said, /^canonical-kinds: waiting for nosedive-legacy to build/m);
@@ -269,7 +277,7 @@ test("a new hero and a converted legacy repo migrate unasked (seed-asks-before-m
 	writeFileSync(join(legacy, ".nosedive", "config.yaml"), `kb: ./kb\nbacklog: ${root}\n`);
 	git(["add", "-A"], legacy);
 	git(["commit", "-qm", "legacy"], legacy);
-	assert.match(ok(await run(["seed", "--no-capes"], legacy)), /^migrated \S+: baseline$/m);
+	assert.match(await seedSeptember(legacy, true), /^migrated \S+: baseline$/m);
 });
 
 test("seeds a legacy hero with no shipped legacy build by cloning the cape at the commit core pins", async () => {
@@ -289,7 +297,7 @@ test("seeds a legacy hero with no shipped legacy build by cloning the cape at th
 		writeFileSync(join(legacy, ".nosedive", "config.yaml"), `kb: ./kb\nbacklog: ${root}\n`);
 		git(["add", "-A"], legacy);
 		git(["commit", "-qm", "legacy"], legacy);
-		const said = ok(await run(["seed"], legacy));
+		const said = await seedSeptember(legacy, false);
 		assert.match(said, /^migrated \S+: legacy-capes$/m);
 		assert.match(said, /^built cape /m);
 		assert.doesNotMatch(said, /using the build shipped/);
