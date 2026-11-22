@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { relative } from "node:path";
 import { CORE_OWNER, scopeEntries, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { dropWhenOf, dropWhenSlips } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
@@ -90,10 +91,37 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 				const parent = gitValue(repoDir, ["rev-parse", "HEAD"]);
 				const ref = gitValue(repoDir, ["symbolic-ref", "-q", "HEAD"]);
 				const files = Object.fromEntries(written.map(({ doc, text }) => [relative(repoDir, doc.path).replace(/\\/g, "/"), text]));
-				const { tip } = commitOffside(repoDir, parent, files, commitSubject(bridge, action, what, written.map(({ doc }) => doc.id), capes), version);
-				const done = commitPlan({ steps: [{ repo: repoDir, dir: repoDir, local: { moves: [{ ref, old: parent, new: tip }], files: { from: parent, to: tip, afterMoves: true, paths: Object.keys(files) } } }] }, action);
+				const ids = written.map(({ doc }) => doc.id);
+				const first = commitSubject(bridge, action, what, ids, capes);
+				// A doc whose file still holds the bytes edit read, though the index does not (uncommitted before the edit began, or just minted),
+				// has its index entry set to those bytes, from memory: the file is never read to stage it. Git's read-tree then replaces
+				// it with the final content only while file and index still agree, so a save made since is left alone.
+				const staged = new Set<string>();
+				for (const { doc } of written) {
+					const rel = relative(repoDir, doc.path).replace(/\\/g, "/");
+					const inParent = spawnSync("git", ["show", `${parent}:${rel}`], { cwd: repoDir, encoding: "utf8" });
+					let onDisk: string | undefined;
+					try {
+						onDisk = readFileSync(doc.path, "utf8");
+					} catch {}
+					if (onDisk !== doc.text || (inParent.status === 0 && inParent.stdout === doc.text)) continue;
+					const blob = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: repoDir, encoding: "utf8", input: doc.text });
+					const mode = /^(\d+) /.exec(spawnSync("git", ["ls-files", "-s", "--", rel], { cwd: repoDir, encoding: "utf8" }).stdout)?.[1] ?? "100644";
+					if (blob.status === 0 && spawnSync("git", ["update-index", "--add", "--cacheinfo", `${mode},${blob.stdout.trim()},${rel}`], { cwd: repoDir }).status === 0) staged.add(rel);
+				}
+				// Refreshing compares the file with the entry without staging it, so git can tell it is up to date.
+				if (staged.size > 0) spawnSync("git", ["update-index", "-q", "--refresh"], { cwd: repoDir });
+				const from = staged.size > 0 ? commitOffside(repoDir, parent, Object.fromEntries(written.flatMap(({ doc }) => { const rel = relative(repoDir, doc.path).replace(/\\/g, "/"); return staged.has(rel) ? [[rel, doc.text]] : []; })), "as the checkout holds it", version).tip : parent;
+				let { tip } = commitOffside(repoDir, parent, files, first, version);
+				const done = commitPlan({ steps: [{ repo: repoDir, dir: repoDir, local: { moves: [{ ref, old: parent, new: tip }], files: { from, to: tip, afterMoves: true, paths: Object.keys(files) } } }] }, action);
 				if (!done.ok && done.refusal.kind !== "dirty") throw new Error(describeRefusal(done.refusal));
 				if (!done.ok) warn?.(`warning: ${tip.slice(0, 7)} was committed, but git left the changed working file alone: ${done.refusal.detail}`);
+				// The subject is worked out from the docs as the checkout now has them; when that changes it, the same tree is committed again under it.
+				const subject = commitSubject(bridge, action, what, ids, capes);
+				if (subject !== first) {
+					const again = commitOffside(repoDir, parent, files, subject, version);
+					if (commitPlan({ steps: [{ repo: repoDir, dir: repoDir, local: { moves: [{ ref, old: tip, new: again.tip }] } }] }, action).ok) tip = again.tip;
+				}
 				for (const { doc, text } of written) doc.text = text;
 				commits.push({ repoDir, sha: tip });
 			}
