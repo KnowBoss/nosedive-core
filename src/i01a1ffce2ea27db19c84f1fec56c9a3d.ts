@@ -255,7 +255,9 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 		let line: string;
 		if ("branch" in to) line = `symref-update HEAD refs/heads/${to.branch} ${"branch" in from ? `ref refs/heads/${from.branch}` : `oid ${from.detached}`}`;
 		else line = "branch" in from ? `update HEAD ${to.detached}` : `update HEAD ${to.detached} ${from.detached}`;
-		const moved = transaction(step.dir, [line], `nosedive ${command}`, true);
+		// Detaching from a branch cannot carry its own old value (git refuses two updates of HEAD in one transaction), so HEAD's symbolic target is verified by a transaction of its own first.
+		const verified = "branch" in from && "detached" in to ? transaction(step.dir, [`symref-verify HEAD refs/heads/${from.branch}`], `nosedive ${command}`, true) : { ok: true, out: "", err: "" };
+		const moved = verified.ok ? transaction(step.dir, [line], `nosedive ${command}`, true) : verified;
 		if (!moved.ok) {
 			let state: string | undefined;
 			if (moving) {
@@ -414,18 +416,34 @@ function commitTree(dir: string, tree: string, parent: Sha, message: string, env
 }
 
 /**
- * A commit holding everything uncommitted in the checkout, on `parent`, committed by the user as pack's was: built through a
- * temporary index, so the real index and tree are untouched. `parent` itself when there is nothing to hold.
+ * What is uncommitted in the checkout, held in commits on `parent` committed by the user as pack's was, built through a
+ * temporary index so the real index and tree are untouched. Content staged that the files no longer hold rides in a commit
+ * of its own beneath the files' commit, so no staged copy is lost. The commits take the parent's date, so the same state
+ * on the same parent is the same commit: a retry recognises what an earlier attempt published. `parent` itself when there is nothing to hold.
  */
 export function snapshot(dir: string, parent: Sha, message: string, version: string): { tip: Sha; made: Set<Sha> } {
+	const date = git(dir, ["log", "-1", "--format=%cI", parent]).out;
+	const dated = { GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date };
+	const parentTree = git(dir, ["rev-parse", `${parent}^{tree}`]).out;
+	const live = git(dir, ["write-tree"]);
+	const staged = live.ok ? live.out : parentTree;
 	return offside(dir, parent, (env) => {
 		const added = git(dir, ["add", "-A"], { env });
 		if (!added.ok) throw new Error(`git add failed in ${dir}: ${trimmed(added.err)}`);
 		const tree = git(dir, ["write-tree"], { env });
 		if (!tree.ok) throw new Error(`git write-tree failed in ${dir}: ${trimmed(tree.err)}`);
-		if (tree.out === git(dir, ["rev-parse", `${parent}^{tree}`]).out) return { tip: parent, made: new Set<Sha>() };
-		const tip = commitTree(dir, tree.out, parent, coAuthored(message, version), env);
-		return { tip, made: new Set([tip]) };
+		const text = coAuthored(message, version);
+		const made = new Set<Sha>();
+		let tip = parent;
+		if (staged !== parentTree && staged !== tree.out) {
+			tip = commitTree(dir, staged, tip, text, { ...env, ...dated });
+			made.add(tip);
+		}
+		if (tree.out !== (tip === parent ? parentTree : staged)) {
+			tip = commitTree(dir, tree.out, tip, text, { ...env, ...dated });
+			made.add(tip);
+		}
+		return { tip, made };
 	});
 }
 

@@ -441,6 +441,28 @@ test("snapshot holds uncommitted work without touching the index or tree", () =>
 	assert.equal(snapshot(w.a, w.main, "pack: wip", "test").tip, w.main, "nothing to hold");
 });
 
+test("snapshot keeps content staged only, which the files no longer hold, and is the same commit when taken again", () => {
+	const w = world("pp-snap-staged");
+	writeFileSync(join(w.a, "f.txt"), "staged only");
+	sh(w.a, ["add", "f.txt"]);
+	writeFileSync(join(w.a, "f.txt"), "one");
+	const taken = snapshot(w.a, w.main, "pack: wip", "test");
+	assert.notEqual(taken.tip, w.main, "the staged copy is not dropped");
+	assert.equal(sh(w.a, ["show", `${taken.tip}~1:f.txt`]), "staged only", "it rides in a commit of its own");
+	assert.equal(sh(w.a, ["show", `${taken.tip}:f.txt`]), "one");
+	assert.equal(snapshot(w.a, w.main, "pack: wip", "test").tip, taken.tip, "deterministic, so a retry recognises what it published");
+});
+
+test("detaching HEAD from a branch checks the branch HEAD named", () => {
+	const w = world("pp-detach");
+	sh(w.a, ["branch", "other", w.main]);
+	const step: Step = { repo: "a", dir: w.a, local: { head: { from: { branch: "main" }, to: { detached: w.main } } } };
+	sh(w.a, ["checkout", "-q", "other"]);
+	const done = commitPlan({ steps: [step] });
+	assert.ok(!done.ok && done.refusal.kind === "stale", JSON.stringify(done));
+	assert.equal(sh(w.a, ["symbolic-ref", "HEAD"]), "refs/heads/other");
+});
+
 test("commitOffside builds a nosedive commit on a parent with no ref, index or file touched; docAt reads it back", () => {
 	const w = world("pp-off");
 	const built = commitOffside(w.a, w.main, { "kb/x.md": "---\nkind: x\n---\nbody\n" }, "record", "test");
