@@ -8,6 +8,7 @@ import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes, providers } from 
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 import { i01a14fb79db47f8b94d5196027008697 as buildBase } from "./i01a14fb79db47f8b94d5196027008697.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a204bc1c1c7395b331c57a3a342b05 as legacyHeroGuard } from "./i01a204bc1c1c7395b331c57a3a342b05.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { selectRoot } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -108,6 +109,9 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 	try {
 		// Legacy nosedive's pre-push hook still calls this in old clones; it is a silent no-op, left out of help. @see kb/01a1d65f-d8bf-7cc7-ad56-4398d3a06697.md
 		if (argv[0] === "pre-push.hook") return 0;
+		// A September hero is for September nosedive: every command line, help included, is refused before anything runs.
+		const refusal = legacyHeroGuard(argv, ctx.cwd);
+		if (refusal) throw new Error(refusal);
 		// A workspace checkout is never a hero, so nothing acts on one by running inside it.
 		const inside = process.env.NOSEDIVE_HERO ? undefined : insideWorkspace(ctx.cwd);
 		if (inside) {
