@@ -1,7 +1,7 @@
 // edit-kb-docs
 import assert from "node:assert/strict";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { test } from "node:test";
 import { i01a133588bcc7f8bae725ff70d8f6800 as updateKbDocField } from "./i01a133588bcc7f8bae725ff70d8f6800.ts";
 import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
@@ -10,6 +10,10 @@ import { checkedOut, declareDurable, declareKinds, git, ok, run, tempBridge, tem
 const idOf = (path: string) => path.replace(/^.*\/|\.md$/g, "");
 const WORKSPACE_DOC = "01a14ab4-cb92-7dba-bd33-79535603579d";
 const UNTRACKED = "01a14ab4-ce62-7712-b43f-3045d0a1fa4d";
+const hooksOf = (bridge: string) => {
+	const configured = git(["config", "--get", "core.hooksPath"], bridge);
+	return isAbsolute(configured) ? configured : join(bridge, configured || ".git/hooks");
+};
 
 test("commits each repo's changed docs once, and skips a doc that ends unchanged", async () => {
 	const bridge = await tempBridge("edit-docs");
@@ -35,6 +39,155 @@ test("commits each repo's changed docs once, and skips a doc that ends unchanged
 	assert.equal(git(["show", "--name-only", "--format=", "HEAD"], bridge).split("\n").sort().join("\n"), [a, b].sort().join("\n"));
 	assert.equal(git(["log", "-1", "--format=%s"], repo), "crud: edit");
 	assert.match(readFileSync(join(repo, inRepo), "utf8"), /\ngist: far away\n/);
+});
+
+test("an editor save after the doc is read never enters the commit and survives on disk", async () => {
+	const bridge = await tempBridge("edit-docs-save-before-commit");
+	const relative = ok(await run(["crud", "core:memo", "a"], bridge));
+	const path = join(bridge, relative);
+	const edit = editKbDocs(bridge, "test", undefined, () => {});
+	updateKbDocField(edit, idOf(relative), "gist", () => "nosedive's exact edit");
+	writeFileSync(join(hooksOf(bridge), "post-index-change"), `#!/bin/sh\nprintf 'editor save\\n' > '${path.replace(/\\/g, "/")}'\n`, { mode: 0o755 });
+
+	edit.commit();
+
+	assert.match(git(["show", `HEAD:${relative}`], bridge), /gist: ["']?nosedive's exact edit/);
+	assert.doesNotMatch(git(["show", `HEAD:${relative}`], bridge), /editor save/);
+	assert.equal(readFileSync(path, "utf8"), "editor save\n");
+	assert.equal(git(["diff", "--cached", "--name-only", "--", relative], bridge), relative, "the index was left as the user had it, so it differs from the commit");
+	assert.equal(git(["diff", "--name-only", "--", relative], bridge), relative);
+});
+
+test("an editor save just before the working-file update survives after the exact commit", async () => {
+	const bridge = await tempBridge("edit-docs-save-before-checkout");
+	const relative = ok(await run(["crud", "core:memo", "a"], bridge));
+	const path = join(bridge, relative);
+	const warnings: string[] = [];
+	const edit = editKbDocs(bridge, "test", undefined, (warning) => warnings.push(warning));
+	updateKbDocField(edit, idOf(relative), "gist", () => "nosedive's exact edit");
+	writeFileSync(join(hooksOf(bridge), "reference-transaction"), `#!/bin/sh\n[ "$1" = committed ] || exit 0\nprintf 'editor save\\n' > '${path.replace(/\\/g, "/")}'\n`, { mode: 0o755 });
+
+	edit.commit();
+
+	assert.match(git(["show", `HEAD:${relative}`], bridge), /gist: ["']?nosedive's exact edit/);
+	assert.equal(readFileSync(path, "utf8"), "editor save\n");
+	assert.equal(git(["diff", "--cached", "--name-only", "--", relative], bridge), relative, "the index was left as the user had it, so it differs from the commit");
+	assert.equal(git(["diff", "--name-only", "--", relative], bridge), relative);
+	assert.match(warnings.join("\n"), /committed.*left.*file.*alone/i);
+});
+
+test("a version the user staged, with the file changed since, is never replaced in the index by the edit", async () => {
+	const bridge = await tempBridge("edit-docs-staged-c");
+	const relative = ok(await run(["crud", "core:memo", "a"], bridge));
+	const path = join(bridge, relative);
+	const base = readFileSync(path, "utf8");
+	writeFileSync(path, `${base}\nstaged C\n`);
+	git(["add", relative], bridge);
+	const staged = git(["rev-parse", `:${relative}`], bridge);
+	writeFileSync(path, `${base}\nworking B\n`);
+	const warnings: string[] = [];
+	const edit = editKbDocs(bridge, "test", undefined, (warning) => warnings.push(warning));
+	updateKbDocField(edit, idOf(relative), "gist", () => "nosedive's exact edit");
+
+	edit.commit();
+
+	assert.equal(git(["rev-parse", `:${relative}`], bridge), staged, "the staged version is still staged");
+	assert.match(readFileSync(path, "utf8"), /working B/, "the file is the user's");
+	assert.match(git(["show", `HEAD:${relative}`], bridge), /nosedive's exact edit/);
+	assert.match(warnings.join("\n"), /committed.*left.*alone/i);
+});
+
+test("a version staged while the working-file update is refused is not reset to the commit", async () => {
+	const bridge = await tempBridge("edit-docs-staged-during");
+	const relative = ok(await run(["crud", "core:memo", "a"], bridge));
+	const path = join(bridge, relative).replace(/\\/g, "/");
+	const root = bridge.replace(/\\/g, "/");
+	const edit = editKbDocs(bridge, "test", undefined, () => {});
+	updateKbDocField(edit, idOf(relative), "gist", () => "nosedive's exact edit");
+	writeFileSync(join(hooksOf(bridge), "reference-transaction"), `#!/bin/sh\n[ "$1" = committed ] || exit 0\nunset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE\nprintf 'staged C\\n' > '${path}'\ngit -C '${root}' add '${relative}'\nprintf 'working B\\n' > '${path}'\n`, { mode: 0o755 });
+
+	edit.commit();
+
+	assert.equal(git(["show", `:${relative}`], bridge), "staged C", "the staged version survives");
+	assert.equal(readFileSync(join(bridge, relative), "utf8"), "working B\n");
+});
+
+test("pass never edits the real index by hand: git's read-tree is the only thing that updates it and the files", () => {
+	const text = readFileSync(new URL("./i01a14ab1d36771eea2bc6f13bdeb0526.ts", import.meta.url), "utf8");
+	assert.doesNotMatch(text, /update-index|ls-files", "-s"|"reset"|--cacheinfo/);
+	const plan = readFileSync(new URL("./i01a1ffce2ea27db19c84f1fec56c9a3d.ts", import.meta.url), "utf8");
+	assert.doesNotMatch(plan, /\["reset"/);
+});
+
+test("an intent-to-add entry the user made for an empty or new doc is not taken for nosedive's", async () => {
+	const bridge = await tempBridge("edit-docs-user-ita");
+	const relative = ok(await run(["crud", "core:memo", "a"], bridge));
+	const user = join(kbOf(bridge), `${UNTRACKED}.md`).slice(bridge.length + 1).replace(/\\/g, "/");
+	writeFileSync(join(bridge, user), `---\nkind: memo\nid: ${UNTRACKED}\nname: theirs\ngist: "theirs"\n---\n\n# Theirs\n`);
+	git(["add", "-N", user], bridge);
+	const before = git(["ls-files", "-s", "--", user], bridge);
+	const warnings: string[] = [];
+	const edit = editKbDocs(bridge, "test", undefined, (warning) => warnings.push(warning));
+	updateKbDocField(edit, UNTRACKED, "gist", () => "nosedive's edit");
+	const disk = readFileSync(join(bridge, user), "utf8");
+
+	edit.commit();
+
+	assert.equal(git(["ls-files", "-s", "--", user], bridge), before, "the user's index entry is as it was");
+	assert.equal(readFileSync(join(bridge, user), "utf8"), disk, "and so is the file");
+	assert.match(git(["show", `HEAD:${user}`], bridge), /nosedive's edit/);
+	assert.match(warnings.join("\n"), /committed.*left.*alone/i);
+	assert.ok(relative);
+});
+
+test("a mode change the user staged is never lost to the edit", async () => {
+	const bridge = await tempBridge("edit-docs-staged-mode");
+	const relative = ok(await run(["crud", "core:memo", "a"], bridge));
+	git(["update-index", "--chmod=+x", relative], bridge);
+	const before = git(["ls-files", "-s", "--", relative], bridge);
+	assert.match(before, /^100755 /);
+	const warnings: string[] = [];
+	const edit = editKbDocs(bridge, "test", undefined, (warning) => warnings.push(warning));
+	updateKbDocField(edit, idOf(relative), "gist", () => "nosedive's exact edit");
+
+	edit.commit();
+
+	assert.match(git(["ls-files", "-s", "--", relative], bridge), /^100755 /, "the staged mode change survives");
+	assert.match(git(["show", `HEAD:${relative}`], bridge), /nosedive's exact edit/);
+	assert.match(warnings.join("\n"), /committed.*left.*alone/i);
+});
+
+import { readdirSync } from "node:fs";
+import { noteMinted } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
+import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
+
+test("a minted doc's staged copy is never deleted once its bytes changed, and a restore never replaces a file", async () => {
+	const bridge = await tempBridge("edit-docs-minted-late");
+	const dir = kbOf(bridge);
+	const made = mintKbDoc(dir, { kind: "memo", gist: "minted", name: "minted" });
+	noteMinted(made.path);
+	const edit = editKbDocs(bridge, "test", undefined, () => {});
+	updateKbDocField(edit, made.id, "gist", () => "edited");
+	const late = join(dir, ".nosedive-stage-*", "doc").replace(/\\/g, "/");
+	writeFileSync(join(hooksOf(bridge), "post-index-change"), `#!/bin/sh\nfor f in ${late}; do [ -f "$f" ] && printf 'late write through an open handle\\n' > "$f"; done\nexit 0\n`, { mode: 0o755 });
+	const warnings: string[] = [];
+	const again = editKbDocs(bridge, "test", undefined, (warning) => warnings.push(warning));
+	updateKbDocField(again, made.id, "gist", () => "edited");
+
+	again.commit();
+
+	const kept = readdirSync(dir).filter((name) => name.startsWith(".nosedive-stage-"));
+	assert.equal(kept.length, 1, "the staged copy was kept");
+	assert.equal(readFileSync(join(dir, kept[0]!, "doc"), "utf8"), "late write through an open handle\n");
+	assert.match(warnings.join("\n"), /kept in/);
+	assert.match(git(["show", `HEAD:${join(dir, `${made.id}.md`).slice(bridge.length + 1).replace(/\\/g, "/")}`], bridge), /edited/);
+	void edit;
+});
+
+test("restoring a minted doc is exclusive: it never renames over a path", () => {
+	const text = readFileSync(new URL("./i01a14ab1d36771eea2bc6f13bdeb0526.ts", import.meta.url), "utf8");
+	assert.match(text, /linkSync/);
+	assert.doesNotMatch(text, /renameSync\(join\(dir, "doc"\), path\)|renameSync\(held, doc\.path\)/);
 });
 
 test("refuses a doc git does not track, before anything is written", async () => {

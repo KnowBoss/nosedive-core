@@ -20,6 +20,14 @@ test("commits only the given files", () => {
 	assert.equal(git(["status", "--porcelain"], dir), "?? b.txt");
 });
 
+test("the committer is nosedive and the author stays the user", () => {
+	const dir = gitRepo("commit-files-committer");
+	writeFileSync(join(dir, "a.txt"), "a");
+	commitFiles(dir, [join(dir, "a.txt")], "add a", "test");
+	assert.equal(git(["log", "-1", "--format=%cn <%ce>"], dir), "nosedive <noreply@nosedive.dev>");
+	assert.equal(git(["log", "-1", "--format=%an <%ae>"], dir), `${git(["config", "user.name"], dir)} <${git(["config", "user.email"], dir)}>`);
+});
+
 test("throws with git's reason", () => {
 	assert.throws(() => commitFiles(gitRepo("commit-files-fail"), ["missing.txt"], "m", "test"), /git add failed: .*missing\.txt/);
 });

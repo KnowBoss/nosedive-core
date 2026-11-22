@@ -3,7 +3,7 @@ import { unlinkSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Cape, CapeDoc, Ctx, GateCtx } from "./i01a1336a958f71c7beec4db3195c7966.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
-import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs, type EditedDoc, type KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
+import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs, forgetMinted, noteMinted, type EditedDoc, type KbEdit } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i01a1335480147d0686528aee80f8ee34 as namespacedUuid } from "./i01a1335480147d0686528aee80f8ee34.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
@@ -52,7 +52,7 @@ export async function allCapes(bridge: Bridge, ctx: Ctx): Promise<Cape[]> {
 /** Takes docs minted for a crud command or a pass back out of git's index and the kb. */
 export function discardMinted(paths: string[]): void {
 	for (const path of paths) {
-		spawnSync("git", ["rm", "--cached", "-q", "-f", "--", path], { cwd: dirname(path) });
+		forgetMinted(path);
 		try {
 			unlinkSync(path);
 		} catch {
@@ -116,8 +116,7 @@ export async function i01a1b453a16c799bb9ce20fad1a9075b(when: "before" | "after"
 	const mint: GateCtx["mint"] = (kbDir, fields) => {
 		const made = mintKbDoc(kbDir, fields);
 		minted.push(made.path);
-		const added = spawnSync("git", ["add", "-N", "--", made.path], { cwd: kbDir, encoding: "utf8" });
-		if (added.status !== 0) throw new Error(`git add -N ${made.path}: ${(added.stderr || added.stdout).trim()}`);
+		noteMinted(made.path);
 		return made;
 	};
 	const refuse = () => {

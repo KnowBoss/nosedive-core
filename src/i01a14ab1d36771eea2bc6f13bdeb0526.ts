@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { relative } from "node:path";
+import { linkSync, mkdtempSync, readFileSync, renameSync, rmSync, unlinkSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { CORE_OWNER, scopeEntries, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { dropWhenOf, dropWhenSlips } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
-import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc, kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
+import { kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import type { KbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
-import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge, type Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
 import { i01a19005c109715583553072f4e38dc4 as commitSubject } from "./i01a19005c109715583553072f4e38dc4.ts";
@@ -13,6 +13,21 @@ import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f87
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { isDurable, kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { linkedIds } from "./i01a1901e263b7209a4b5f39a71c568b3.ts";
+import { commitOffside, commitPlan, describeRefusal } from "./i01a1ffce2ea27db19c84f1fec56c9a3d.ts";
+
+/** The docs this process minted, which are untracked until a commit takes them in; a path is kept by its resolved, lowercased form. */
+const MINTED = new Set<string>();
+const keyOf = (path: string) => resolve(path).toLowerCase();
+
+/** Records that nosedive itself has just written a new doc at `path`, so a later edit in the command may find it though git does not track it yet. */
+export function noteMinted(path: string): void {
+	MINTED.add(keyOf(path));
+}
+
+/** Forgets a minted doc that was discarded. */
+export function forgetMinted(path: string): void {
+	MINTED.delete(keyOf(path));
+}
 
 export type EditedDoc = KbDoc & { id: string; path: string; text: string; repoDir: string; kbDir: string };
 
@@ -58,7 +73,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 			const found = locateKbDoc(bridge, id);
 			if (!found) throw new Error(`no doc ${id} in the bridge or its workspace`);
 			const tracked = spawnSync("git", ["ls-files", "--error-unmatch", "--", found.path], { cwd: found.repoDir, encoding: "utf8" });
-			if (tracked.status !== 0) throw new Error(`${id} is not tracked by git in ${found.repoDir}, so crud does not edit it`);
+			if (tracked.status !== 0 && !MINTED.has(keyOf(found.path))) throw new Error(`${id} is not tracked by git in ${found.repoDir}, so crud does not edit it`);
 			const doc = { ...found, id };
 			docs.set(id, doc);
 			return doc;
@@ -71,7 +86,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 		},
 		commit(given, include = []) {
 			if (capes) refuseDurableUnderWork(bridge, capes, [...changed], (id) => docs.get(id) ?? locateKbDoc(bridge, id));
-			const byRepo = new Map<string, { doc: EditedDoc; write: boolean }[]>();
+			const byRepo = new Map<string, { doc: EditedDoc; text: string }[]>();
 			for (const doc of changed) {
 				// A doc is refused only as it would be written, so an edit can repair one.
 				scopeEntries(doc.fm.scopes);
@@ -79,21 +94,86 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 				const text = `---\n${doc.yaml.toString({ lineWidth: 0 })}---\n${doc.body}`;
 				if (text === doc.text) continue;
 				if (warn) for (const warning of kindDocWarnings(doc)) warn(warning);
-				byRepo.set(doc.repoDir, [...(byRepo.get(doc.repoDir) ?? []), { doc, write: true }]);
+				byRepo.set(doc.repoDir, [...(byRepo.get(doc.repoDir) ?? []), { doc, text }]);
 			}
 			for (const doc of include) {
 				const written = byRepo.get(doc.repoDir) ?? [];
-				if (!written.some((each) => each.doc === doc)) byRepo.set(doc.repoDir, [...written, { doc, write: false }]);
+				if (!written.some((each) => each.doc === doc)) byRepo.set(doc.repoDir, [...written, { doc, text: doc.text }]);
 			}
 			for (const [repoDir, written] of byRepo) {
-				for (const { doc, write } of written) if (write) writeKbDoc(doc.path, doc.yaml, doc.body);
 				const { action, what } = given ?? { action: "crud", what: [...new Set(edits)].join(", ") || "edit" };
-				const sha = commitFiles(repoDir, written.map(({ doc }) => doc.path), commitSubject(bridge, action, what, written.map(({ doc }) => doc.id), capes), version);
-				commits.push({ repoDir, sha });
+				const parent = gitValue(repoDir, ["rev-parse", "HEAD"]);
+				const ref = gitValue(repoDir, ["symbolic-ref", "-q", "HEAD"]);
+				const files = Object.fromEntries(written.map(({ doc, text }) => [relative(repoDir, doc.path).replace(/\\/g, "/"), text]));
+				const ids = written.map(({ doc }) => doc.id);
+				const first = commitSubject(bridge, action, what, ids, capes);
+				// A doc nosedive minted earlier in this command is untracked, so read-tree would refuse to overwrite it: it is renamed (atomically)
+				// into a staging directory, its bytes checked to be the ones nosedive wrote, and only then is its path left free for git to create.
+				// Nothing else of the index or the files is touched here: git's read-tree below does that, or refuses.
+				const staging: { path: string; dir: string; text: string }[] = [];
+				for (const { doc } of written) {
+					const rel = relative(repoDir, doc.path).replace(/\\/g, "/");
+					if (!MINTED.has(keyOf(doc.path)) || spawnSync("git", ["cat-file", "-e", `${parent}:${rel}`], { cwd: repoDir }).status === 0) continue;
+					const dir = mkdtempSync(join(dirname(doc.path), ".nosedive-stage-"));
+					const held = join(dir, "doc");
+					try {
+						renameSync(doc.path, held);
+					} catch {
+						rmSync(dir, { recursive: true, force: true });
+						continue;
+					}
+					if (readFileSync(held, "utf8") === doc.text) staging.push({ path: doc.path, dir, text: doc.text });
+					else if (putBack(held, doc.path)) {
+						rmSync(dir, { recursive: true, force: true });
+						warn?.(`warning: ${rel} is not the file nosedive minted, so it was left alone`);
+					} else warn?.(`warning: ${rel} is not the file nosedive minted, and was kept in ${dir}`);
+				}
+				let { tip } = commitOffside(repoDir, parent, files, first, version);
+				const done = commitPlan({ steps: [{ repo: repoDir, dir: repoDir, local: { moves: [{ ref, old: parent, new: tip }], files: { from: parent, to: tip, afterMoves: true } } }] }, action);
+				// Staged copies of minted docs go once git has made the final ones; if it refused, each goes back where it was.
+				// A staged copy is deleted only while it still holds the bytes nosedive wrote, and put back only by an exclusive link, which fails if the path exists.
+				for (const { path, dir, text } of staging) {
+					const held = join(dir, "doc");
+					let still = false;
+					try {
+						still = readFileSync(held, "utf8") === text;
+					} catch {}
+					if (!still) warn?.(`warning: the file nosedive minted changed while it was set aside, and was kept in ${dir}`);
+					else if (done.ok) rmSync(dir, { recursive: true, force: true });
+					else if (putBack(held, path)) rmSync(dir, { recursive: true, force: true });
+					else warn?.(`warning: the file nosedive minted was kept in ${dir}`);
+				}
+				if (!done.ok && done.refusal.kind !== "dirty") throw new Error(describeRefusal(done.refusal));
+				if (!done.ok) warn?.(`warning: ${tip.slice(0, 7)} was committed, but git left your index and changed file alone: ${done.refusal.detail}`);
+				// The subject is worked out from the docs as the checkout now has them; when that changes it, the same tree is committed again under it.
+				const subject = commitSubject(bridge, action, what, ids, capes);
+				if (subject !== first) {
+					const again = commitOffside(repoDir, parent, files, subject, version);
+					if (commitPlan({ steps: [{ repo: repoDir, dir: repoDir, local: { moves: [{ ref, old: tip, new: again.tip }] } }] }, action).ok) tip = again.tip;
+				}
+				for (const { doc, text } of written) doc.text = text;
+				commits.push({ repoDir, sha: tip });
 			}
 			return [...new Set([...include, ...changed])].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));
 		},
 	};
+}
+
+/** Puts a file back at a path only if nothing is there: a hard link fails when the path exists, so no file is ever replaced. */
+function putBack(held: string, path: string): boolean {
+	try {
+		linkSync(held, path);
+		unlinkSync(held);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function gitValue(dir: string, args: string[]): string {
+	const result = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+	if (result.status !== 0) throw new Error(`git ${args[0]} failed in ${dir}: ${(result.stderr || result.stdout || result.error?.message || "").trim()}`);
+	return result.stdout.trim();
 }
 
 /** What a kind doc's edit says about its Drop when, which decides whether its kind is durable. */

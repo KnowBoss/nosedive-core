@@ -9,7 +9,7 @@ import { i01a1934563e77ed886f06d04416385ef as localCapes } from "./i01a1934563e7
 import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes } from "./i01a141f869bf7f76b5bc81aa991ff9b9.ts";
 import { i01a147171f057d019118aaa1f269f5fd as findKind, kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { i01a18e40518e7f15a2066909dca2be43 as listKinds } from "./i01a18e40518e7f15a2066909dca2be43.ts";
-import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
+import { i01a14ab1d36771eea2bc6f13bdeb0526 as editKbDocs, noteMinted } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
 import { i01a14b30eb0e72e28934c918000a26ac as loadCape } from "./i01a14b30eb0e72e28934c918000a26ac.ts";
 import { i01a14b30ecc07ea18999d6255d636e39 as crudEdit } from "./i01a14b30ecc07ea18999d6255d636e39.ts";
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
@@ -114,9 +114,8 @@ export async function ib4959fbe2cef5f0ba22879fe0bbd5c00(argv: string[], ctx: Ctx
 	const mint: GateCtx["mint"] = (kbDir, fields) => {
 		const made = mintKbDoc(kbDir, fields);
 		minted.push(made.path);
-		// The pass's edit finds only docs git tracks.
-		const added = spawnSync("git", ["add", "-N", "--", made.path], { cwd: kbDir, encoding: "utf8" });
-		if (added.status !== 0) throw new Error(`git add -N ${made.path}: ${(added.stderr || added.stdout).trim()}`);
+		// The pass's edit finds only docs git tracks, or ones nosedive has just minted.
+		noteMinted(made.path);
 		return made;
 	};
 	const heard: Committed[] = [];
