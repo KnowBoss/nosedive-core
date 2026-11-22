@@ -214,6 +214,24 @@ test("refuses outside a git repo", async () => {
 	assert.match(result.err, /not a git repo/);
 });
 
+test("through launch, seed matches its usage, binds its flags and exits 1 with its error on stderr, in a repo and in one mid-migration that legacy-hero-guard lets through", async () => {
+	const dir = gitRepo("seed-through-launch");
+	const said = ok(await run(["seed", "--no-capes", "--root-kind", "cape"], dir));
+	assert.match(said, new RegExp(`^seeded ${basename(dir)}\n`));
+	assert.match(readFileSync(join(dir, configOf(dir).roots[0]!), "utf8"), /^---\nkind: cape\n/, "--root-kind bound");
+	assert.doesNotMatch(said, /built cape/, "--no-capes bound");
+	const unknown = await run(["seed", "--no-such-flag"], dir);
+	assert.deepEqual([unknown.code, unknown.out], [1, ""]);
+	assert.match(unknown.err, /^nosedive: /);
+	// A backlog beside roots is a hero part-way through its migration, not September's.
+	const half = await tempBridge("seed-through-launch-half");
+	const config = join(half, ".nosedive", "config.yaml");
+	writeFileSync(config, `${readFileSync(config, "utf8")}backlog: ${configOf(half).id}\n`);
+	const both = await run(["seed", "--migrate", "--no-migrate"], half);
+	assert.deepEqual([both.code, both.out], [1, ""]);
+	assert.equal(both.err, "nosedive: seed takes --migrate or --no-migrate, not both");
+});
+
 test("--root-kind makes the root a declared kind, such as cape", async () => {
 	const dir = gitRepo("seed-root-kind");
 	ok(await run(["seed", "--root-kind", "cape"], dir));

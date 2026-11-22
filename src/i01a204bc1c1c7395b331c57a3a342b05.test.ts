@@ -121,12 +121,13 @@ function pasted(shell: "bash" | "pwsh", line: string, stub: string): string[] | 
 	// The stub stands where npx does, ahead of the arguments, so that they reach it as the shell parses them and no wrapper re-reads them.
 	const script = line.replace(/^npx /, `node '${stub.replace(/\\/g, "/")}' `);
 	const args = shell === "bash" ? ["-c", script] : ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")];
-	const result = spawnSync(shell, args, { encoding: "utf8" });
+	const result = spawnSync(shell, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 });
 	if (result.error) {
 		assert.ok(!process.env.CI, `${shell} is not here, and CI has it: ${result.error.message}`);
 		return undefined;
 	}
 	assert.equal(result.status, 0, `${shell}: ${line}\n${result.stderr}`);
+	assert.notEqual(result.stdout, "", `${shell} printed nothing for ${line}\n${result.stderr}`);
 	return JSON.parse(result.stdout) as string[];
 }
 
@@ -141,7 +142,7 @@ test("the printed line, pasted into bash and into PowerShell, hands the same arg
 		const err = (await run(argv, dir)).err;
 		const split = err.split("\nor in PowerShell:\n  ");
 		const bash = split[0]!.slice(HEAD.length).replace(/^(, in bash or zsh| with):\n {2}/, "");
-		const lines = [bash, split.at(-1)!];
+		const lines = [bash, split.length > 1 ? split.at(-1)! : bash];
 		const want = ["-y", `nosedive@${OLD}`, ...argv];
 		for (const [shell, line] of [["bash", lines[0]!], ["pwsh", lines[1]!]] as const) {
 			const got = pasted(shell, line, stub);
