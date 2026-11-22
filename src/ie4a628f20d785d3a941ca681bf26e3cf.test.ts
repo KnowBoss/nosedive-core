@@ -6,6 +6,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { parseDocument } from "yaml";
+import { LEGACY_CAPES } from "./i01a1b14c48f277e79466d8ed690da136.ts";
 import { MIGRATIONS } from "./i01a175dbf4517dafa3a9048ecd98ab84.ts";
 import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
 import { digestOf, versionOf } from "./i01a147171f057d019118aaa1f269f5fd.ts";
@@ -269,6 +270,35 @@ test("a new hero and a converted legacy repo migrate unasked (seed-asks-before-m
 	git(["add", "-A"], legacy);
 	git(["commit", "-qm", "legacy"], legacy);
 	assert.match(ok(await run(["seed", "--no-capes"], legacy)), /^migrated \S+: baseline$/m);
+});
+
+test("seeds a legacy hero with no shipped legacy build by cloning the cape at the commit core pins", async () => {
+	// A stand-in for nosedive-legacy on a local remote, so nothing here reaches the network.
+	const stand = greetCapeRepo();
+	const remote = join(tempDir("seed-legacy-remote"), "legacy.git");
+	git(["clone", "-q", "--bare", stand, remote], dirname(remote));
+	const pin = LEGACY_CAPES[0]!;
+	const kept = { ...pin };
+	Object.assign(pin, { origin: remote, commit: git(["rev-parse", "HEAD"], stand) });
+	try {
+		const legacy = gitRepo("seed-legacy-clones");
+		const root = ok(await run(["mint"], legacy));
+		mkdirSync(join(legacy, "kb"));
+		writeFileSync(join(legacy, "kb", `${root}.md`), `---\nkind: memo\nid: ${root}\nname: old\n---\n\n# old\n`);
+		mkdirSync(join(legacy, ".nosedive"));
+		writeFileSync(join(legacy, ".nosedive", "config.yaml"), `kb: ./kb\nbacklog: ${root}\n`);
+		git(["add", "-A"], legacy);
+		git(["commit", "-qm", "legacy"], legacy);
+		const said = ok(await run(["seed"], legacy));
+		assert.match(said, /^migrated \S+: legacy-capes$/m);
+		assert.match(said, /^built cape /m);
+		assert.doesNotMatch(said, /using the build shipped/);
+		const clone = join(legacy, ".nosedive", "capes", "src", pin.id);
+		assert.ok(existsSync(join(clone, ".git")), "cloned from the cape's repo");
+		assert.equal(git(["rev-parse", "HEAD"], clone), pin.commit, "at the pinned commit");
+	} finally {
+		Object.assign(pin, kept);
+	}
 });
 
 test("refuses to migrate a repo it knows unasked, changing nothing, and lists each pending migration's name, gist, doc and crud", async () => {
