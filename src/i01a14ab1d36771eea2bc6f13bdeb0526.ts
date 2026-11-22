@@ -1,12 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, renameSync, rmSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
-import { randomUUID } from "node:crypto";
+import { relative } from "node:path";
 import { CORE_OWNER, scopeEntries, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { dropWhenOf, dropWhenSlips } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
-import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc, kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
+import { kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
 import type { KbDoc } from "./i01a1335482f876d6808aec457f512e80.ts";
-import { i01a13354894273b1be253424511ba82c as commitFiles } from "./i01a13354894273b1be253424511ba82c.ts";
 import { i01a1335485c67c95b7efdf2f0e03cfd6 as findBridge, type Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
 import { i01a138b2b8ee703cab227b010f588b6a as locateKbDoc } from "./i01a138b2b8ee703cab227b010f588b6a.ts";
 import { i01a19005c109715583553072f4e38dc4 as commitSubject } from "./i01a19005c109715583553072f4e38dc4.ts";
@@ -15,6 +12,7 @@ import { i01a1335482f876d6808aec457f512e80 as readKbDoc } from "./i01a1335482f87
 import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import { isDurable, kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { linkedIds } from "./i01a1901e263b7209a4b5f39a71c568b3.ts";
+import { commitOffside, commitPlan, describeRefusal } from "./i01a1ffce2ea27db19c84f1fec56c9a3d.ts";
 
 export type EditedDoc = KbDoc & { id: string; path: string; text: string; repoDir: string; kbDir: string };
 
@@ -73,7 +71,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 		},
 		commit(given, include = []) {
 			if (capes) refuseDurableUnderWork(bridge, capes, [...changed], (id) => docs.get(id) ?? locateKbDoc(bridge, id));
-			const byRepo = new Map<string, { doc: EditedDoc; write: boolean }[]>();
+			const byRepo = new Map<string, { doc: EditedDoc; text: string }[]>();
 			for (const doc of changed) {
 				// A doc is refused only as it would be written, so an edit can repair one.
 				scopeEntries(doc.fm.scopes);
@@ -81,34 +79,33 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 				const text = `---\n${doc.yaml.toString({ lineWidth: 0 })}---\n${doc.body}`;
 				if (text === doc.text) continue;
 				if (warn) for (const warning of kindDocWarnings(doc)) warn(warning);
-				byRepo.set(doc.repoDir, [...(byRepo.get(doc.repoDir) ?? []), { doc, write: true }]);
+				byRepo.set(doc.repoDir, [...(byRepo.get(doc.repoDir) ?? []), { doc, text }]);
 			}
 			for (const doc of include) {
 				const written = byRepo.get(doc.repoDir) ?? [];
-				if (!written.some((each) => each.doc === doc)) byRepo.set(doc.repoDir, [...written, { doc, write: false }]);
+				if (!written.some((each) => each.doc === doc)) byRepo.set(doc.repoDir, [...written, { doc, text: doc.text }]);
 			}
 			for (const [repoDir, written] of byRepo) {
-				for (const { doc, write } of written) if (write) writeChangedDoc(doc);
 				const { action, what } = given ?? { action: "crud", what: [...new Set(edits)].join(", ") || "edit" };
-				const sha = commitFiles(repoDir, written.map(({ doc }) => doc.path), commitSubject(bridge, action, what, written.map(({ doc }) => doc.id), capes), version);
-				commits.push({ repoDir, sha });
+				const parent = gitValue(repoDir, ["rev-parse", "HEAD"]);
+				const ref = gitValue(repoDir, ["symbolic-ref", "-q", "HEAD"]);
+				const files = Object.fromEntries(written.map(({ doc, text }) => [relative(repoDir, doc.path).replace(/\\/g, "/"), text]));
+				const { tip } = commitOffside(repoDir, parent, files, commitSubject(bridge, action, what, written.map(({ doc }) => doc.id), capes), version);
+				const done = commitPlan({ steps: [{ repo: repoDir, dir: repoDir, local: { moves: [{ ref, old: parent, new: tip }], files: { from: parent, to: tip, afterMoves: true, paths: Object.keys(files) } } }] }, action);
+				if (!done.ok && done.refusal.kind !== "dirty") throw new Error(describeRefusal(done.refusal));
+				if (!done.ok) warn?.(`warning: ${tip.slice(0, 7)} was committed, but git left the changed working file alone: ${done.refusal.detail}`);
+				for (const { doc, text } of written) doc.text = text;
+				commits.push({ repoDir, sha: tip });
 			}
 			return [...new Set([...include, ...changed])].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));
 		},
 	};
 }
 
-/** Writes beside the live doc, then replaces it only if it still has the exact bytes the edit read. */
-function writeChangedDoc(doc: EditedDoc): void {
-	const temp = join(dirname(doc.path), `.nosedive-edit-${randomUUID()}.tmp`);
-	try {
-		writeKbDoc(temp, doc.yaml, doc.body);
-		if (readFileSync(doc.path, "utf8") !== doc.text) throw new Error(`${doc.path} changed while pass was editing it, so pass left the newer file alone`);
-		renameSync(temp, doc.path);
-		doc.text = readFileSync(doc.path, "utf8");
-	} finally {
-		rmSync(temp, { force: true });
-	}
+function gitValue(dir: string, args: string[]): string {
+	const result = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+	if (result.status !== 0) throw new Error(`git ${args[0]} failed in ${dir}: ${(result.stderr || result.stdout || result.error?.message || "").trim()}`);
+	return result.stdout.trim();
 }
 
 /** What a kind doc's edit says about its Drop when, which decides whether its kind is durable. */

@@ -25,6 +25,7 @@ export type LocalMove = { ref: string; old: Sha | null; new: Sha | null };
 
 /** What HEAD points at. */
 export type Head = { branch: string } | { detached: Sha };
+type Files = { from: Sha; to: Sha; index?: Sha } & ({ afterMoves: true; paths: string[] } | { afterMoves?: false; paths?: never });
 
 export type Step = {
 	/** Display name. */
@@ -37,8 +38,8 @@ export type Step = {
 		moves?: LocalMove[];
 		/** A transaction of its own: git refuses one that updates HEAD and its referent. */
 		head?: { from: Head; to: Head };
-		/** The checkout follows with `read-tree -m -u`; `index` leaves the index at that tree after, which undoes a work-in-progress commit. */
-		files?: { from: Sha; to: Sha; index?: Sha };
+		/** The checkout follows with `read-tree -m -u`; `index` leaves the index at that tree after, which undoes a work-in-progress commit. `afterMoves` keeps committed refs when git refuses a racing worktree edit. */
+		files?: Files;
 		/** Written last. */
 		config?: [key: string, value: string][];
 		/** Deletes, after HEAD moved off them. */
@@ -151,7 +152,7 @@ function verifyLocal(step: Step, local: NonNullable<Step["local"]>): Pick<Refusa
 		if (!supportsSymrefUpdate()) return { kind: "failed", detail: "moving HEAD needs git 2.46 or later" };
 	}
 	const files = local.files;
-	if (files && files.from !== files.to) {
+	if (files && files.from !== files.to && !files.afterMoves) {
 		git(step.dir, ["update-index", "-q", "--refresh"]);
 		const staged = git(step.dir, ["diff-index", "--cached", "--name-only", "--ignore-submodules=all", files.from]);
 		if (!staged.ok || staged.out) return { kind: "dirty", detail: `the index of ${step.dir} is not at ${files.from.slice(0, 7)}, so its files are left alone: ${staged.out.split("\n").slice(0, 3).join(", ")}` };
@@ -235,7 +236,8 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 	if (checked) return checked;
 	const files = local.files;
 	const moving = files !== undefined && files.from !== files.to;
-	if (moving) {
+	const afterMoves = moving && files.afterMoves === true;
+	if (moving && !afterMoves) {
 		const read = git(step.dir, ["read-tree", "-m", "-u", files.from, files.to]);
 		if (!read.ok) return { kind: "dirty", detail: `files were not moved: ${trimmed(read.err)}` };
 	}
@@ -243,7 +245,7 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 		const moved = transaction(step.dir, moveLines(local.moves), `nosedive ${command}`);
 		if (!moved.ok) {
 			let state: string | undefined;
-			if (moving) {
+			if (moving && !afterMoves) {
 				const back = !git(step.dir, ["diff-index", "--cached", "--quiet", "--ignore-submodules=all", files.to]).ok || !git(step.dir, ["diff-files", "--quiet", "--ignore-submodules=all"]).ok ? { ok: false } : git(step.dir, ["read-tree", "-m", "-u", files.to, files.from]);
 				if (!back.ok) state = stateOf(step);
 			}
@@ -260,11 +262,21 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 		const moved = verified.ok ? transaction(step.dir, [line], `nosedive ${command}`, true) : verified;
 		if (!moved.ok) {
 			let state: string | undefined;
-			if (moving) {
+			if (moving && !afterMoves) {
 				const back = !git(step.dir, ["diff-index", "--cached", "--quiet", "--ignore-submodules=all", files.to]).ok || !git(step.dir, ["diff-files", "--quiet", "--ignore-submodules=all"]).ok ? { ok: false } : git(step.dir, ["read-tree", "-m", "-u", files.to, files.from]);
 				if (!back.ok) state = stateOf(step);
 			}
 			return { kind: "stale", detail: `HEAD was not moved: ${trimmed(moved.err)}; refs are as published`, state: state ?? stateOf(step) };
+		}
+	}
+	if (afterMoves) {
+		const read = git(step.dir, ["read-tree", "-m", "-u", files.from, files.to]);
+		if (!read.ok) {
+			// The ref now names `to`, while the refused read-tree transaction left these index entries at `from`.
+			// Align only those entries without reading or touching the working files, so the editor's save is simply unstaged.
+			const indexed = git(step.dir, ["reset", "-q", files.to, "--pathspec-from-file=-"], { input: `${files.paths.join("\n")}\n` });
+			const detail = `the commit stands, but files were left alone: ${trimmed(read.err)}${indexed.ok ? "" : `; their index entries could not be aligned: ${trimmed(indexed.err)}`}`;
+			return { kind: "dirty", detail, state: stateOf(step) };
 		}
 	}
 	if (files?.index) {
