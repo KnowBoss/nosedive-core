@@ -369,54 +369,66 @@ function pick(dir: string, commit: Sha, onto: Sha): { sha: Sha } | { conflict: s
 	return { sha: made.stdout.trim() };
 }
 
-/** The patch-id of `commit`'s change (as `git rebase` compares), or null when it changes nothing or is a merge. */
-function patchId(dir: string, commit: Sha): string | null {
-	const diff = spawnSync("git", ["diff-tree", "-p", "--root", "-r", "--no-commit-id", commit], { cwd: dir, encoding: "utf8", maxBuffer: 1 << 28 });
-	if (diff.status !== 0 || diff.stdout === "") return null;
-	const id = spawnSync("git", ["patch-id", "--stable"], { cwd: dir, encoding: "utf8", input: diff.stdout, maxBuffer: 1 << 28 });
-	return id.status === 0 ? id.stdout.split(" ")[0]!.trim() || null : null;
+/**
+ * The lines a turn commit adds to the dive's record doc `path`, as one block of bytes (latin1, so nothing is normalized), or
+ * null unless the commit is nosedive's, not a merge, changes that one regular file only, and only adds lines in one hunk.
+ */
+function addedSection(dir: string, commit: Sha, path: string): string | null {
+	if (!git(dir, ["rev-parse", "--verify", "-q", `${commit}^`]).ok) return null;
+	const meta = ownedRange(dir, `${commit}^`, commit)[0];
+	if (!meta || meta.sha !== commit || !meta.own || meta.merge) return null;
+	const raw = git(dir, ["diff-tree", "-r", "--no-renames", "--no-commit-id", "--raw", commit]);
+	const fields = raw.out.split("\n");
+	if (!raw.ok || fields.length !== 1 || !/^:100644 100644 \w+ \w+ M\t/.test(fields[0]!) || fields[0]!.split("\t")[1] !== path) return null;
+	const diff = spawnSync("git", ["diff-tree", "-p", "-U0", "--no-renames", "--no-commit-id", commit], { cwd: dir, encoding: "latin1", maxBuffer: 1 << 28 });
+	if (diff.status !== 0) return null;
+	const lines = diff.stdout.split("\n");
+	const at = lines.findIndex((line) => line.startsWith("@@ "));
+	if (at < 0 || lines.slice(at + 1).some((line) => line.startsWith("@@ "))) return null;
+	const body = lines.slice(at + 1);
+	if (body[body.length - 1] === "") body.pop();
+	if (body.length === 0 || body.some((line) => !line.startsWith("+"))) return null;
+	return body.map((line) => `${line.slice(1)}\n`).join("");
 }
 
 /**
- * Whether a conflicting `commit` is a copy of one nosedive made on the home since they forked (a turn lands on the branch and
- * on the home, each as its own commit): the same patch-id, as `git rebase` skips, but only for nosedive's own commits, each
- * home commit answering one copy, and only in the home's range as it was before the replay began (`home`, not the new tip).
- * A person's commit, an empty one and a merge are never skipped, and a copy that merges cleanly is not asked about.
+ * Whether a conflicting `commit` is a turn whose section `onto` holds already: nosedive's turn commit on `path` (see addedSection)
+ * whose added lines are all in `path` at `onto`, byte for byte as a contiguous block, once more than the turns skipped so far
+ * for the same block. Anything else is not a copy, and its conflict stands.
  */
-function copiedOnHome(dir: string, commit: Sha, home: Sha, used: Set<Sha>): Sha | null {
-	const base = git(dir, ["merge-base", commit, home]);
-	if (!base.ok) return null;
-	const mine = ownedRange(dir, base.out, commit).find((each) => each.sha === commit);
-	if (!mine || !mine.own || mine.merge) return null;
-	const id = patchId(dir, commit);
-	if (!id) return null;
-	for (const theirs of ownedRange(dir, base.out, home)) {
-		if (!theirs.own || theirs.merge || used.has(theirs.sha) || patchId(dir, theirs.sha) !== id) continue;
-		return theirs.sha;
-	}
-	return null;
+function turnOnTip(dir: string, commit: Sha, onto: Sha, path: string, seen: Map<string, number>): boolean {
+	const block = addedSection(dir, commit, path);
+	if (block === null) return false;
+	const blob = spawnSync("git", ["cat-file", "blob", `${onto}:${path}`], { cwd: dir, encoding: "latin1", maxBuffer: 1 << 28 });
+	if (blob.status !== 0) return false;
+	const held = `\n${blob.stdout}`.split(`\n${block}`).length - 1;
+	const skipped = seen.get(block) ?? 0;
+	if (held <= skipped) return false;
+	seen.set(block, skipped + 1);
+	return true;
 }
 
 /**
  * `shas` made again, in order, on `onto`: the new tip and exactly the shas commit-tree returned, a pick that changes nothing adding none; or the conflict.
- * A commit that conflicts but is a copy of one nosedive made on `onto` already is left out (see copiedOnHome); any other conflict is returned, and nothing is made.
+ * With `turnsIn`, the path of the dive's record doc, a commit that conflicts only because it is a turn already on the tip as it stands
+ * (see turnOnTip) is left out, and listed in `skipped`: it is not made, so it is not published or counted, as it is on the home already.
  */
-export function replay(dir: string, shas: Sha[], onto: Sha): { tip: Sha; made: Set<Sha> } | { conflict: string } {
+export function replay(dir: string, shas: Sha[], onto: Sha, options: { turnsIn?: string } = {}): { tip: Sha; made: Set<Sha>; skipped: Sha[] } | { conflict: string } {
 	let tip = onto;
 	const made = new Set<Sha>();
-	const used = new Set<Sha>();
+	const skipped: Sha[] = [];
+	const seen = new Map<string, number>();
 	for (const commit of shas) {
 		const next = pick(dir, commit, tip);
 		if ("conflict" in next) {
-			const copy = copiedOnHome(dir, commit, onto, used);
-			if (!copy) return next;
-			used.add(copy);
+			if (!options.turnsIn || !turnOnTip(dir, commit, tip, options.turnsIn, seen)) return next;
+			skipped.push(commit);
 			continue;
 		}
 		if (next.sha !== tip) made.add(next.sha);
 		tip = next.sha;
 	}
-	return { tip, made };
+	return { tip, made, skipped };
 }
 
 /**
