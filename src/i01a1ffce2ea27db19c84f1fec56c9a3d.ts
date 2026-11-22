@@ -369,13 +369,50 @@ function pick(dir: string, commit: Sha, onto: Sha): { sha: Sha } | { conflict: s
 	return { sha: made.stdout.trim() };
 }
 
-/** `shas` made again, in order, on `onto`: the new tip and exactly the shas commit-tree returned, a pick that changes nothing adding none; or the conflict. */
+/** The patch-id of `commit`'s change (as `git rebase` compares), or null when it changes nothing or is a merge. */
+function patchId(dir: string, commit: Sha): string | null {
+	const diff = spawnSync("git", ["diff-tree", "-p", "--root", "-r", "--no-commit-id", commit], { cwd: dir, encoding: "utf8", maxBuffer: 1 << 28 });
+	if (diff.status !== 0 || diff.stdout === "") return null;
+	const id = spawnSync("git", ["patch-id", "--stable"], { cwd: dir, encoding: "utf8", input: diff.stdout, maxBuffer: 1 << 28 });
+	return id.status === 0 ? id.stdout.split(" ")[0]!.trim() || null : null;
+}
+
+/**
+ * Whether a conflicting `commit` is a copy of one nosedive made on the home since they forked (a turn lands on the branch and
+ * on the home, each as its own commit): the same patch-id, as `git rebase` skips, but only for nosedive's own commits, each
+ * home commit answering one copy, and only in the home's range as it was before the replay began (`home`, not the new tip).
+ * A person's commit, an empty one and a merge are never skipped, and a copy that merges cleanly is not asked about.
+ */
+function copiedOnHome(dir: string, commit: Sha, home: Sha, used: Set<Sha>): Sha | null {
+	const base = git(dir, ["merge-base", commit, home]);
+	if (!base.ok) return null;
+	const mine = ownedRange(dir, base.out, commit).find((each) => each.sha === commit);
+	if (!mine || !mine.own || mine.merge) return null;
+	const id = patchId(dir, commit);
+	if (!id) return null;
+	for (const theirs of ownedRange(dir, base.out, home)) {
+		if (!theirs.own || theirs.merge || used.has(theirs.sha) || patchId(dir, theirs.sha) !== id) continue;
+		return theirs.sha;
+	}
+	return null;
+}
+
+/**
+ * `shas` made again, in order, on `onto`: the new tip and exactly the shas commit-tree returned, a pick that changes nothing adding none; or the conflict.
+ * A commit that conflicts but is a copy of one nosedive made on `onto` already is left out (see copiedOnHome); any other conflict is returned, and nothing is made.
+ */
 export function replay(dir: string, shas: Sha[], onto: Sha): { tip: Sha; made: Set<Sha> } | { conflict: string } {
 	let tip = onto;
 	const made = new Set<Sha>();
+	const used = new Set<Sha>();
 	for (const commit of shas) {
 		const next = pick(dir, commit, tip);
-		if ("conflict" in next) return next;
+		if ("conflict" in next) {
+			const copy = copiedOnHome(dir, commit, onto, used);
+			if (!copy) return next;
+			used.add(copy);
+			continue;
+		}
 		if (next.sha !== tip) made.add(next.sha);
 		tip = next.sha;
 	}
