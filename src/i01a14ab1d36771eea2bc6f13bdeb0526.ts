@@ -105,6 +105,11 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 						onDisk = readFileSync(doc.path, "utf8");
 					} catch {}
 					if (onDisk !== doc.text || (inParent.status === 0 && inParent.stdout === doc.text)) continue;
+					// Compare-and-swap on the entry: it is replaced only while it is still the blob the parent holds (or absent, as the parent's is);
+					// a version the user staged is theirs, and is left, with the file, to git's refusal.
+					const held = /^\d+ ([0-9a-f]+) /.exec(spawnSync("git", ["ls-files", "-s", "--", rel], { cwd: repoDir, encoding: "utf8" }).stdout)?.[1];
+					const expected = spawnSync("git", ["rev-parse", "--verify", "-q", `${parent}:${rel}`], { cwd: repoDir, encoding: "utf8" }).stdout.trim() || undefined;
+					if (held !== expected) continue;
 					const blob = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: repoDir, encoding: "utf8", input: doc.text });
 					const mode = /^(\d+) /.exec(spawnSync("git", ["ls-files", "-s", "--", rel], { cwd: repoDir, encoding: "utf8" }).stdout)?.[1] ?? "100644";
 					if (blob.status === 0 && spawnSync("git", ["update-index", "--add", "--cacheinfo", `${mode},${blob.stdout.trim()},${rel}`], { cwd: repoDir }).status === 0) staged.add(rel);

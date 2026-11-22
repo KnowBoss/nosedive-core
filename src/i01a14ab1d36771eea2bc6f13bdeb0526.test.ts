@@ -76,6 +76,42 @@ test("an editor save just before the working-file update survives after the exac
 	assert.match(warnings.join("\n"), /committed.*left.*file.*alone/i);
 });
 
+test("a version the user staged, with the file changed since, is never replaced in the index by the edit", async () => {
+	const bridge = await tempBridge("edit-docs-staged-c");
+	const relative = ok(await run(["crud", "core:memo", "a"], bridge));
+	const path = join(bridge, relative);
+	const base = readFileSync(path, "utf8");
+	writeFileSync(path, `${base}\nstaged C\n`);
+	git(["add", relative], bridge);
+	const staged = git(["rev-parse", `:${relative}`], bridge);
+	writeFileSync(path, `${base}\nworking B\n`);
+	const warnings: string[] = [];
+	const edit = editKbDocs(bridge, "test", undefined, (warning) => warnings.push(warning));
+	updateKbDocField(edit, idOf(relative), "gist", () => "nosedive's exact edit");
+
+	edit.commit();
+
+	assert.equal(git(["rev-parse", `:${relative}`], bridge), staged, "the staged version is still staged");
+	assert.match(readFileSync(path, "utf8"), /working B/, "the file is the user's");
+	assert.match(git(["show", `HEAD:${relative}`], bridge), /nosedive's exact edit/);
+	assert.match(warnings.join("\n"), /committed.*left.*alone/i);
+});
+
+test("a version staged while the working-file update is refused is not reset to the commit", async () => {
+	const bridge = await tempBridge("edit-docs-staged-during");
+	const relative = ok(await run(["crud", "core:memo", "a"], bridge));
+	const path = join(bridge, relative).replace(/\\/g, "/");
+	const root = bridge.replace(/\\/g, "/");
+	const edit = editKbDocs(bridge, "test", undefined, () => {});
+	updateKbDocField(edit, idOf(relative), "gist", () => "nosedive's exact edit");
+	writeFileSync(join(hooksOf(bridge), "reference-transaction"), `#!/bin/sh\n[ "$1" = committed ] || exit 0\nunset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE\nprintf 'staged C\\n' > '${path}'\ngit -C '${root}' add '${relative}'\nprintf 'working B\\n' > '${path}'\n`, { mode: 0o755 });
+
+	edit.commit();
+
+	assert.equal(git(["show", `:${relative}`], bridge), "staged C", "the staged version survives");
+	assert.equal(readFileSync(join(bridge, relative), "utf8"), "working B\n");
+});
+
 test("refuses a doc git does not track, before anything is written", async () => {
 	const bridge = await tempBridge("edit-untracked");
 	const path = join(kbOf(bridge), `${UNTRACKED}.md`);

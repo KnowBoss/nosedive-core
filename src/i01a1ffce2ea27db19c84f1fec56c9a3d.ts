@@ -274,7 +274,11 @@ function apply(step: Step, command: string, tracking: boolean): Pick<Refusal, "k
 		if (!read.ok) {
 			// The ref now names `to`, while the refused read-tree transaction left these index entries at `from`.
 			// Align only those entries without reading or touching the working files, so the editor's save is simply unstaged.
-			const indexed = git(step.dir, ["reset", "-q", files.to, "--pathspec-from-file=-"], { input: `${files.paths.join("\n")}\n` });
+			// An entry is aligned only while it is still the blob `from` held; one the user staged since is never discarded.
+			const blobAt = (rev: string, path: string) => git(step.dir, ["rev-parse", "--verify", "-q", `${rev}:${path}`]).out || undefined;
+			const entry = (path: string) => /^\d+ ([0-9a-f]+) /.exec(git(step.dir, ["ls-files", "-s", "--", path]).out)?.[1];
+			const mine = files.paths.filter((path) => entry(path) === blobAt(files.from, path));
+			const indexed = mine.length === 0 ? { ok: true, out: "", err: "" } : git(step.dir, ["reset", "-q", files.to, "--pathspec-from-file=-"], { input: `${mine.join("\n")}\n` });
 			const detail = `the commit stands, but files were left alone: ${trimmed(read.err)}${indexed.ok ? "" : `; their index entries could not be aligned: ${trimmed(indexed.err)}`}`;
 			return { kind: "dirty", detail, state: stateOf(step) };
 		}
