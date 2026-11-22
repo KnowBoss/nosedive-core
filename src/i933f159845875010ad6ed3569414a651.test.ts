@@ -21,6 +21,8 @@ test("adds a title to a doc that has none, above what it holds", async () => {
 	const id = path.replace(/^.*\/|\.md$/g, "");
 	const text = readFileSync(join(bridge, path), "utf8");
 	writeFileSync(join(bridge, path), text.replace("# untitled\n", "Loose text.\n"));
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "the user's edit"], bridge);
 	ok(await run(["crud", id, "--title", "Titled"], bridge));
 	assert.match(readFileSync(join(bridge, path), "utf8"), /---\n\n# Titled\n\nLoose text\.\n$/);
 });

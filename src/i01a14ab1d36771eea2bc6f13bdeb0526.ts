@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { relative } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { CORE_OWNER, scopeEntries, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { dropWhenOf, dropWhenSlips } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
@@ -14,6 +14,20 @@ import { i01a13dee4b1d78f7a699c3777bf63587 as readRepoConfig } from "./i01a13dee
 import { isDurable, kindOfDoc } from "./i01a147171f057d019118aaa1f269f5fd.ts";
 import { linkedIds } from "./i01a1901e263b7209a4b5f39a71c568b3.ts";
 import { commitOffside, commitPlan, describeRefusal } from "./i01a1ffce2ea27db19c84f1fec56c9a3d.ts";
+
+/** The docs this process minted, which are untracked until a commit takes them in; a path is kept by its resolved, lowercased form. */
+const MINTED = new Set<string>();
+const keyOf = (path: string) => resolve(path).toLowerCase();
+
+/** Records that nosedive itself has just written a new doc at `path`, so a later edit in the command may find it though git does not track it yet. */
+export function noteMinted(path: string): void {
+	MINTED.add(keyOf(path));
+}
+
+/** Forgets a minted doc that was discarded. */
+export function forgetMinted(path: string): void {
+	MINTED.delete(keyOf(path));
+}
 
 export type EditedDoc = KbDoc & { id: string; path: string; text: string; repoDir: string; kbDir: string };
 
@@ -59,7 +73,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 			const found = locateKbDoc(bridge, id);
 			if (!found) throw new Error(`no doc ${id} in the bridge or its workspace`);
 			const tracked = spawnSync("git", ["ls-files", "--error-unmatch", "--", found.path], { cwd: found.repoDir, encoding: "utf8" });
-			if (tracked.status !== 0) throw new Error(`${id} is not tracked by git in ${found.repoDir}, so crud does not edit it`);
+			if (tracked.status !== 0 && !MINTED.has(keyOf(found.path))) throw new Error(`${id} is not tracked by git in ${found.repoDir}, so crud does not edit it`);
 			const doc = { ...found, id };
 			docs.set(id, doc);
 			return doc;
@@ -93,37 +107,40 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 				const files = Object.fromEntries(written.map(({ doc, text }) => [relative(repoDir, doc.path).replace(/\\/g, "/"), text]));
 				const ids = written.map(({ doc }) => doc.id);
 				const first = commitSubject(bridge, action, what, ids, capes);
-				// A doc whose file still holds the bytes edit read, though the index does not (uncommitted before the edit began, or just minted),
-				// has its index entry set to those bytes, from memory: the file is never read to stage it. Git's read-tree then replaces
-				// it with the final content only while file and index still agree, so a save made since is left alone.
-				const staged = new Set<string>();
+				// A doc nosedive minted earlier in this command is untracked, so read-tree would refuse to overwrite it: it is renamed (atomically)
+				// into a staging directory, its bytes checked to be the ones nosedive wrote, and only then is its path left free for git to create.
+				// Nothing else of the index or the files is touched here: git's read-tree below does that, or refuses.
+				const staging: { path: string; dir: string }[] = [];
 				for (const { doc } of written) {
 					const rel = relative(repoDir, doc.path).replace(/\\/g, "/");
-					const inParent = spawnSync("git", ["show", `${parent}:${rel}`], { cwd: repoDir, encoding: "utf8" });
-					let onDisk: string | undefined;
+					if (!MINTED.has(keyOf(doc.path)) || spawnSync("git", ["cat-file", "-e", `${parent}:${rel}`], { cwd: repoDir }).status === 0) continue;
+					const dir = mkdtempSync(join(dirname(doc.path), ".nosedive-stage-"));
+					const held = join(dir, "doc");
 					try {
-						onDisk = readFileSync(doc.path, "utf8");
-					} catch {}
-					if (onDisk !== doc.text || (inParent.status === 0 && inParent.stdout === doc.text)) continue;
-					// Compare-and-swap on the entry: it is replaced only while it is still the blob the parent holds (or absent, as the parent's is);
-					// a version the user staged is theirs, and is left, with the file, to git's refusal.
-					const held = /^\d+ ([0-9a-f]+) /.exec(spawnSync("git", ["ls-files", "-s", "--", rel], { cwd: repoDir, encoding: "utf8" }).stdout)?.[1];
-					const expected = spawnSync("git", ["rev-parse", "--verify", "-q", `${parent}:${rel}`], { cwd: repoDir, encoding: "utf8" }).stdout.trim() || undefined;
-					// An entry already holding the bytes edit read is nosedive's own (a doc just minted and added).
-					const ours = spawnSync("git", ["hash-object", "--stdin"], { cwd: repoDir, encoding: "utf8", input: doc.text }).stdout.trim();
-					const intentToAdd = expected === undefined && held === "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391";
-					if (held !== expected && held !== ours && !intentToAdd) continue;
-					const blob = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: repoDir, encoding: "utf8", input: doc.text });
-					const mode = /^(\d+) /.exec(spawnSync("git", ["ls-files", "-s", "--", rel], { cwd: repoDir, encoding: "utf8" }).stdout)?.[1] ?? "100644";
-					if (blob.status === 0 && spawnSync("git", ["update-index", "--add", "--cacheinfo", `${mode},${blob.stdout.trim()},${rel}`], { cwd: repoDir }).status === 0) staged.add(rel);
+						renameSync(doc.path, held);
+					} catch {
+						rmSync(dir, { recursive: true, force: true });
+						continue;
+					}
+					if (readFileSync(held, "utf8") === doc.text) staging.push({ path: doc.path, dir });
+					else if (!existsSync(doc.path)) {
+						renameSync(held, doc.path);
+						rmSync(dir, { recursive: true, force: true });
+						warn?.(`warning: ${rel} is not the file nosedive minted, so it was left alone`);
+					} else warn?.(`warning: ${rel} is not the file nosedive minted, and was kept in ${dir}`);
 				}
-				// Refreshing compares the file with the entry without staging it, so git can tell it is up to date.
-				if (staged.size > 0) spawnSync("git", ["update-index", "-q", "--refresh"], { cwd: repoDir });
-				const from = staged.size > 0 ? commitOffside(repoDir, parent, Object.fromEntries(written.flatMap(({ doc }) => { const rel = relative(repoDir, doc.path).replace(/\\/g, "/"); return staged.has(rel) ? [[rel, doc.text]] : []; })), "as the checkout holds it", version).tip : parent;
 				let { tip } = commitOffside(repoDir, parent, files, first, version);
-				const done = commitPlan({ steps: [{ repo: repoDir, dir: repoDir, local: { moves: [{ ref, old: parent, new: tip }], files: { from, to: tip, afterMoves: true, paths: Object.keys(files) } } }] }, action);
+				const done = commitPlan({ steps: [{ repo: repoDir, dir: repoDir, local: { moves: [{ ref, old: parent, new: tip }], files: { from: parent, to: tip, afterMoves: true } } }] }, action);
+				// Staged copies of minted docs go once git has made the final ones; if it refused, each goes back where it was.
+				for (const { path, dir } of staging) {
+					if (done.ok) rmSync(dir, { recursive: true, force: true });
+					else if (!existsSync(path)) {
+						renameSync(join(dir, "doc"), path);
+						rmSync(dir, { recursive: true, force: true });
+					} else warn?.(`warning: the file nosedive minted was kept in ${dir}`);
+				}
 				if (!done.ok && done.refusal.kind !== "dirty") throw new Error(describeRefusal(done.refusal));
-				if (!done.ok) warn?.(`warning: ${tip.slice(0, 7)} was committed, but git left the changed working file alone: ${done.refusal.detail}`);
+				if (!done.ok) warn?.(`warning: ${tip.slice(0, 7)} was committed, but git left your index and changed file alone: ${done.refusal.detail}`);
 				// The subject is worked out from the docs as the checkout now has them; when that changes it, the same tree is committed again under it.
 				const subject = commitSubject(bridge, action, what, ids, capes);
 				if (subject !== first) {

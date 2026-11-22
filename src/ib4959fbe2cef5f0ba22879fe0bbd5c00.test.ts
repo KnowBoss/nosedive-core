@@ -71,6 +71,9 @@ test("passes a doc through those of its gates in one sect with a usage the comma
 
 test("the commit names the feat of the doc passed, and ends with nosedive's co-author once", async () => {
 	const { bridge, memo, path } = await stampBridge("pass-feat");
+	// What the seed and earlier crud left uncommitted is committed first: git does not update a file that differs from the index.
+	git(["add", "-A"], bridge);
+	git(["commit", "-qm", "seeded", "--allow-empty"], bridge);
 	ok(await run(["crud", findBridge(bridge)!.root!, "--links", "-"], bridge, `${path}: {rel: work.feat}\n`));
 	const head = git(["rev-parse", "HEAD"], bridge);
 	ok(await run(["pass", "--stamp", memo], bridge));
