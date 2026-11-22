@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { relative } from "node:path";
+import { readFileSync, renameSync, rmSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { randomUUID } from "node:crypto";
 import { CORE_OWNER, scopeEntries, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { dropWhenOf, dropWhenSlips } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
 import { i01a1335483aa776cb84df698b04adc06 as writeKbDoc, kingsmetal } from "./i01a1335483aa776cb84df698b04adc06.ts";
@@ -86,7 +88,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 				if (!written.some((each) => each.doc === doc)) byRepo.set(doc.repoDir, [...written, { doc, write: false }]);
 			}
 			for (const [repoDir, written] of byRepo) {
-				for (const { doc, write } of written) if (write) writeKbDoc(doc.path, doc.yaml, doc.body);
+				for (const { doc, write } of written) if (write) writeChangedDoc(doc);
 				const { action, what } = given ?? { action: "crud", what: [...new Set(edits)].join(", ") || "edit" };
 				const sha = commitFiles(repoDir, written.map(({ doc }) => doc.path), commitSubject(bridge, action, what, written.map(({ doc }) => doc.id), capes), version);
 				commits.push({ repoDir, sha });
@@ -94,6 +96,19 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 			return [...new Set([...include, ...changed])].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));
 		},
 	};
+}
+
+/** Writes beside the live doc, then replaces it only if it still has the exact bytes the edit read. */
+function writeChangedDoc(doc: EditedDoc): void {
+	const temp = join(dirname(doc.path), `.nosedive-edit-${randomUUID()}.tmp`);
+	try {
+		writeKbDoc(temp, doc.yaml, doc.body);
+		if (readFileSync(doc.path, "utf8") !== doc.text) throw new Error(`${doc.path} changed while pass was editing it, so pass left the newer file alone`);
+		renameSync(temp, doc.path);
+		doc.text = readFileSync(doc.path, "utf8");
+	} finally {
+		rmSync(temp, { force: true });
+	}
 }
 
 /** What a kind doc's edit says about its Drop when, which decides whether its kind is durable. */
