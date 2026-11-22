@@ -157,6 +157,39 @@ test("a mode change the user staged is never lost to the edit", async () => {
 	assert.match(warnings.join("\n"), /committed.*left.*alone/i);
 });
 
+import { readdirSync } from "node:fs";
+import { noteMinted } from "./i01a14ab1d36771eea2bc6f13bdeb0526.ts";
+import { i01a141f869c07c4da8288927a559c8ae as mintKbDoc } from "./i01a141f869c07c4da8288927a559c8ae.ts";
+
+test("a minted doc's staged copy is never deleted once its bytes changed, and a restore never replaces a file", async () => {
+	const bridge = await tempBridge("edit-docs-minted-late");
+	const dir = kbOf(bridge);
+	const made = mintKbDoc(dir, { kind: "memo", gist: "minted", name: "minted" });
+	noteMinted(made.path);
+	const edit = editKbDocs(bridge, "test", undefined, () => {});
+	updateKbDocField(edit, made.id, "gist", () => "edited");
+	const late = join(dir, ".nosedive-stage-*", "doc").replace(/\\/g, "/");
+	writeFileSync(join(hooksOf(bridge), "post-index-change"), `#!/bin/sh\nfor f in ${late}; do [ -f "$f" ] && printf 'late write through an open handle\\n' > "$f"; done\nexit 0\n`, { mode: 0o755 });
+	const warnings: string[] = [];
+	const again = editKbDocs(bridge, "test", undefined, (warning) => warnings.push(warning));
+	updateKbDocField(again, made.id, "gist", () => "edited");
+
+	again.commit();
+
+	const kept = readdirSync(dir).filter((name) => name.startsWith(".nosedive-stage-"));
+	assert.equal(kept.length, 1, "the staged copy was kept");
+	assert.equal(readFileSync(join(dir, kept[0]!, "doc"), "utf8"), "late write through an open handle\n");
+	assert.match(warnings.join("\n"), /kept in/);
+	assert.match(git(["show", `HEAD:${join(dir, `${made.id}.md`).slice(bridge.length + 1).replace(/\\/g, "/")}`], bridge), /edited/);
+	void edit;
+});
+
+test("restoring a minted doc is exclusive: it never renames over a path", () => {
+	const text = readFileSync(new URL("./i01a14ab1d36771eea2bc6f13bdeb0526.ts", import.meta.url), "utf8");
+	assert.match(text, /linkSync/);
+	assert.doesNotMatch(text, /renameSync\(join\(dir, "doc"\), path\)|renameSync\(held, doc\.path\)/);
+});
+
 test("refuses a doc git does not track, before anything is written", async () => {
 	const bridge = await tempBridge("edit-untracked");
 	const path = join(kbOf(bridge), `${UNTRACKED}.md`);

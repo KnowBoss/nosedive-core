@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { linkSync, mkdtempSync, readFileSync, renameSync, rmSync, unlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { CORE_OWNER, scopeEntries, i01a18e2a3b4b798d98068d4778a158e6 as docKind } from "./i01a18e2a3b4b798d98068d4778a158e6.ts";
 import { dropWhenOf, dropWhenSlips } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
@@ -110,7 +110,7 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 				// A doc nosedive minted earlier in this command is untracked, so read-tree would refuse to overwrite it: it is renamed (atomically)
 				// into a staging directory, its bytes checked to be the ones nosedive wrote, and only then is its path left free for git to create.
 				// Nothing else of the index or the files is touched here: git's read-tree below does that, or refuses.
-				const staging: { path: string; dir: string }[] = [];
+				const staging: { path: string; dir: string; text: string }[] = [];
 				for (const { doc } of written) {
 					const rel = relative(repoDir, doc.path).replace(/\\/g, "/");
 					if (!MINTED.has(keyOf(doc.path)) || spawnSync("git", ["cat-file", "-e", `${parent}:${rel}`], { cwd: repoDir }).status === 0) continue;
@@ -122,9 +122,8 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 						rmSync(dir, { recursive: true, force: true });
 						continue;
 					}
-					if (readFileSync(held, "utf8") === doc.text) staging.push({ path: doc.path, dir });
-					else if (!existsSync(doc.path)) {
-						renameSync(held, doc.path);
+					if (readFileSync(held, "utf8") === doc.text) staging.push({ path: doc.path, dir, text: doc.text });
+					else if (putBack(held, doc.path)) {
 						rmSync(dir, { recursive: true, force: true });
 						warn?.(`warning: ${rel} is not the file nosedive minted, so it was left alone`);
 					} else warn?.(`warning: ${rel} is not the file nosedive minted, and was kept in ${dir}`);
@@ -132,12 +131,17 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 				let { tip } = commitOffside(repoDir, parent, files, first, version);
 				const done = commitPlan({ steps: [{ repo: repoDir, dir: repoDir, local: { moves: [{ ref, old: parent, new: tip }], files: { from: parent, to: tip, afterMoves: true } } }] }, action);
 				// Staged copies of minted docs go once git has made the final ones; if it refused, each goes back where it was.
-				for (const { path, dir } of staging) {
-					if (done.ok) rmSync(dir, { recursive: true, force: true });
-					else if (!existsSync(path)) {
-						renameSync(join(dir, "doc"), path);
-						rmSync(dir, { recursive: true, force: true });
-					} else warn?.(`warning: the file nosedive minted was kept in ${dir}`);
+				// A staged copy is deleted only while it still holds the bytes nosedive wrote, and put back only by an exclusive link, which fails if the path exists.
+				for (const { path, dir, text } of staging) {
+					const held = join(dir, "doc");
+					let still = false;
+					try {
+						still = readFileSync(held, "utf8") === text;
+					} catch {}
+					if (!still) warn?.(`warning: the file nosedive minted changed while it was set aside, and was kept in ${dir}`);
+					else if (done.ok) rmSync(dir, { recursive: true, force: true });
+					else if (putBack(held, path)) rmSync(dir, { recursive: true, force: true });
+					else warn?.(`warning: the file nosedive minted was kept in ${dir}`);
 				}
 				if (!done.ok && done.refusal.kind !== "dirty") throw new Error(describeRefusal(done.refusal));
 				if (!done.ok) warn?.(`warning: ${tip.slice(0, 7)} was committed, but git left your index and changed file alone: ${done.refusal.detail}`);
@@ -153,6 +157,17 @@ export function i01a14ab1d36771eea2bc6f13bdeb0526(cwd: string, version: string, 
 			return [...new Set([...include, ...changed])].map((doc) => relative(bridge.dir, doc.path).replace(/\\/g, "/"));
 		},
 	};
+}
+
+/** Puts a file back at a path only if nothing is there: a hard link fails when the path exists, so no file is ever replaced. */
+function putBack(held: string, path: string): boolean {
+	try {
+		linkSync(held, path);
+		unlinkSync(held);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function gitValue(dir: string, args: string[]): string {
