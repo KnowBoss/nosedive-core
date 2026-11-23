@@ -2,10 +2,10 @@
 import assert from "node:assert/strict";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { test, type TestContext } from "node:test";
+import { after, test, type TestContext } from "node:test";
 import { i01a204bc1c1c7395b331c57a3a342b05 as guard } from "./i01a204bc1c1c7395b331c57a3a342b05.ts";
 import { git, gitRepo, realPath, run, tempDir } from "../test/harness.ts";
 
@@ -29,9 +29,14 @@ const POWERSHELL_SAFE = new Set([
 	"if", "function", "01a205fc-9f4a-7578-9ba5-ca524f8f269f",
 ]);
 
+/** What a command line holding a line break gets at the root on Windows (legacy-line-windows-newline): no npx line, and the argument npx's cmd.exe launch would cut. */
+const unpassable = (root: string, arg: string) => `${HEAD} The hero's root is '${root}'. The command line to run it with cannot be given on Windows: the argument ${JSON.stringify(arg)} holds a line break, which npx's cmd.exe launch of September nosedive cuts or drops.`;
+const hasLineBreak = (arg: string) => /[\r\n]/.test(arg);
+
 /** The refusal for these arguments typed in `here`, a hero's `root` or somewhere else in or beside it, written out as the message says it. */
 function refusal(argv: string[], root: string, here = root): string {
 	if (here !== root) return elsewhere(root);
+	if (isWindows && argv.some(hasLineBreak)) return unpassable(root, argv.find(hasLineBreak)!);
 	const bash = (arg: string) => (/^[\w./:-][\w./:@=-]*$/.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`);
 	const bashLine = `  ${[`cd '${root.replace(/'/g, "'\\''")}' &&`, "npx", "-y", `nosedive@${OLD}`, ...argv.map(bash)].join(" ")}`;
 	if (!argv.every((arg) => POWERSHELL_SAFE.has(arg))) return `${TO_RUN}\n${bashLine}\n${NO_POWERSHELL}`;
@@ -145,6 +150,42 @@ test("the refusal's lines are verbatim", async () => {
 	assert.equal((await run(["seed"], join(odd, "kb"))).err, elsewhere(odd));
 });
 
+test("the root is single-quoted in the bash line even when it is plain", { skip: isWindows && "a Windows root is never plain: it holds a colon and backslashes" }, () => {
+	const dir = mkdtempSync("/tmp/legacy-hero-guard-plain-");
+	after(() => rmSync(dir, { recursive: true, force: true }));
+	mkdirSync(join(dir, ".nosedive"));
+	writeFileSync(join(dir, ".nosedive", "config.yaml"), SEPTEMBER);
+	assert.match(dir, /^[\w./-]+$/, "the root is one bash would take bare");
+	const bare = (message: string) => message.slice("nosedive: ".length);
+	assert.equal(guard(["seed"], dir), `${bare(TO_RUN)}\n  cd '${dir}' && npx -y nosedive@2026.9.18 seed\nor in PowerShell:\n  Set-Location -LiteralPath '${dir}'; npx -y nosedive@2026.9.18 seed`);
+	assert.equal(guard(["crud", "memo", "one two"], dir), `${bare(TO_RUN)}\n  cd '${dir}' && npx -y nosedive@2026.9.18 crud memo 'one two'\n${NO_POWERSHELL}`);
+});
+
+test("on Windows an argument npx's cmd.exe launch would cut gets no line in either shell and is named; elsewhere it is pasted through bash as typed", async () => {
+	const dir = hero("legacy-hero-guard-windows", SEPTEMBER);
+	mkdirSync(join(dir, "kb"));
+	const bare = (message: string) => message.slice("nosedive: ".length);
+	for (const arg of ["two\nlines", "carriage\rreturn", "dos\r\nline", "\n"]) {
+		const argv = ["crud", "memo", arg];
+		// The first such argument is the one named, and a line is held back whatever else is typed.
+		assert.equal(guard(argv, dir, undefined, "win32"), bare(unpassable(dir, arg)), JSON.stringify(arg));
+		assert.equal(guard(["x y", ...argv, "a\nb"], dir, undefined, "win32"), bare(unpassable(dir, arg)), JSON.stringify(arg));
+		assert.doesNotMatch(guard(argv, dir, undefined, "win32")!, /npx -y|Set-Location|\bcd '/);
+		for (const platform of ["linux", "darwin"] as const) {
+			assert.equal(guard(argv, dir, undefined, platform), `${bare(TO_RUN)}\n  cd '${dir.replace(/'/g, "'\\''")}' && npx -y nosedive@2026.9.18 crud memo '${arg}'\n${NO_POWERSHELL}`, `${platform} ${JSON.stringify(arg)}`);
+		}
+	}
+	// Nothing else changes on Windows: the other characters the launch passes, spaces, quotes, percent signs and backslashes, still get the bash line.
+	const others = ["crud", "memo", "one two", "it's", "100%", 'say "hi"', "back\\slash", "tab\there", "^&|<>()!", "café"];
+	const line = guard(others, dir, undefined, "win32")!;
+	assert.equal(line, guard(others, dir, undefined, "linux"));
+	assert.match(line, /\n  cd '/);
+	// Away from the root no line is printed anyway, so the refusal is the one every platform gives.
+	assert.equal(guard(["a\nb"], join(dir, "kb"), undefined, "win32"), bare(elsewhere(dir)));
+	// As a process on this machine, whichever it is.
+	assert.deepEqual(await run(["crud", "memo", "two\nlines"], dir), { code: 1, out: "", err: refusal(["crud", "memo", "two\nlines"], dir) });
+});
+
 /** A package standing in for nosedive@2026.9.18, which prints the arguments and directory it was run with. */
 function stubPackage(): string {
 	const dir = tempDir("legacy-hero-guard-stub");
@@ -226,7 +267,7 @@ test("printed lines, pasted through the real npx into bash, Windows PowerShell a
 	// Each is an argument PowerShell or npx.ps1 changes or drops, or reads as a number or an operator, so no PowerShell line is given for it; bash passes all of them as they are.
 	const unsafe = [
 		"a b", "it's", "it's $HOME", "`id`", "$(echo x)", "$x", "$true", "100%", "hi!", 'say "hi"', "back\\slash", "two\nlines", "", "*.md", "@file", "@{a=1}", "x,y", "1,2", "--", "-", "+", "-x", "-a:b",
-		"-ErrorAction:Stop", "--%", "~", "~/x", "#c", "{a}", "(x)", "a;b", "a&b", "a|b", "<x>", "‘curly’", "café", "1", "-1", "007", "1.5", "1kb", "0x10", "1e3", "1d", "1n", "8f269f", "2024-01-01", "1-2",
+		"carriage\rreturn", "dos\r\nline", "-ErrorAction:Stop", "--%", "~", "~/x", "#c", "{a}", "(x)", "a;b", "a&b", "a|b", "<x>", "‘curly’", "café", "1", "-1", "007", "1.5", "1kb", "0x10", "1e3", "1d", "1n", "8f269f", "2024-01-01", "1-2",
 	].map((arg) => ["crud", arg]);
 	const needed = new Set<Shell>();
 	const heroes: [string, string[][]][] = [[plain, [...safe, ...unsafe]], [odd, [["seed"], ["crud", "it's", "1"]]]];
@@ -235,6 +276,8 @@ test("printed lines, pasted through the real npx into bash, Windows PowerShell a
 		for (const argv of cases) {
 			const message = (await run(argv, dir)).err;
 			assert.equal(message, refusal(argv, dir), argv.join(" "));
+			// On Windows npx's cmd.exe launch cuts such an argument, so the refusal gives no line to paste (legacy-line-windows-newline); elsewhere bash passes it as typed.
+			if (isWindows && argv.some(hasLineBreak)) continue;
 			lines.push({ ...printedLines(message), argv });
 		}
 		for (const shell of SHELLS) {
@@ -243,8 +286,6 @@ test("printed lines, pasted through the real npx into bash, Windows PowerShell a
 			needed.add(shell);
 			const sent = lines.filter((line) => shell === "bash" || line.powershell !== undefined);
 			for (const [at, line] of sent.entries()) {
-				// On Windows npx starts the package through cmd.exe, which ends a command line at a newline: observed for bash too, and no quoting reaches past it.
-				if (isWindows && line.argv.some((arg) => arg.includes("\n"))) continue;
 				assert.deepEqual(got[at]!.argv, line.argv, `${shell}: ${shell === "bash" ? line.bash : line.powershell}`);
 				// Run from a directory of its own, the line still acted in the hero: its cd or Set-Location anchored it.
 				assert.equal(realpathSync.native(got[at]!.cwd), realpathSync.native(dir), `${shell} ran in ${got[at]!.cwd}`);
