@@ -409,12 +409,17 @@ test("a kept checkout is the September hero's even when it holds a config of its
 	assert.equal(guard(["help"], old.inner, old.inner), undefined, "named as the hero, it is a modern one");
 });
 
-test("a config that is huge, or no regular file, is no match, and never a hang", { timeout: 60_000 }, () => {
-	const huge = hero("legacy-hero-guard-huge", `${SEPTEMBER}# ${"x".repeat(2_000_000)}\n`);
-	assert.equal(guard(["seed"], huge), undefined);
-	assert.equal(guard(["seed"], huge, huge), undefined);
-	const small = hero("legacy-hero-guard-small", SEPTEMBER);
-	assert.ok(guard(["seed"], small), "the same config, small, is one");
+test("a September config over 1 MiB is refused like any other, and nothing changes", { timeout: 60_000 }, async () => {
+	const huge = hero("legacy-hero-guard-huge", `${SEPTEMBER}# ${"x".repeat((1 << 20) + 1)}\n`);
+	assert.ok(statSync(join(huge, ".nosedive", "config.yaml")).size > 1 << 20);
+	const before = snapshot(huge);
+	for (const argv of [["seed"], ["help"], ["--help"]]) assert.deepEqual(await run(argv, huge), { code: 1, out: "", err: refusal(argv, huge) }, argv.join(" "));
+	assert.ok(guard(["seed"], huge));
+	assert.ok(guard(["seed"], huge, huge));
+	assert.deepEqual(snapshot(huge), before);
+});
+
+test("a config that is no regular file is no match, and never a hang", { timeout: 60_000 }, () => {
 	if (!isWindows) {
 		const fifo = tempDir("legacy-hero-guard-fifo");
 		mkdirSync(join(fifo, ".nosedive"));

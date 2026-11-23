@@ -5,18 +5,15 @@ import { parse } from "yaml";
 /** The last nosedive that runs September's heroes. @see kb/01a204bc-1c1c-7395-b331-c57a3a342b05.md */
 const SEPTEMBER = "2026.9.18";
 
-/** A config bigger than this is no hero's. */
-const MAX_CONFIG = 1 << 20;
-
 /**
  * Whether `dir`'s `.nosedive/config.yaml` names a `backlog` and no `roots`, as legacy-capes tests it.
- * A config that is not a regular file, is too big, or cannot be read or parsed is no match; none of it is opened unless it is a small regular file.
+ * A config that is not a regular file, or cannot be read or parsed, is no match; it is opened only when it is a regular file, whatever its size, as core's own config reader does next. @see kb/01a20631-d3aa-790f-8fa8-88d8aea020ee.md
  */
 function isSeptemberConfig(dir: string): boolean {
 	try {
 		const path = join(dir, ".nosedive", "config.yaml");
 		const stat = statSync(path);
-		if (!stat.isFile() || stat.size > MAX_CONFIG) return false;
+		if (!stat.isFile()) return false;
 		const config = parse(readFileSync(path, "utf8")) as Record<string, unknown> | null;
 		return typeof config === "object" && config !== null && !("roots" in config) && typeof config.backlog === "string";
 	} catch {
