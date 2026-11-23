@@ -1,14 +1,13 @@
 // legacy-hero-guard
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test, type TestContext } from "node:test";
 import { i01a204bc1c1c7395b331c57a3a342b05 as guard } from "./i01a204bc1c1c7395b331c57a3a342b05.ts";
-import { existsSync } from "node:fs";
-import { git, gitRepo, run, tempDir } from "../test/harness.ts";
+import { git, gitRepo, realPath, run, tempDir } from "../test/harness.ts";
 
 const OLD = "2026.9.18";
 const BACKLOG = "01a204bc-0000-7000-8000-000000000001";
@@ -16,19 +15,31 @@ const MODERN = "01a204bc-0000-7000-8000-000000000002";
 const isWindows = process.platform === "win32";
 const CORE_DIR = join(import.meta.dirname, "..");
 
-const HEAD = "nosedive: this hero is for September nosedive, and this nosedive does not run on it. Nothing was changed. Run this command line there";
-const PLAIN = /^[\w./:-][\w./:@-]*$/;
+const HEAD = "nosedive: this hero is for September nosedive, and this nosedive does not run on it. Nothing was changed.";
+const TO_RUN = `${HEAD} To run this command line with September nosedive, in bash or zsh:`;
+const NO_POWERSHELL = "No PowerShell line is given because an argument would not pass through npx.ps1 unchanged.";
+/** What a command gets from anywhere but the hero's root: no npx line, the root, and where to run it again. */
+const elsewhere = (root: string) => `${HEAD} The hero's root is '${root}': run the same command again from there, which prints the command line to run it with.`;
 
-/** The refusal for these arguments: one line when every argument is plain, else the line for bash and the line for PowerShell. */
-function refusal(argv: string[]): string {
-	const bash = (arg: string) => (PLAIN.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`);
-	const powershell = (arg: string) => (PLAIN.test(arg) ? arg : `'${arg.replace(/['‘’‚‛]/g, "$&$&")}'`);
-	const line = (quote: (arg: string) => string) => ["npx", "-y", `nosedive@${OLD}`, ...argv.map(quote)].join(" ");
-	return line(bash) === line(powershell) ? `${HEAD} with:\n  ${line(bash)}` : `${HEAD}, in bash or zsh:\n  ${line(bash)}\nor in PowerShell:\n  ${line(powershell)}`;
+/** The arguments the tests type that the real npx.ps1 passes unchanged and the guard puts in a PowerShell line; every other argument gets the bash line alone. */
+const POWERSHELL_SAFE = new Set([
+	"help", "--help", "--more", "crud", "pass", "no-such-action", "seed", "--no-capes", "memo", "mint", "next", "dock", "scratch", "jump", "land", "pack", "bail", "--reason", "trial",
+	"work:jump", "core:seed", "record.repo", "record.dive", "--feat", "add-a-hello-note", "--gist", "Second", "--brief", "preflight", "list-dives", "--at", "kb", "x", "--drop", BACKLOG,
+	"./kb/sub", "./not-there-yet", "./workspace/scratch", "./workspace/inner", "--meta:k=v", "--meta:feat=abc", "kb/x.md", "A-B", "a:b", "a.b", "x_y", "--at=x", "--k=v", "./", "../x", "../x/y.z", ".", "..", "true", "false", "null",
+	"if", "function", "01a205fc-9f4a-7578-9ba5-ca524f8f269f",
+]);
+
+/** The refusal for these arguments typed in `here`, a hero's `root` or somewhere else in or beside it, written out as the message says it. */
+function refusal(argv: string[], root: string, here = root): string {
+	if (here !== root) return elsewhere(root);
+	const bash = (arg: string) => (/^[\w./:-][\w./:@=-]*$/.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`);
+	const bashLine = `  ${[`cd '${root.replace(/'/g, "'\\''")}' &&`, "npx", "-y", `nosedive@${OLD}`, ...argv.map(bash)].join(" ")}`;
+	if (!argv.every((arg) => POWERSHELL_SAFE.has(arg))) return `${TO_RUN}\n${bashLine}\n${NO_POWERSHELL}`;
+	return `${TO_RUN}\n${bashLine}\nor in PowerShell:\n  Set-Location -LiteralPath '${root.replace(/['‘’‚‛]/g, "$&$&")}'; ${["npx", "-y", `nosedive@${OLD}`, ...argv].join(" ")}`;
 }
 
-/** The checkout refusal launch has always given inside a hero's workspace. */
-const CHECKOUT = /^nosedive: scratch is checked out in .*'s workspace, and a checkout is never a hero: run nosedive from /;
+/** The checkout refusal launch has always given inside a hero's workspace, which a September hero's kept checkout no longer gets. */
+const CHECKOUT = /a checkout is never a hero/;
 
 /** The real command line, built when a build is there and from source otherwise (CI builds first), run as a process. */
 function cliArgs(): string[] {
@@ -71,10 +82,11 @@ function snapshot(...dirs: string[]): Record<string, string> {
 	return seen;
 }
 
-test("a September hero refuses every command line, naming the old nosedive to run it with, and changes nothing", async () => {
+test("a September hero refuses every command line, naming the old nosedive to run it with at its root, and changes nothing", async () => {
 	const dir = hero("legacy-hero-guard", SEPTEMBER);
 	mkdirSync(join(dir, "workspace", "scratch"), { recursive: true });
 	mkdirSync(join(dir, "kb", "sub"), { recursive: true });
+	mkdirSync(join(dir, "workspace", "scratch", "deeper"), { recursive: true });
 	const before = snapshot(dir);
 	const refused: string[][] = [
 		[],
@@ -97,75 +109,182 @@ test("a September hero refuses every command line, naming the old nosedive to ru
 		["seed", "--at", "kb"],
 		["crud", "--at", "kb", "memo", "x"],
 	];
-	for (const argv of refused) assert.deepEqual(await run(argv, dir), { code: 1, out: "", err: refusal(argv) }, argv.join(" "));
-	// From a subdirectory, and from the workspace, it is still that hero; a checkout in the workspace keeps launch's own refusal.
-	for (const cwd of [join(dir, "kb", "sub"), join(dir, "workspace")]) assert.deepEqual(await run(["seed"], cwd), { code: 1, out: "", err: refusal(["seed"]) }, cwd);
-	const checkout = await run(["seed"], join(dir, "workspace", "scratch"));
-	assert.equal(checkout.code, 1);
-	assert.match(checkout.err, CHECKOUT);
-	assert.doesNotMatch(checkout.err, /September/);
+	for (const argv of refused) assert.deepEqual(await run(argv, dir), { code: 1, out: "", err: refusal(argv, dir) }, argv.join(" "));
+	// From a subdirectory, from the workspace and from a kept checkout in it, the refusal names the root and gives no npx line.
+	for (const cwd of [join(dir, "kb"), join(dir, "kb", "sub"), join(dir, "workspace"), join(dir, "workspace", "scratch"), join(dir, "workspace", "scratch", "deeper")]) {
+		const result = await run(["seed", "--no-capes"], cwd);
+		assert.deepEqual(result, { code: 1, out: "", err: elsewhere(dir) }, cwd);
+		assert.doesNotMatch(result.err, /npx|--at|NOSEDIVE_HERO/);
+	}
 	assert.deepEqual(snapshot(dir), before);
 });
 
 test("the refusal's lines are verbatim", async () => {
 	const dir = hero("legacy-hero-guard-verbatim", SEPTEMBER);
 	const at = async (argv: string[]) => (await run(argv, dir)).err;
-	assert.equal(await at([]), `${HEAD} with:\n  npx -y nosedive@2026.9.18`);
-	assert.equal(await at(["seed", "--no-capes"]), `${HEAD} with:\n  npx -y nosedive@2026.9.18 seed --no-capes`);
-	assert.equal(await at(["crud", "memo", "one two"]), `${HEAD} with:\n  npx -y nosedive@2026.9.18 crud memo 'one two'`);
-	assert.equal(await at(["crud", "memo", "it's $HOME", "", "@x"]), `${HEAD}, in bash or zsh:\n  npx -y nosedive@2026.9.18 crud memo 'it'\\''s $HOME' '' '@x'\nor in PowerShell:\n  npx -y nosedive@2026.9.18 crud memo 'it''s $HOME' '' '@x'`);
+	const both = (args: string) => `${TO_RUN}\n  cd '${dir}' && npx -y nosedive@2026.9.18${args}\nor in PowerShell:\n  Set-Location -LiteralPath '${dir}'; npx -y nosedive@2026.9.18${args}`;
+	assert.equal(await at([]), both(""));
+	assert.equal(await at(["seed", "--no-capes"]), both(" seed --no-capes"));
+	assert.equal(await at(["crud", "--meta:feat=a/b", "./kb/sub", "01a205fc-9f4a-7578-9ba5-ca524f8f269f"]), both(" crud --meta:feat=a/b ./kb/sub 01a205fc-9f4a-7578-9ba5-ca524f8f269f"));
+	// A bash line alone, and why there is no other.
+	const bashOnly = (args: string) => `${TO_RUN}\n  cd '${dir}' && npx -y nosedive@2026.9.18${args}\n${NO_POWERSHELL}`;
+	assert.equal(await at(["crud", "memo", "one two"]), bashOnly(" crud memo 'one two'"));
+	assert.equal(await at(["crud", "memo", "it's $HOME", "", "@x"]), bashOnly(" crud memo 'it'\\''s $HOME' '' '@x'"));
+	for (const [arg, quoted] of [["1", "1"], ["007", "007"], ["1kb", "1kb"], ["0x10", "0x10"], ["-x", "-x"], ["--", "--"], ["-a:b", "-a:b"], ["a,b", "'a,b'"], ["$x", "'$x'"], ["8f269f", "8f269f"], ["~", "'~'"], ["a;b", "'a;b'"], ["", "''"]]) {
+		assert.equal(await at(["jump", arg]), bashOnly(` jump ${quoted}`), `jump ${JSON.stringify(arg)}`);
+	}
+	// What is left of the safe set: words, options, relative paths and hyphenated ids go bare in both.
+	for (const arg of ["seed", "A-b_c.d:e=f/g", "--no-capes", "--meta:k=v", "--at=x", ".", "..", "./", "../x", "./a/b.c", "0e12-1", "01a205fc-9f4a-7578-9ba5-ca524f8f269f"]) {
+		assert.equal(await at(["jump", arg]), both(` jump ${arg}`), arg);
+	}
+	// The root is quoted, in each shell its own way, whatever it holds.
+	const odd = join(tempDir("legacy-hero-guard-odd-root"), "it's ‘here’");
+	mkdirSync(join(odd, ".nosedive"), { recursive: true });
+	writeFileSync(join(odd, ".nosedive", "config.yaml"), SEPTEMBER);
+	assert.equal((await run(["seed"], odd)).err, `${TO_RUN}\n  cd '${odd.replace(/'/g, "'\\''")}' && npx -y nosedive@2026.9.18 seed\nor in PowerShell:\n  Set-Location -LiteralPath '${odd.replace(/['‘’]/g, "$&$&")}'; npx -y nosedive@2026.9.18 seed`);
+	assert.equal((await run(["seed"], join(odd, "kb"))).err, elsewhere(odd));
 });
 
-/** One shell's run of a printed line, with a stub standing in for npx that prints the arguments it got; its argv, or undefined where the shell is absent. */
-function pasted(shell: "bash" | "pwsh", line: string, stub: string): string[] | undefined {
-	// The stub stands where npx does, ahead of the arguments, so that they reach it as the shell parses them and no wrapper re-reads them.
-	const script = line.replace(/^npx /, `node '${stub.replace(/\\/g, "/")}' `);
-	const args = shell === "bash" ? ["-c", script] : ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")];
-	const result = spawnSync(shell, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 });
-	if (result.error) {
-		assert.ok(!process.env.CI, `${shell} is not here, and CI has it: ${result.error.message}`);
-		return undefined;
-	}
-	assert.equal(result.status, 0, `${shell}: ${line}\n${result.stderr}`);
-	assert.notEqual(result.stdout, "", `${shell} printed nothing for ${line}\n${result.stderr}`);
-	return JSON.parse(result.stdout) as string[];
+/** A package standing in for nosedive@2026.9.18, which prints the arguments and directory it was run with. */
+function stubPackage(): string {
+	const dir = tempDir("legacy-hero-guard-stub");
+	writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "nosedive", version: OLD, bin: { nosedive: "cli.js" } }));
+	// ASCII only, so no shell re-reads what it prints.
+	writeFileSync(join(dir, "cli.js"), '#!/usr/bin/env node\nprocess.stdout.write("@@" + JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd() }).replace(/[\\u0080-\\uffff]/g, (c) => "\\\\u" + c.charCodeAt(0).toString(16).padStart(4, "0")) + "\\n");\n');
+	return dir;
 }
 
-test("the printed line, pasted into bash and into PowerShell, hands the same arguments to npx", async () => {
-	const dir = hero("legacy-hero-guard-paste", SEPTEMBER);
-	const stub = join(tempDir("legacy-hero-guard-stub"), "stub.js");
-	writeFileSync(stub, "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n");
-	const arguments_ = ["a b", "it's", "it's $HOME", "`id`", "$(echo x)", "100%", "hi!", 'say "hi"', "back\\slash", "two\nlines", "", "*.md", "@file", "@{a=1}", "x,y", "--meta:k=v", "café", "‘curly’", "a;b", "a&b", "a|b", "<x>", "#c", "~", "{a,b}", "(x)"];
-	let ran = 0;
-	for (const arg of [...arguments_.map((each) => [each]), ["--at", "kb", "crud", "memo", ...arguments_]]) {
-		const argv = ["crud", ...arg];
-		const err = (await run(argv, dir)).err;
-		const split = err.split("\nor in PowerShell:\n  ");
-		const bash = split[0]!.slice(HEAD.length).replace(/^(, in bash or zsh| with):\n {2}/, "");
-		const lines = [bash, split.length > 1 ? split.at(-1)! : bash];
-		const want = ["-y", `nosedive@${OLD}`, ...argv];
-		for (const [shell, line] of [["bash", lines[0]!], ["pwsh", lines[1]!]] as const) {
-			const got = pasted(shell, line, stub);
-			if (got === undefined) continue;
-			assert.deepEqual(got, want, `${shell}: ${line}`);
-			ran++;
+/** The environment a shell runs a pasted line in: the real npx ahead of the tests' stub, and an npm that touches nothing of the user's. */
+function shellEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+	const env: NodeJS.ProcessEnv = {};
+	for (const [key, value] of Object.entries(process.env)) if (!/^path$/i.test(key)) env[key] = value;
+	return { ...env, PATH: realPath, ...extra };
+}
+
+/** Whether a tool is missing: where CI has it that is a failure, and elsewhere there is nothing to run. */
+function missing(result: SpawnSyncReturns<string>, what: string): boolean {
+	if (!result.error) return false;
+	assert.ok(!process.env.CI, `${what} is not here, and CI has it: ${result.error.message}`);
+	return true;
+}
+
+type Shell = "bash" | "pwsh" | "powershell";
+/** Each shell a line is pasted into: Windows PowerShell 5.1 exists only on Windows, where it is what npx.ps1 meets by default. */
+const SHELLS: Shell[] = isWindows ? ["bash", "pwsh", "powershell"] : ["bash", "pwsh"];
+
+/** What each pasted line made the stub print, or undefined where the shell is absent and CI does not need it; the shell must also have found the npx it is meant to. */
+function pasteAll(shell: Shell, lines: string[], from: string, env: NodeJS.ProcessEnv): { argv: string[]; cwd: string }[] | undefined {
+	// The lines run as the shell's own statements, one after the other, as if pasted; a PowerShell one first names the npx it resolves.
+	const script = shell === "bash" ? lines.join("\n") : ['Write-Output ("@@npx " + (Get-Command npx).Source)', ...lines].join("\n");
+	const args = shell === "bash" ? ["-c", script] : ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")];
+	const result = spawnSync(shell === "powershell" ? "powershell.exe" : shell, args, { cwd: from, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 400_000 });
+	if (missing(result, shell)) return undefined;
+	assert.equal(result.status, 0, `${shell}: ${script}\n${result.stdout}\n${result.stderr}`);
+	const printed = result.stdout.split(/\r?\n/).filter((line) => line.startsWith("@@"));
+	const resolved = printed.find((line) => line.startsWith("@@npx "));
+	if (shell !== "bash") {
+		assert.ok(resolved, `${shell} printed no npx: ${result.stdout}`);
+		// Windows resolves npx to npx.ps1 in both PowerShells; that script is what the lines are pasted through.
+		if (isWindows) assert.match(resolved, /npx\.ps1$/i, `${shell} resolved ${resolved}`);
+	}
+	const records = printed.filter((line) => !line.startsWith("@@npx ")).map((line) => JSON.parse(line.slice(2)) as { argv: string[]; cwd: string });
+	assert.equal(records.length, lines.length, `${shell} ran ${records.length} of ${lines.length} lines:\n${result.stdout}\n${result.stderr}`);
+	return records;
+}
+
+/** The bash line, and the PowerShell line when there is one, a refusal prints. */
+function printedLines(message: string): { bash: string; powershell?: string } {
+	const start = message.indexOf("in bash or zsh:\n  ") + "in bash or zsh:\n  ".length;
+	const other = message.indexOf("\nor in PowerShell:\n  ");
+	if (other >= 0) return { bash: message.slice(start, other), powershell: message.slice(other + "\nor in PowerShell:\n  ".length) };
+	assert.ok(message.endsWith(`\n${NO_POWERSHELL}`), message);
+	return { bash: message.slice(start, message.length - NO_POWERSHELL.length - 1) };
+}
+
+test("printed lines, pasted through the real npx into bash, Windows PowerShell and pwsh, run in the root and hand the package the arguments typed", { timeout: 900_000 }, async (t) => {
+	const stub = stubPackage();
+	const npmCache = join(tempDir("legacy-hero-guard-npm-cache"), "cache");
+	const env = shellEnv({ npm_config_cache: npmCache, npm_config_offline: "true", npm_config_update_notifier: "false" });
+	// A hero with the stub installed as its dependency, so that the line's own npx finds nosedive@2026.9.18 without a registry.
+	const withStub = (dir: string): boolean => {
+		writeFileSync(join(dir, "package.json"), '{"name":"hero","version":"1.0.0"}');
+		const result = spawnSync("npm", ["i", stub, "--no-audit", "--no-fund", "--ignore-scripts"], { cwd: dir, env, encoding: "utf8", shell: isWindows });
+		if (missing(result, "npm")) return false;
+		assert.equal(result.status, 0, `npm i: ${result.stdout}${result.stderr}`);
+		return true;
+	};
+	const plain = hero("legacy-hero-guard-paste", SEPTEMBER);
+	const odd = join(tempDir("legacy-hero-guard-paste-odd"), "it's ‘here’ ok");
+	mkdirSync(join(odd, ".nosedive"), { recursive: true });
+	writeFileSync(join(odd, ".nosedive", "config.yaml"), SEPTEMBER);
+	if (!withStub(plain)) return t.skip("npm is not here");
+	withStub(odd);
+	const safe: string[][] = [
+		[], ["seed"], ["seed", "--no-capes"], ["--at", "./kb/sub", "seed"], ["crud", "memo", "--meta:feat=abc"], ["jump", "01a205fc-9f4a-7578-9ba5-ca524f8f269f"], ["dock", "../x"], ["list-dives"],
+		["a.b", "kb/x.md", "A-B", "a:b", "x_y", "--at=x", "--k=v", "./", "../x/y.z", ".", ".."], ["true", "false", "null", "if", "function", "work:jump"],
+	];
+	// Each is an argument PowerShell or npx.ps1 changes or drops, or reads as a number or an operator, so no PowerShell line is given for it; bash passes all of them as they are.
+	const unsafe = [
+		"a b", "it's", "it's $HOME", "`id`", "$(echo x)", "$x", "$true", "100%", "hi!", 'say "hi"', "back\\slash", "two\nlines", "", "*.md", "@file", "@{a=1}", "x,y", "1,2", "--", "-", "+", "-x", "-a:b",
+		"-ErrorAction:Stop", "--%", "~", "~/x", "#c", "{a}", "(x)", "a;b", "a&b", "a|b", "<x>", "‘curly’", "café", "1", "-1", "007", "1.5", "1kb", "0x10", "1e3", "1d", "1n", "8f269f", "2024-01-01", "1-2",
+	].map((arg) => ["crud", arg]);
+	const needed = new Set<Shell>();
+	const heroes: [string, string[][]][] = [[plain, [...safe, ...unsafe]], [odd, [["seed"], ["crud", "it's", "1"]]]];
+	for (const [dir, cases] of heroes) {
+		const lines: { bash: string; powershell?: string; argv: string[] }[] = [];
+		for (const argv of cases) {
+			const message = (await run(argv, dir)).err;
+			assert.equal(message, refusal(argv, dir), argv.join(" "));
+			lines.push({ ...printedLines(message), argv });
+		}
+		for (const shell of SHELLS) {
+			const got = pasteAll(shell, lines.flatMap((line) => (shell === "bash" ? [line.bash] : line.powershell === undefined ? [] : [line.powershell])), tempDir("legacy-hero-guard-away"), env);
+			if (!got) continue;
+			needed.add(shell);
+			const sent = lines.filter((line) => shell === "bash" || line.powershell !== undefined);
+			for (const [at, line] of sent.entries()) {
+				// On Windows npx starts the package through cmd.exe, which ends a command line at a newline: observed for bash too, and no quoting reaches past it.
+				if (isWindows && line.argv.some((arg) => arg.includes("\n"))) continue;
+				assert.deepEqual(got[at]!.argv, line.argv, `${shell}: ${shell === "bash" ? line.bash : line.powershell}`);
+				// Run from a directory of its own, the line still acted in the hero: its cd or Set-Location anchored it.
+				assert.equal(realpathSync.native(got[at]!.cwd), realpathSync.native(dir), `${shell} ran in ${got[at]!.cwd}`);
+			}
+			if (shell !== "bash") assert.ok(sent.length >= (dir === plain ? safe.length : 1), `${shell} had lines to run`);
 		}
 	}
-	if (process.env.CI) assert.ok(ran >= 2 * arguments_.length, "both shells ran in CI");
+	if (process.env.CI) assert.deepEqual([...needed].sort(), [...SHELLS].sort(), "every shell CI needs ran");
+});
+
+test("a command line run in a September hero's subdirectory, workspace or kept checkout, or named by NOSEDIVE_HERO from elsewhere, gets the root and no npx line", () => {
+	const dir = hero("legacy-hero-guard-redirect", SEPTEMBER);
+	mkdirSync(join(dir, "workspace", "scratch"), { recursive: true });
+	mkdirSync(join(dir, "kb", "sub"), { recursive: true });
+	const away = tempDir("legacy-hero-guard-away");
+	const redirected = elsewhere(dir);
+	// Run from outside with NOSEDIVE_HERO, 2026.9.18 would act on the directory it is in, so the line is held back, whatever NOSEDIVE_HERO names.
+	for (const named of [dir, join(dir, "kb", "sub"), join(dir, "workspace"), join(dir, "workspace", "scratch")]) {
+		assert.deepEqual(cli(["seed"], away, { NOSEDIVE_HERO: named }), { code: 1, out: "", err: redirected }, named);
+	}
+	// Run at the root, it is where the arguments were typed, so the anchored line is given as it is anywhere else.
+	assert.deepEqual(cli(["seed"], dir, { NOSEDIVE_HERO: dir }), { code: 1, out: "", err: refusal(["seed"], dir) });
+	assert.deepEqual(cli(["seed"], dir), { code: 1, out: "", err: refusal(["seed"], dir) });
+	// Without NOSEDIVE_HERO, a subdirectory or the kept checkout is not the root either.
+	for (const cwd of [join(dir, "kb", "sub"), join(dir, "workspace", "scratch")]) assert.deepEqual(cli(["seed"], cwd), { code: 1, out: "", err: redirected }, cwd);
 });
 
 test("nothing in the refusal suggests a newer version or a way past it", async () => {
-	const { err } = await run(["seed"], hero("legacy-hero-guard-words", SEPTEMBER));
-	assert.doesNotMatch(err, /newer|latest|upgrade|update|migrat|npm i|--force|--yes|skip|bypass|legacy|override/i);
+	const dir = hero("legacy-hero-guard-words", SEPTEMBER);
+	mkdirSync(join(dir, "kb"));
+	// The root is named by path, which holds this test's label: it is the message's words that are judged.
+	for (const cwd of [dir, join(dir, "kb")]) assert.doesNotMatch((await run(["seed"], cwd)).err.replaceAll(dir, "<root>"), /newer|latest|upgrade|update|migrat|npm i|--force|--yes|skip|bypass|legacy|override|--at|NOSEDIVE_HERO/i);
 });
 
 test("pre-push.hook still exits 0 silently in a September hero", async () => {
-	assert.deepEqual(await run(["pre-push.hook", "origin", "url"], hero("legacy-hero-guard-hook", SEPTEMBER)), { code: 0, out: "", err: "" });
-});
-
-test("the real command line refuses a September hero named by NOSEDIVE_HERO, from anywhere", () => {
-	const dir = hero("legacy-hero-guard-env", SEPTEMBER);
-	assert.deepEqual(cli(["seed"], tempDir("legacy-hero-guard-elsewhere"), { NOSEDIVE_HERO: dir }), { code: 1, out: "", err: refusal(["seed"]) });
+	const dir = hero("legacy-hero-guard-hook", SEPTEMBER);
+	mkdirSync(join(dir, "workspace", "scratch"), { recursive: true });
+	assert.deepEqual(await run(["pre-push.hook", "origin", "url"], dir), { code: 0, out: "", err: "" });
+	// Nor does the kept checkout's refusal, or the September one, come before it.
+	assert.deepEqual(await run(["pre-push.hook", "origin", "url"], join(dir, "workspace", "scratch")), { code: 0, out: "", err: "" });
 });
 
 test("a repo that is no September hero is not refused", async () => {
@@ -186,6 +305,11 @@ test("a repo that is no September hero is not refused", async () => {
 		assert.doesNotMatch(result.err, /September/, label);
 	}
 	for (const [label, dir] of cases.slice(0, 1)) assert.equal((await run(["--help"], dir)).code, 0, label);
+	// A hero mid-migration has a kept checkout too, and keeps launch's refusal there.
+	mkdirSync(join(withRoots, "workspace", "scratch"), { recursive: true });
+	const checkout = await run(["seed"], join(withRoots, "workspace", "scratch"));
+	assert.doesNotMatch(checkout.err, /September/);
+	assert.match(checkout.err, CHECKOUT);
 	// A config that cannot be read at all is no match either, and never a crash.
 	const unreadable = tempDir("legacy-hero-guard-unreadable");
 	mkdirSync(join(unreadable, ".nosedive", "config.yaml"), { recursive: true });
@@ -215,29 +339,39 @@ test("the guard judges the hero launch runs in, whatever --at and NOSEDIVE_HERO 
 	// ...and a September hero is refused though --at points at a modern one, which it would act through the September one's bridge.
 	const old = nestedHeroes("legacy-hero-guard-old-host", SEPTEMBER, MODERN_CONFIG);
 	for (const argv of [["--at", "./workspace/inner", "crud", "memo", "x"], ["--at", old.inner, "seed"], ["seed", "--at", "./workspace/inner"]]) {
-		assert.deepEqual(await run(argv, old.host), { code: 1, out: "", err: refusal(argv) }, argv.join(" "));
+		assert.deepEqual(await run(argv, old.host), { code: 1, out: "", err: refusal(argv, old.host) }, argv.join(" "));
 	}
 	// Outside any hero, --at gets the error it always did, not the September one.
 	const outside = tempDir("legacy-hero-guard-nowhere");
 	const none = await run(["--at", old.inner, "seed"], outside);
 	assert.equal(none.err, `nosedive: --at names one of the hero's roots or a directory in it, and ${old.inner} is none`);
-	// NOSEDIVE_HERO picks the hero the way cwd does, from anywhere.
-	const elsewhere = tempDir("legacy-hero-guard-elsewhere");
-	const asked = (hero: string, argv: string[]) => cli(argv, elsewhere, { NOSEDIVE_HERO: hero });
-	assert.deepEqual(asked(old.host, ["--at", "./workspace/inner", "seed"]), { code: 1, out: "", err: refusal(["--at", "./workspace/inner", "seed"]) });
-	assert.deepEqual(asked(old.host, ["seed"]), { code: 1, out: "", err: refusal(["seed"]) });
+	// NOSEDIVE_HERO picks the hero the way cwd does, from anywhere, and from anywhere but its root the line is held back.
+	const away = tempDir("legacy-hero-guard-elsewhere");
+	const asked = (named: string, argv: string[]) => cli(argv, away, { NOSEDIVE_HERO: named });
+	assert.deepEqual(asked(old.host, ["--at", "./workspace/inner", "seed"]), { code: 1, out: "", err: elsewhere(old.host) });
+	assert.deepEqual(asked(old.host, ["seed"]), { code: 1, out: "", err: elsewhere(old.host) });
 	const free = asked(modern.host, ["--at", "./workspace/inner", "crud", "memo", "x"]);
 	assert.doesNotMatch(free.err, /September/);
 	assert.match(free.err, /no kind memo is declared/);
-	// A checkout in a September hero's workspace is never a hero: launch's own refusal stands.
-	const checkout = await run(["seed"], join(old.host, "workspace", "inner"));
+	// A checkout in a September hero's workspace gets that hero's refusal, not the checkout's: 2026.9.18 ran there, and has no --at.
+	assert.deepEqual(await run(["seed"], old.inner), { code: 1, out: "", err: elsewhere(old.host) });
+	// A checkout in a hero that is no September one keeps launch's own refusal, though it is September's itself.
+	const checkout = await run(["seed"], modern.inner);
 	assert.doesNotMatch(checkout.err, /September/);
 	assert.match(checkout.err, /is checked out in .*'s workspace, and a checkout is never a hero/);
+});
+
+test("a kept checkout is the September hero's even when it holds a config of its own", async () => {
+	const old = nestedHeroes("legacy-hero-guard-checkout-config", SEPTEMBER, MODERN_CONFIG);
+	assert.deepEqual(await run(["help"], old.inner), { code: 1, out: "", err: elsewhere(old.host) });
+	assert.equal(guard(["help"], old.inner, old.host), elsewhere(old.host).slice("nosedive: ".length));
+	assert.equal(guard(["help"], old.inner, old.inner), undefined, "named as the hero, it is a modern one");
 });
 
 test("a config that is huge, or no regular file, is no match, and never a hang", { timeout: 60_000 }, () => {
 	const huge = hero("legacy-hero-guard-huge", `${SEPTEMBER}# ${"x".repeat(2_000_000)}\n`);
 	assert.equal(guard(["seed"], huge), undefined);
+	assert.equal(guard(["seed"], huge, huge), undefined);
 	const small = hero("legacy-hero-guard-small", SEPTEMBER);
 	assert.ok(guard(["seed"], small), "the same config, small, is one");
 	if (!isWindows) {
@@ -256,19 +390,22 @@ test("a config that is huge, or no regular file, is no match, and never a hang",
 	}
 });
 
+/** Where the published 2026.9.18 is installed: made with the file, not a test, so it outlives the test that first needs it. */
+const NPM_PREFIX = tempDir("legacy-hero-guard-npm");
+
 /** The published 2026.9.18, installed once into a directory of its own; its cli, or why it could not be had. */
 let installed: { cli: string } | { skip: string } | undefined;
 function september(): { cli: string } | { skip: string } {
 	if (installed) return installed;
-	const prefix = tempDir("legacy-hero-guard-npm");
+	const prefix = NPM_PREFIX;
 	const result = spawnSync("npm", ["i", "--prefix", prefix, `nosedive@${OLD}`, "--no-audit", "--no-fund", "--ignore-scripts"], {
 		encoding: "utf8",
 		shell: isWindows,
-		env: { ...process.env, npm_config_cache: join(prefix, ".npm-cache") },
+		env: { ...shellEnv(), npm_config_cache: join(prefix, ".npm-cache") },
 	});
 	if (result.status === 0) return (installed = { cli: join(prefix, "node_modules", "nosedive", "dist", "cli.js") });
 	const why = `npm could not install nosedive@${OLD}: ${(result.stderr || result.error?.message || "").trim().split("\n").slice(-3).join(" ")}`;
-	// CI has the network, so a failure there is a failure; elsewhere a test that needs npm has nothing to run on.
+	// CI has npm and the network, so a failure there is a failure; elsewhere a test that needs them has nothing to run on.
 	if (process.env.CI) assert.fail(why);
 	return (installed = { skip: why });
 }
@@ -276,17 +413,17 @@ function september(): { cli: string } | { skip: string } {
 /** A September nosedive's own environment: a home, git config, and nosedive user dir of its own, and none of this machine's. */
 function septemberEnv(home: string): NodeJS.ProcessEnv {
 	const env: NodeJS.ProcessEnv = {};
-	for (const [key, value] of Object.entries(process.env)) {
+	for (const [key, value] of Object.entries(shellEnv())) {
 		if (/^(GIT_CONFIG_|NOSEDIVE_|GITHUB_TOKEN|GH_TOKEN|CLAUDECODE|CLAUDE_CODE_ENTRYPOINT)/.test(key)) continue;
 		env[key] = value;
 	}
 	const config = join(home, "gitconfig");
 	writeFileSync(config, "[user]\n\tname = Test Pilot\n\temail = test@nosedive.invalid\n[init]\n\tdefaultBranch = main\n[credential]\n\thelper =\n");
-	return { ...env, HOME: home, USERPROFILE: home, APPDATA: join(home, "AppData", "Roaming"), GIT_CONFIG_GLOBAL: config, GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0", NOSEDIVE_USER_DIR: join(home, ".nosedive") };
+	return { ...env, HOME: home, USERPROFILE: home, APPDATA: join(home, "AppData", "Roaming"), GIT_CONFIG_GLOBAL: config, GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0", NOSEDIVE_USER_DIR: join(home, ".nosedive"), npm_config_cache: join(home, ".npm-cache") };
 }
 
 /** A hero as 2026.9.18 makes one: seeded, with a repo, a feat and a dive, jumped, and in the checkout a commit and an uncommitted file. */
-function septemberHero(cli: string, root: string): { hero: string; remotes: string } {
+function septemberHero(cli: string, root: string): { hero: string; remotes: string; env: NodeJS.ProcessEnv } {
 	const home = join(root, "home");
 	mkdirSync(join(home, "AppData", "Roaming"), { recursive: true });
 	const env = septemberEnv(home);
@@ -318,7 +455,34 @@ function septemberHero(cli: string, root: string): { hero: string; remotes: stri
 	as(["add", "-A"], checkout);
 	as(["commit", "-qm", "add hello"], checkout);
 	writeFileSync(join(checkout, "README.md"), "scratch\nwip\n");
-	return { hero: dir, remotes };
+	return { hero: dir, remotes, env };
+}
+
+/** Whether `path` is `dir` or inside it. */
+function within(dir: string, path: string): boolean {
+	const rel = relative(resolve(dir), resolve(path));
+	return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+/** Where a fixture hero's checkout is wired to, and every text file in the hero that names `other`, a place it was not made in. */
+function pointsInto(heroDir: string, other: string): { gitdir: string; strays: string[] } {
+	const gitdir = /^gitdir: (.*)$/m.exec(readFileSync(join(heroDir, "workspace", "scratch", ".git"), "utf8"))?.[1]?.trim();
+	assert.ok(gitdir, "the checkout has a .git file naming its git directory");
+	const needles = [other, other.replace(/\\/g, "/")].map((path) => path.toLowerCase());
+	const strays: string[] = [];
+	const walk = (dir: string) => {
+		for (const entry of readdirSync(dir, { withFileTypes: true })) {
+			const path = join(dir, entry.name);
+			if (entry.isDirectory()) {
+				if (entry.name !== "objects") walk(path);
+			} else if (entry.isFile() && statSync(path).size < 1 << 20) {
+				const text = readFileSync(path, "latin1").toLowerCase();
+				if (needles.some((needle) => text.includes(needle))) strays.push(relative(heroDir, path));
+			}
+		}
+	};
+	walk(heroDir);
+	return { gitdir, strays };
 }
 
 const EVERY_CLASS: string[][] = [
@@ -355,35 +519,60 @@ const EVERY_CLASS: string[][] = [
 async function runEveryClass(t: TestContext, label: string, dir: string, watched: string[]) {
 	const before = snapshot(...watched);
 	for (const cwd of [dir, join(dir, "workspace"), join(dir, "workspace", "scratch"), join(dir, "kb")]) {
-		// A checkout in the workspace is never a hero, and launch says so first.
-		const checkout = cwd === join(dir, "workspace", "scratch");
 		for (const argv of EVERY_CLASS) {
 			const result = await run(argv, cwd);
 			assert.equal(result.out, "", `${label}: ${argv.join(" ")} printed to stdout in ${cwd}`);
 			assert.equal(result.code, 1, `${label}: ${argv.join(" ")} in ${cwd}: ${result.err}`);
-			if (checkout) assert.match(result.err, CHECKOUT, `${label}: ${argv.join(" ")} in ${cwd}`);
-			else assert.equal(result.err, refusal(argv), `${label}: ${argv.join(" ")} in ${cwd}`);
+			// At the root the anchored line; in the workspace, the kept checkout and a subdirectory the root and no line, and never launch's checkout refusal.
+			assert.equal(result.err, refusal(argv, dir, cwd), `${label}: ${argv.join(" ")} in ${cwd}`);
+			assert.doesNotMatch(result.err, CHECKOUT);
 		}
 	}
 	assert.deepEqual(await run(["pre-push.hook", "origin", "url"], dir), { code: 0, out: "", err: "" }, `${label}: pre-push.hook`);
 	// Then the same command lines as a process of the built CLI, which is what a pilot runs.
-	for (const argv of EVERY_CLASS) assert.deepEqual(cli(argv, dir), { code: 1, out: "", err: refusal(argv) }, `${label}: ${argv.join(" ")} as a process`);
+	for (const argv of EVERY_CLASS) assert.deepEqual(cli(argv, dir), { code: 1, out: "", err: refusal(argv, dir) }, `${label}: ${argv.join(" ")} as a process`);
+	for (const argv of EVERY_CLASS.slice(0, 6)) assert.deepEqual(cli(argv, join(dir, "workspace", "scratch")), { code: 1, out: "", err: elsewhere(dir) }, `${label}: ${argv.join(" ")} as a process in the checkout`);
 	assert.deepEqual(cli(["pre-push.hook", "origin", "url"], dir), { code: 0, out: "", err: "" });
 	assert.deepEqual(snapshot(...watched), before, `${label}: files changed`);
 	t.diagnostic(`${label}: ${EVERY_CLASS.length * 5} command lines refused, ${Object.keys(before).length} paths unchanged`);
 }
 
-test("a hero made by the published 2026.9.18, jumped and mid-dive, then offline, is refused by every command and left byte for byte as it was", { timeout: 600_000 }, async (t) => {
+test("a hero made by the published 2026.9.18, jumped and mid-dive, then offline, is refused by every command and left byte for byte as it was", { timeout: 900_000 }, async (t) => {
 	const got = september();
 	if ("skip" in got) return t.skip(got.skip);
 	const root = tempDir("legacy-hero-guard-september");
 	const online = septemberHero(got.cli, join(root, "online"));
 	const user = process.env.NOSEDIVE_USER_DIR!;
 	await runEveryClass(t, "online", online.hero, [online.hero, online.remotes, user]);
-	// The same hero with its remotes gone: nothing can be fetched, so any command that tried would fail or half-finish.
-	const offline = join(root, "offline");
-	mkdirSync(offline);
-	cpSync(online.hero, join(offline, "hero"), { recursive: true });
-	rmSync(online.remotes, { recursive: true, force: true });
-	await runEveryClass(t, "offline", join(offline, "hero"), [join(offline, "hero"), user]);
+	// The same hero with its remotes gone, made again in a place of its own: nothing can be fetched, so any command that tried would fail or half-finish.
+	// A copy of the online hero would keep its checkout's .git naming the online hero's cache, which is not offline at all.
+	const offline = septemberHero(got.cli, join(root, "offline"));
+	rmSync(offline.remotes, { recursive: true, force: true });
+	const wired = pointsInto(offline.hero, join(root, "online"));
+	assert.ok(within(offline.hero, wired.gitdir), `the offline checkout's git directory ${wired.gitdir} is in the offline hero`);
+	assert.deepEqual(wired.strays, [], "no file of the offline hero names the online one");
+	assert.ok(!within(online.hero, wired.gitdir));
+	await runEveryClass(t, "offline", offline.hero, [offline.hero, user]);
+});
+
+test("a read-only line the refusal prints, run with the real 2026.9.18 from outside the hero, acts on that hero", { timeout: 900_000 }, async (t) => {
+	const got = september();
+	if ("skip" in got) return t.skip(got.skip);
+	const root = tempDir("legacy-hero-guard-real");
+	const made = septemberHero(got.cli, root);
+	const line = printedLines((await run(["list-dives"], made.hero)).err).bash;
+	assert.equal(line, `cd '${made.hero.replace(/'/g, "'\\''")}' && npx -y nosedive@2026.9.18 list-dives`);
+	// What 2026.9.18 prints run in the hero itself, the time of the jump aside.
+	const same = (text: string) => text.replace(/Jumped .*? - /, "Jumped - ");
+	const direct = spawnSync(process.execPath, [got.cli, "list-dives"], { cwd: made.hero, env: made.env, encoding: "utf8" });
+	assert.equal(direct.status, 0, direct.stderr);
+	assert.match(direct.stdout, /add-a-hello-note/);
+	// The line is pasted into a directory that is no hero and no repo, through the real npx fetching the real package.
+	const away = tempDir("legacy-hero-guard-real-away");
+	const pasted = spawnSync("bash", ["-c", line], { cwd: away, env: made.env, encoding: "utf8", timeout: 400_000 });
+	if (missing(pasted, "bash")) return t.skip("bash is not here");
+	assert.equal(pasted.status, 0, `${line}\n${pasted.stdout}${pasted.stderr}`);
+	assert.equal(same(pasted.stdout), same(direct.stdout));
+	assert.match(pasted.stdout, /Write hello/);
+	assert.deepEqual(readdirSync(away), [], "nothing was written where the line was pasted");
 });
