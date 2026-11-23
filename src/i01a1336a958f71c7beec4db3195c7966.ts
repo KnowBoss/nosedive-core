@@ -8,6 +8,7 @@ import { i01a141f869bf7f76b5bc81aa991ff9b9 as configuredCapes, providers } from 
 import { i01a14fb092177d36a478d40a47166c97 as gateUsage } from "./i01a14fb092177d36a478d40a47166c97.ts";
 import { i01a14fb79db47f8b94d5196027008697 as buildBase } from "./i01a14fb79db47f8b94d5196027008697.ts";
 import { i01a1335487e477549d84a6fc2c901bf6 as describeCapeSource } from "./i01a1335487e477549d84a6fc2c901bf6.ts";
+import { i01a204bc1c1c7395b331c57a3a342b05 as legacyHeroGuard } from "./i01a204bc1c1c7395b331c57a3a342b05.ts";
 import { i01a13a6aba3a763595bd67a4ee4d47bf as findRoot } from "./i01a13a6aba3a763595bd67a4ee4d47bf.ts";
 import { selectRoot } from "./i01a13dee4b1d78f7a699c3777bf63587.ts";
 import type { Bridge } from "./i01a1335485c67c95b7efdf2f0e03cfd6.ts";
@@ -110,6 +111,10 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		if (argv[0] === "pre-push.hook") return 0;
 		// A workspace checkout is never a hero, so nothing acts on one by running inside it.
 		const inside = process.env.NOSEDIVE_HERO ? undefined : insideWorkspace(ctx.cwd);
+		// A September hero is for September nosedive: every command line, help included, is refused before anything else runs, in the hero the rest would act through.
+		// A kept checkout of one gets this refusal, not the checkout's: 2026.9.18 ran there, and has no --at.
+		const refusal = legacyHeroGuard(argv, ctx.cwd, inside?.hero.dir);
+		if (refusal) throw new Error(refusal);
 		if (inside) {
 			const name = basename(inside.checkout);
 			throw new Error(`${name} is checked out in ${inside.hero.dir}'s workspace, and a checkout is never a hero: run nosedive from ${inside.hero.workspace} (with --at ./${name} to write into it), or set NOSEDIVE_HERO`);

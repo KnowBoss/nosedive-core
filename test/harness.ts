@@ -49,6 +49,8 @@ process.env.NOSEDIVE_USER_DIR = tempDir("user");
 
 // Seed's pre-push shim calls `npx nosedive pre-push.hook`, whose gate is a no-op for now; a stub npx keeps every test push from
 // spawning a real one, which is slow and, unpublished or offline, can fail.
+/** The PATH the tests were started with, before the stub npx: the real npx is on it. */
+export const realPath = process.env.PATH ?? "";
 {
 	const stub = tempDir("npx");
 	writeFileSync(join(stub, "npx"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
