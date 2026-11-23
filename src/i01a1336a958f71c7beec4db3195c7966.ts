@@ -111,13 +111,14 @@ export async function i01a1336a958f71c7beec4db3195c7966(argv: string[], ctx: Ctx
 		if (argv[0] === "pre-push.hook") return 0;
 		// A workspace checkout is never a hero, so nothing acts on one by running inside it.
 		const inside = process.env.NOSEDIVE_HERO ? undefined : insideWorkspace(ctx.cwd);
+		// A September hero is for September nosedive: every command line, help included, is refused before anything else runs, in the hero the rest would act through.
+		// A kept checkout of one gets this refusal, not the checkout's: 2026.9.18 ran there, and has no --at.
+		const refusal = legacyHeroGuard(argv, ctx.cwd, inside?.hero.dir);
+		if (refusal) throw new Error(refusal);
 		if (inside) {
 			const name = basename(inside.checkout);
 			throw new Error(`${name} is checked out in ${inside.hero.dir}'s workspace, and a checkout is never a hero: run nosedive from ${inside.hero.workspace} (with --at ./${name} to write into it), or set NOSEDIVE_HERO`);
 		}
-		// A September hero is for September nosedive: every command line, help included, is refused before anything else runs, in the hero the rest would act through.
-		const refusal = legacyHeroGuard(argv, ctx.cwd);
-		if (refusal) throw new Error(refusal);
 		// --at <target> selects the target: a root, whose capes the action runs with, or any directory for crud to write into.
 		if (argv[0] === "--at") {
 			const wanted = argv[1];

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parse } from "yaml";
 
@@ -9,40 +9,68 @@ const SEPTEMBER = "2026.9.18";
 const MAX_CONFIG = 1 << 20;
 
 /**
- * Whether the nearest `.nosedive/config.yaml` above `start`, the one find-bridge reads, names a `backlog` and no `roots`, as legacy-capes tests it.
+ * Whether `dir`'s `.nosedive/config.yaml` names a `backlog` and no `roots`, as legacy-capes tests it.
  * A config that is not a regular file, is too big, or cannot be read or parsed is no match; none of it is opened unless it is a small regular file.
  */
-function isSeptemberHero(start: string): boolean {
-	for (let dir = resolve(start); ; dir = dirname(dir)) {
+function isSeptemberConfig(dir: string): boolean {
+	try {
 		const path = join(dir, ".nosedive", "config.yaml");
-		if (existsSync(path)) {
-			try {
-				const stat = statSync(path);
-				if (!stat.isFile() || stat.size > MAX_CONFIG) return false;
-				const config = parse(readFileSync(path, "utf8")) as Record<string, unknown> | null;
-				return typeof config === "object" && config !== null && !("roots" in config) && typeof config.backlog === "string";
-			} catch {
-				return false;
-			}
-		}
-		if (dirname(dir) === dir) return false;
+		const stat = statSync(path);
+		if (!stat.isFile() || stat.size > MAX_CONFIG) return false;
+		const config = parse(readFileSync(path, "utf8")) as Record<string, unknown> | null;
+		return typeof config === "object" && config !== null && !("roots" in config) && typeof config.backlog === "string";
+	} catch {
+		return false;
+	}
+}
+
+/** The directory of the September hero `start` is in: the nearest `.nosedive/config.yaml` above it, the one find-bridge reads, when it is September's. */
+function septemberRoot(start: string): string | undefined {
+	for (let dir = resolve(start); ; dir = dirname(dir)) {
+		if (existsSync(join(dir, ".nosedive", "config.yaml"))) return isSeptemberConfig(dir) ? dir : undefined;
+		if (dirname(dir) === dir) return undefined;
+	}
+}
+
+/** Whether two paths are one directory, as the file system sees them. */
+function sameDirectory(a: string, b: string): boolean {
+	try {
+		return realpathSync.native(a) === realpathSync.native(b);
+	} catch {
+		return false;
 	}
 }
 
 /** Bare when plain, else in single quotes with each `'` closed, escaped and reopened: literal to bash and zsh whatever it holds. */
-const bash = (arg: string) => (PLAIN.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`);
-/** Bare when plain, else in single quotes with each quote, curly ones too, doubled: literal to PowerShell, which also reads a bare `@x` as a splat and `a,b` as a list. */
-const powershell = (arg: string) => (PLAIN.test(arg) ? arg : `'${arg.replace(/['‘’‚‛]/g, "$&$&")}'`);
-const PLAIN = /^[\w./:-][\w./:@-]*$/;
+const bash = (arg: string) => (BASH_PLAIN.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`);
+const BASH_PLAIN = /^[\w./:-][\w./:@=-]*$/;
+
+/** In single quotes with each quote, curly ones too, doubled: literal to PowerShell. */
+const powershellPath = (path: string) => `'${path.replace(/['‘’‚‛]/g, "$&$&")}'`;
+
+/**
+ * What the real npx.ps1 hands to nosedive unchanged under Windows PowerShell 5.1 and pwsh when typed bare, and a little less: a word, an option (two hyphens), a relative path of `.` and `..`,
+ * or a hyphenated id such as a uuid. Never an empty argument, a quote, a bare `--`, a single hyphen, a number or an operator, nor any of `,` `@` `$` `;` `&` `|` `~` `{` `(` `<` `#` `` ` ``
+ * or a space, which PowerShell reads for itself or npx.ps1 loses. @see kb/01a205f6-1f86-7182-9b37-fd3c1a2badb7.md
+ */
+const POWERSHELL_PLAIN = [/^[A-Za-z][\w.:=/-]*$/, /^--[A-Za-z][\w.:=/-]*$/, /^\.{1,2}(?:\/[\w.:=-]+)*\/?$/, /^(?=.*[a-f])\d[0-9a-f]*(?:-[0-9a-f]+)+$/i];
+const passesPowershell = (arg: string) => POWERSHELL_PLAIN.some((plain) => plain.test(arg));
 
 /**
  * The refusal for a command line run in `cwd`, the directory launch acts in, or undefined when that is no September hero.
  * It judges the hero launch would act through and nothing `--at` names, and reads nothing but that hero's config, so what it refuses is left as it was.
- * The command to run it with is one line when bash and PowerShell read it alike, else a line for each.
+ * `enclosing` is the hero whose workspace holds the checkout `cwd` is in, which is then the hero rather than the nearest config.
+ * 2026.9.18 acts on the directory it is run in, so the line to run is given only at the hero's root, anchored there; anywhere else the refusal names the root and says to run again from it.
  */
-export function i01a204bc1c1c7395b331c57a3a342b05(argv: string[], cwd: string): string | undefined {
-	if (!isSeptemberHero(cwd)) return undefined;
-	const line = (quote: (arg: string) => string) => ["npx", "-y", `nosedive@${SEPTEMBER}`, ...argv.map(quote)].join(" ");
-	const head = "this hero is for September nosedive, and this nosedive does not run on it. Nothing was changed. Run this command line there";
-	return line(bash) === line(powershell) ? `${head} with:\n  ${line(bash)}` : `${head}, in bash or zsh:\n  ${line(bash)}\nor in PowerShell:\n  ${line(powershell)}`;
+export function i01a204bc1c1c7395b331c57a3a342b05(argv: string[], cwd: string, enclosing?: string): string | undefined {
+	const root = enclosing === undefined ? septemberRoot(cwd) : isSeptemberConfig(enclosing) ? resolve(enclosing) : undefined;
+	if (root === undefined) return undefined;
+	const head = "this hero is for September nosedive, and this nosedive does not run on it. Nothing was changed.";
+	// NOSEDIVE_HERO makes cwd the hero's whatever directory the arguments were typed in.
+	const typedAtRoot = enclosing === undefined && resolve(cwd) === root && (!process.env.NOSEDIVE_HERO || sameDirectory(process.cwd(), root));
+	if (!typedAtRoot) return `${head} The hero's root is '${root}': run the same command again from there, which prints the command line to run it with.`;
+	const npx = ["npx", "-y", `nosedive@${SEPTEMBER}`];
+	const lines = [`${head} To run this command line with September nosedive, in bash or zsh:`, `  ${[`cd ${bash(root)} &&`, ...npx, ...argv.map(bash)].join(" ")}`];
+	if (!argv.every(passesPowershell)) return [...lines, "No PowerShell line is given because an argument would not pass through npx.ps1 unchanged."].join("\n");
+	return [...lines, "or in PowerShell:", `  ${[`Set-Location -LiteralPath ${powershellPath(root)};`, ...npx, ...argv].join(" ")}`].join("\n");
 }
