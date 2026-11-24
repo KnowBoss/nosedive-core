@@ -436,25 +436,29 @@ test("a config that is no regular file is no match, and never a hang", { timeout
 	}
 });
 
-/** Where the published 2026.9.18 is installed: made with the file, not a test, so it outlives the test that first needs it. */
-const NPM_PREFIX = tempDir("legacy-hero-guard-npm");
+/** The last nosedive that made a `.nosediverc` bridge: 2026.8.11 on only read one, and 2026.9.18 converts one. */
+const OLDEST = "2026.7.24";
+/** Where each published version is installed: made with the file, not a test, so it outlives the test that first needs it. */
+const PREFIXES = new Map([OLD, OLDEST].map((version) => [version, tempDir(`legacy-hero-guard-npm-${version}`)]));
 
-/** The published 2026.9.18, installed once into a directory of its own; its cli, or why it could not be had. */
-let installed: { cli: string } | { skip: string } | undefined;
-function september(): { cli: string } | { skip: string } {
-	if (installed) return installed;
-	const prefix = NPM_PREFIX;
-	const result = spawnSync("npm", ["i", "--prefix", prefix, `nosedive@${OLD}`, "--no-audit", "--no-fund", "--ignore-scripts"], {
+/** The published nosedive of each version the tests run, installed once into a directory of its own; its cli, or why it could not be had. */
+const installs = new Map<string, { cli: string } | { skip: string }>();
+function published(version: string): { cli: string } | { skip: string } {
+	const known = installs.get(version);
+	if (known) return known;
+	const prefix = PREFIXES.get(version)!;
+	const result = spawnSync("npm", ["i", "--prefix", prefix, `nosedive@${version}`, "--no-audit", "--no-fund", "--ignore-scripts"], {
 		encoding: "utf8",
 		shell: isWindows,
 		env: { ...shellEnv(), npm_config_cache: join(prefix, ".npm-cache") },
 	});
-	if (result.status === 0) return (installed = { cli: join(prefix, "node_modules", "nosedive", "dist", "cli.js") });
-	const why = `npm could not install nosedive@${OLD}: ${(result.stderr || result.error?.message || "").trim().split("\n").slice(-3).join(" ")}`;
+	if (result.status === 0) return installs.set(version, { cli: join(prefix, "node_modules", "nosedive", "dist", "cli.js") }).get(version)!;
+	const why = `npm could not install nosedive@${version}: ${(result.stderr || result.error?.message || "").trim().split("\n").slice(-3).join(" ")}`;
 	// CI has npm and the network, so a failure there is a failure; elsewhere a test that needs them has nothing to run on.
 	if (process.env.CI) assert.fail(why);
-	return (installed = { skip: why });
+	return installs.set(version, { skip: why }).get(version)!;
 }
+const september = () => published(OLD);
 
 /** A September nosedive's own environment: a home, git config, and nosedive user dir of its own, and none of this machine's. */
 function septemberEnv(home: string): NodeJS.ProcessEnv {
@@ -621,4 +625,181 @@ test("a read-only line the refusal prints, run with the real 2026.9.18 from outs
 	assert.equal(same(pasted.stdout), same(direct.stdout));
 	assert.match(pasted.stdout, /Write hello/);
 	assert.deepEqual(readdirSync(away), [], "nothing was written where the line was pasted");
+});
+
+// The September bridge on `.nosediverc`, which 2026.7.24 and earlier made and 2026.9.18 still reads and converts. @see kb/01a205fc-99f3-72dd-9d39-b37e80ff1ada.md
+
+/** What init in 2026.7.24 writes to `.nosediverc`. */
+const NOSEDIVERC = "workspace: ./workspace\nbacklog: ./backlog\nkb: ./kb\nhome-branch: main\nwork-branch-prefix: work/\npilot-name: P\npilot-email: p@x.invalid\nagents:\n  - copilot\n";
+
+/** A directory with a `.nosediverc` regular file holding `content`, and a kb, a subdirectory and a kept checkout in it. */
+function rcDir(label: string, content = NOSEDIVERC): string {
+	const dir = tempDir(label);
+	writeFileSync(join(dir, ".nosediverc"), content);
+	mkdirSync(join(dir, "kb", "sub"), { recursive: true });
+	mkdirSync(join(dir, "workspace", "scratch"), { recursive: true });
+	return dir;
+}
+
+test("a .nosediverc regular file makes its directory a September bridge, whatever it holds, refused like a September config", async () => {
+	const contents: [string, string][] = [
+		["as init writes it", NOSEDIVERC],
+		["empty", ""],
+		["not yaml", "backlog: [unclosed\n  : :\n"],
+		["a list", "- a\n"],
+		["a config with roots", `roots:\n  - kb/${MODERN}.md\nid: ${MODERN}\n`],
+	];
+	for (const [label, content] of contents) {
+		const dir = rcDir("legacy-hero-guard-rc", content);
+		const before = snapshot(dir);
+		for (const argv of [[], ["help"], ["--help"], ["seed"], ["crud", "memo", "one two"], ["--at", "kb", "crud", "memo", "x"], ["pass"], ["land"]]) {
+			assert.deepEqual(await run(argv, dir), { code: 1, out: "", err: refusal(argv, dir) }, `${label}: ${argv.join(" ")}`);
+		}
+		for (const cwd of [join(dir, "kb"), join(dir, "kb", "sub"), join(dir, "workspace"), join(dir, "workspace", "scratch")]) {
+			assert.deepEqual(await run(["seed"], cwd), { code: 1, out: "", err: elsewhere(dir) }, `${label}: ${cwd}`);
+		}
+		assert.deepEqual(snapshot(dir), before, label);
+	}
+});
+
+test("a .nosediverc bridge's refusal is verbatim, at its root and elsewhere", async () => {
+	const dir = rcDir("legacy-hero-guard-rc-verbatim");
+	assert.equal((await run(["seed"], dir)).err, `${TO_RUN}\n  cd '${dir.replace(/'/g, "'\\''")}' && npx -y nosedive@2026.9.18 seed\nor in PowerShell:\n  Set-Location -LiteralPath '${dir.replace(/['‘’‚‛]/g, "$&$&")}'; npx -y nosedive@2026.9.18 seed`);
+	assert.equal((await run(["crud", "memo", "one two"], dir)).err, `${TO_RUN}\n  cd '${dir.replace(/'/g, "'\\''")}' && npx -y nosedive@2026.9.18 crud memo 'one two'\n${NO_POWERSHELL}`);
+	assert.equal((await run(["seed"], join(dir, "kb"))).err, `${HEAD} The hero's root is '${dir}': run the same command again from there, which prints the command line to run it with.`);
+});
+
+test("a directory's config.yaml decides alone when it holds a .nosediverc too, the nearest directory decides, and what is no .nosediverc bridge behaves as before", async () => {
+	const withRc = (label: string, config: string | undefined) => {
+		const dir = config === undefined ? tempDir(label) : hero(label, config);
+		writeFileSync(join(dir, ".nosediverc"), NOSEDIVERC);
+		return dir;
+	};
+	// Judged as a config.yaml alone: a modern hero, one mid-migration and one that cannot be read are no September hero; a September one is.
+	for (const [label, dir] of [
+		["a modern config", withRc("legacy-hero-guard-rc-modern", MODERN_CONFIG)],
+		["a config with roots beside its backlog", withRc("legacy-hero-guard-rc-roots", `${SEPTEMBER}roots:\n  - kb/${BACKLOG}.md\n`)],
+		["an empty config", withRc("legacy-hero-guard-rc-empty", "")],
+	] as const) {
+		assert.equal(guard(["seed"], dir), undefined, label);
+		assert.doesNotMatch((await run(["--help"], dir)).err, /September/, label);
+	}
+	const unreadable = tempDir("legacy-hero-guard-rc-unreadable");
+	mkdirSync(join(unreadable, ".nosedive", "config.yaml"), { recursive: true });
+	writeFileSync(join(unreadable, ".nosediverc"), NOSEDIVERC);
+	assert.equal(guard(["seed"], unreadable), undefined, "a config that cannot be read still ends the walk");
+	const both = withRc("legacy-hero-guard-rc-september", SEPTEMBER);
+	assert.deepEqual(await run(["seed"], both), { code: 1, out: "", err: refusal(["seed"], both) });
+	// The nearest directory with either decides: a modern hero below a .nosediverc is no September one...
+	const above = rcDir("legacy-hero-guard-rc-above");
+	mkdirSync(join(above, "kb", "sub", ".nosedive"), { recursive: true });
+	writeFileSync(join(above, "kb", "sub", ".nosedive", "config.yaml"), MODERN_CONFIG);
+	assert.equal(guard(["seed"], join(above, "kb", "sub")), undefined);
+	assert.equal(guard(["seed"], join(above, "kb")), `${HEAD.slice("nosedive: ".length)} The hero's root is '${above}': run the same command again from there, which prints the command line to run it with.`);
+	// ...and a .nosediverc below a modern hero is the September root, named, not the modern hero.
+	const host = hero("legacy-hero-guard-rc-host", MODERN_CONFIG.replace("workspace: ./workspace\n", ""));
+	mkdirSync(join(host, "elsewhere", "deeper"), { recursive: true });
+	writeFileSync(join(host, "elsewhere", ".nosediverc"), NOSEDIVERC);
+	assert.deepEqual(await run(["seed"], join(host, "elsewhere", "deeper")), { code: 1, out: "", err: elsewhere(join(host, "elsewhere")) });
+	assert.deepEqual(await run(["seed"], join(host, "elsewhere")), { code: 1, out: "", err: refusal(["seed"], join(host, "elsewhere")) });
+	assert.doesNotMatch((await run(["--help"], host)).err, /September/);
+	// A .nosediverc that is no regular file is no bridge, nor is a directory holding only the rest of the setup.
+	const dir = tempDir("legacy-hero-guard-rc-dir");
+	mkdirSync(join(dir, ".nosediverc"));
+	assert.equal(guard(["seed"], dir), undefined);
+	assert.doesNotMatch((await run(["--help"], dir)).err, /September/);
+	const bare = tempDir("legacy-hero-guard-rc-none");
+	mkdirSync(join(bare, "kb"));
+	assert.equal(guard(["seed"], bare), undefined);
+	// A repo with no bridge, and a modern hero's kept checkout holding a .nosediverc, run as before.
+	const plain = gitRepo("legacy-hero-guard-rc-plain");
+	const outside = await run(["--help"], plain);
+	assert.equal(outside.code, 0);
+	assert.match(outside.out, /^Usage: nosedive/);
+	assert.doesNotMatch((await run(["crud"], plain)).err, /September/);
+	// A modern hero's kept checkout holding a .nosediverc keeps launch's refusal, as a September config.yaml one does.
+	const modern = hero("legacy-hero-guard-rc-modern-host", MODERN_CONFIG);
+	mkdirSync(join(modern, "workspace", "inner"), { recursive: true });
+	writeFileSync(join(modern, "workspace", "inner", ".nosediverc"), NOSEDIVERC);
+	const checkout = await run(["seed"], join(modern, "workspace", "inner"));
+	assert.doesNotMatch(checkout.err, /September/);
+	assert.match(checkout.err, CHECKOUT);
+});
+
+/** A bridge as the published 2026.7.24 `init --headless` makes it, in a hero repo with a remote, and a kept checkout in its workspace. */
+function nosedivercBridge(cli: string, root: string): { hero: string; remotes: string; env: NodeJS.ProcessEnv } {
+	const home = join(root, "home");
+	mkdirSync(join(home, "AppData", "Roaming"), { recursive: true });
+	const env = septemberEnv(home);
+	const as = (args: string[], cwd: string) => git(["-c", "user.name=Test Pilot", "-c", "user.email=test@nosedive.invalid", ...args], cwd);
+	const remotes = join(root, "remotes");
+	for (const name of ["hero", "scratch"]) git(["init", "-q", "--bare", "-b", "main", join(remotes, `${name}.git`)], root);
+	const clone = (name: string, to: string, text: string) => {
+		git(["clone", "-q", pathToFileURL(join(remotes, `${name}.git`)).href, to], root);
+		writeFileSync(join(to, "README.md"), text);
+		as(["add", "-A"], to);
+		as(["commit", "-qm", "init"], to);
+		git(["push", "-q", "origin", "HEAD:main"], to);
+		return to;
+	};
+	const dir = clone("hero", join(root, "hero"), "notes\n");
+	clone("scratch", join(dir, "workspace", "scratch"), "scratch\n");
+	const init = spawnSync(process.execPath, [cli, "init", "--headless"], { cwd: dir, env, encoding: "utf8", input: "" });
+	assert.equal(init.status, 0, `nosedive@${OLDEST} init --headless: ${init.stdout}${init.stderr}`);
+	// The bridge is the older config alone: 2026.9.18 is the first to write .nosedive/config.yaml.
+	assert.ok(statSync(join(dir, ".nosediverc")).isFile());
+	assert.ok(!existsSync(join(dir, ".nosedive", "config.yaml")));
+	return { hero: dir, remotes, env };
+}
+
+/** Refs, branch, local config, remotes and hooks of a repo, read without touching its index. */
+function gitState(dir: string): Record<string, string> {
+	const hooks = (path: string) => (existsSync(path) ? readdirSync(path).filter((name) => !name.endsWith(".sample")).sort().join(",") : "");
+	return {
+		refs: git(["for-each-ref", "--format=%(refname) %(objectname)"], dir),
+		head: git(["rev-parse", "--abbrev-ref", "HEAD"], dir),
+		config: git(["config", "--local", "--list"], dir).split("\n").sort().join("\n"),
+		remotes: git(["remote", "-v"], dir),
+		hooks: hooks(join(dir, ".git", "hooks")),
+		nosediveHooks: hooks(join(dir, ".git", "nosedive-hooks")),
+	};
+}
+
+test("a bridge made by the published 2026.7.24 init is refused by every command, at its root, workspace, checkout and kb, and left as it was", { timeout: 900_000 }, async (t) => {
+	const got = published(OLDEST);
+	if ("skip" in got) return t.skip(got.skip);
+	const made = nosedivercBridge(got.cli, tempDir("legacy-hero-guard-rc-real"));
+	assert.equal(readFileSync(join(made.hero, ".nosediverc"), "utf8").includes("workspace: ./workspace"), true);
+	const before = gitState(made.hero);
+	await runEveryClass(t, ".nosediverc bridge", made.hero, [made.hero, made.remotes, process.env.NOSEDIVE_USER_DIR!]);
+	assert.deepEqual(gitState(made.hero), before);
+	assert.ok(statSync(join(made.hero, ".nosediverc")).isFile());
+	assert.ok(!existsSync(join(made.hero, ".nosedive")), "seed wrote nothing beside it");
+});
+
+test("a read-only line printed for a .nosediverc bridge, run with the real 2026.9.18 from outside it, acts on that bridge", { timeout: 900_000 }, async (t) => {
+	const old = published(OLDEST);
+	if ("skip" in old) return t.skip(old.skip);
+	const now = september();
+	if ("skip" in now) return t.skip(now.skip);
+	const made = nosedivercBridge(old.cli, tempDir("legacy-hero-guard-rc-line"));
+	const line = printedLines((await run(["list-dives"], made.hero)).err).bash;
+	assert.equal(line, `cd '${made.hero.replace(/'/g, "'\\''")}' && npx -y nosedive@2026.9.18 list-dives`);
+	const before = snapshot(made.hero);
+	// 2026.9.18 reads the bridge at compatibility level 0 and says to seed it, as it does run in the bridge itself.
+	const direct = spawnSync(process.execPath, [now.cli, "list-dives"], { cwd: made.hero, env: made.env, encoding: "utf8" });
+	assert.equal(direct.status, 1);
+	assert.match(direct.stderr, /^nosedive: bridge is at compatibility level 0; run `nosedive seed --headless` to migrate it to level 2/);
+	// Run from a directory that is no bridge, it finds none.
+	const away = tempDir("legacy-hero-guard-rc-away");
+	const lost = spawnSync(process.execPath, [now.cli, "list-dives"], { cwd: away, env: made.env, encoding: "utf8" });
+	assert.match(lost.stderr, /not inside a nosedive bridge/);
+	// The printed line, pasted there, goes to the bridge.
+	const pasted = spawnSync("bash", ["-c", line], { cwd: away, env: made.env, encoding: "utf8", timeout: 400_000 });
+	if (missing(pasted, "bash")) return t.skip("bash is not here");
+	assert.equal(pasted.status, 1, `${line}\n${pasted.stdout}${pasted.stderr}`);
+	assert.match(pasted.stderr, /nosedive: bridge is at compatibility level 0; run `nosedive seed --headless` to migrate it to level 2/);
+	assert.doesNotMatch(pasted.stderr, /not inside a nosedive bridge/);
+	assert.deepEqual(readdirSync(away), [], "nothing was written where the line was pasted");
+	assert.deepEqual(snapshot(made.hero), before, "the read-only line changed nothing");
 });

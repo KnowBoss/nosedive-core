@@ -21,10 +21,23 @@ function isSeptemberConfig(dir: string): boolean {
 	}
 }
 
-/** The directory of the September hero `start` is in: the nearest `.nosedive/config.yaml` above it, the one find-bridge reads, when it is September's. */
+/** Whether `dir` holds a `.nosediverc` that is a regular file: the older September config, whatever it holds. */
+function hasNosediverc(dir: string): boolean {
+	try {
+		return statSync(join(dir, ".nosediverc")).isFile();
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * The directory of the September hero `start` is in, found as 2026.9.18 does: the nearest directory above it with a `.nosedive/config.yaml`, which is judged and ends the walk,
+ * else with a `.nosediverc` regular file, which makes it a September root unparsed. A directory with both is judged by its config.yaml alone.
+ */
 function septemberRoot(start: string): string | undefined {
 	for (let dir = resolve(start); ; dir = dirname(dir)) {
 		if (existsSync(join(dir, ".nosedive", "config.yaml"))) return isSeptemberConfig(dir) ? dir : undefined;
+		if (hasNosediverc(dir)) return dir;
 		if (dirname(dir) === dir) return undefined;
 	}
 }
@@ -64,7 +77,7 @@ const passesPowershell = (arg: string) => POWERSHELL_PLAIN.some((plain) => plain
 
 /**
  * The refusal for a command line run in `cwd`, the directory launch acts in, or undefined when that is no September hero.
- * It judges the hero launch would act through and nothing `--at` names, and reads nothing but that hero's config, so what it refuses is left as it was.
+ * It judges the hero launch would act through and nothing `--at` names, and reads nothing but that hero's config (or looks for its `.nosediverc`), so what it refuses is left as it was.
  * `enclosing` is the hero whose workspace holds the checkout `cwd` is in, which is then the hero rather than the nearest config.
  * 2026.9.18 acts on the directory it is run in, so the line to run is given only at the hero's root, anchored there; anywhere else the refusal names the root and says to run again from it.
  * `platform` is where the line would be run, this one unless a test says otherwise: on Windows an argument npx's cmd.exe launch would cut gets no line, and the refusal names it.
