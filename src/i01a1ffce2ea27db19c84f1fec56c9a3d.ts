@@ -370,41 +370,46 @@ function pick(dir: string, commit: Sha, onto: Sha): { sha: Sha } | { conflict: s
 }
 
 /**
- * The lines a turn commit adds to the dive's record doc `path`, as one block of bytes (latin1, so nothing is normalized), or
- * null unless the commit is nosedive's, not a merge, changes that one regular file only, and only adds lines in one hunk.
+ * Where a turn commit put its lines in the dive's record doc `path`, as one string of bytes (latin1, so nothing is normalized):
+ * the up to three context lines the hunk had above the added block, the block, and the up to three below it. Null unless the
+ * commit is nosedive's, not a merge, changes that one regular file only, adds lines in one hunk and removes none, and has a
+ * context line to be placed by. `start` is true when fewer than three lines sit above the block, which is then at the top of the doc.
  */
-function addedSection(dir: string, commit: Sha, path: string): string | null {
+function addedSection(dir: string, commit: Sha, path: string): { text: string; start: boolean } | null {
 	if (!git(dir, ["rev-parse", "--verify", "-q", `${commit}^`]).ok) return null;
 	const meta = ownedRange(dir, `${commit}^`, commit)[0];
 	if (!meta || meta.sha !== commit || !meta.own || meta.merge) return null;
 	const raw = git(dir, ["diff-tree", "-r", "--no-renames", "--no-commit-id", "--raw", commit]);
 	const fields = raw.out.split("\n");
 	if (!raw.ok || fields.length !== 1 || !/^:100644 100644 \w+ \w+ M\t/.test(fields[0]!) || fields[0]!.split("\t")[1] !== path) return null;
-	const diff = spawnSync("git", ["diff-tree", "-p", "-U0", "--no-renames", "--no-commit-id", commit], { cwd: dir, encoding: "latin1", maxBuffer: 1 << 28 });
+	const diff = spawnSync("git", ["diff-tree", "-p", "-U3", "--no-renames", "--no-commit-id", commit], { cwd: dir, encoding: "latin1", maxBuffer: 1 << 28 });
 	if (diff.status !== 0) return null;
 	const lines = diff.stdout.split("\n");
 	const at = lines.findIndex((line) => line.startsWith("@@ "));
-	if (at < 0 || lines.slice(at + 1).some((line) => line.startsWith("@@ "))) return null;
+	if (at < 0) return null;
 	const body = lines.slice(at + 1);
 	if (body[body.length - 1] === "") body.pop();
-	if (body.length === 0 || body.some((line) => !line.startsWith("+"))) return null;
-	return body.map((line) => `${line.slice(1)}\n`).join("");
+	const shape = /^( *)(\++)( *)$/.exec(body.map((line) => line[0]).join(""));
+	if (!shape || shape[1]!.length + shape[3]!.length === 0) return null;
+	return { text: body.map((line) => `${line.slice(1)}\n`).join(""), start: shape[1]!.length < 3 };
 }
 
 /**
  * Whether a conflicting `commit` is a turn whose section `onto` holds already: nosedive's turn commit on `path` (see addedSection)
- * whose added lines are all in `path` at `onto`, byte for byte as a contiguous block, once more than the turns skipped so far
- * for the same block. Anything else is not a copy, and its conflict stands.
+ * whose added lines are in `path` at `onto` byte for byte, between the same context lines the hunk had, so a copy of the block
+ * elsewhere is not the turn; once more than the turns skipped so far for the same placement. Anything else is not a copy, and its conflict stands.
  */
 function turnOnTip(dir: string, commit: Sha, onto: Sha, path: string, seen: Map<string, number>): boolean {
-	const block = addedSection(dir, commit, path);
-	if (block === null) return false;
+	const placed = addedSection(dir, commit, path);
+	if (placed === null) return false;
 	const blob = spawnSync("git", ["cat-file", "blob", `${onto}:${path}`], { cwd: dir, encoding: "latin1", maxBuffer: 1 << 28 });
 	if (blob.status !== 0) return false;
-	const held = `\n${blob.stdout}`.split(`\n${block}`).length - 1;
-	const skipped = seen.get(block) ?? 0;
+	const text = `\n${blob.stdout}`;
+	const held = placed.start ? Number(text.startsWith(`\n${placed.text}`)) : text.split(`\n${placed.text}`).length - 1;
+	const key = `${placed.start}${placed.text}`;
+	const skipped = seen.get(key) ?? 0;
 	if (held <= skipped) return false;
-	seen.set(block, skipped + 1);
+	seen.set(key, skipped + 1);
 	return true;
 }
 

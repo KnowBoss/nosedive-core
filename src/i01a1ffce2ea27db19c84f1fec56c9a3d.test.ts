@@ -256,14 +256,14 @@ const DOC = "kb/d.md";
 const LINES = Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
 const AS_TURNS = { turnsIn: DOC };
 
-type Turns = { diveOwn?: boolean; homeOwn?: boolean; diveAppend?: string; homeAppend?: string; diveExtra?: (dir: string) => void; homeDrops?: string };
+type Turns = { diveOwn?: boolean; homeOwn?: boolean; diveAppend?: string; homeAppend?: string; diveExtra?: (dir: string) => void; homeDrops?: string; homeAfter?: (dir: string, doc: string) => void };
 
 /**
  * `kb/d.md` on the dive's branch is edited by a person (line 1), then two commits append "t1" and "t2"; on the home the same two
  * appends were committed (the first as `homeAppend`), and `homeDrops` is a line a person's commit removed from them after. Replaying
  * the branch's three commits conflicts on the first append unless that turn is skipped.
  */
-function twoTurns(label: string, { diveOwn = true, homeOwn = true, diveAppend = "t1\n", homeAppend = "t1\n", diveExtra = () => {}, homeDrops }: Turns = {}) {
+function twoTurns(label: string, { diveOwn = true, homeOwn = true, diveAppend = "t1\n", homeAppend = "t1\n", diveExtra = () => {}, homeDrops, homeAfter }: Turns = {}) {
 	const w = world(label);
 	const doc = join(w.a, DOC);
 	const append = (text: string, own: boolean, extra: (dir: string) => void = () => {}) => {
@@ -283,6 +283,10 @@ function twoTurns(label: string, { diveOwn = true, homeOwn = true, diveAppend = 
 	if (homeDrops !== undefined) {
 		writeFileSync(doc, readFileSync(doc, "latin1").replace(homeDrops, ""), "latin1");
 		sh(w.a, ["commit", "-q", "-am", "person drops it"]);
+		home = sh(w.a, ["rev-parse", "HEAD"]);
+	}
+	if (homeAfter) {
+		homeAfter(w.a, doc);
 		home = sh(w.a, ["rev-parse", "HEAD"]);
 	}
 	sh(w.a, ["checkout", "-q", "-b", "dive", base]);
@@ -342,14 +346,75 @@ test("replay does not skip a binary turn, a person's commit, or a turn of anothe
 	assert.ok(conflicts(twoTurns("rp-other"), { turnsIn: "kb/other.md" }));
 });
 
-test("replay makes a second copy of a turn's block that merges, as the dive meant", () => {
-	const t = twoTurns("rp-once");
-	sh(t.w.a, ["checkout", "-q", "dive"]);
-	const again = t.append("t1\n", true);
-	const replayed = replay(t.w.a, [...t.dive, again], t.home, AS_TURNS);
+// The turn's block is proved by its place, between the context lines its hunk had, never by a copy of the block elsewhere in the doc.
+test("replay does not skip a turn because its block is on the home somewhere else", () => {
+	const t = twoTurns("rp-elsewhere", { homeAppend: "x\nt1\ny\n" });
+	assert.ok(conflicts(t), "the home's own change sits where the turn goes, and a t1 line elsewhere is not the turn");
+});
+
+test("replay does not skip a blank or common block because the doc has one elsewhere", () => {
+	assert.ok(conflicts(twoTurns("rp-blank", { diveAppend: "\n", homeAppend: "x\n\ny\n" })));
+	assert.ok(conflicts(twoTurns("rp-common", { diveAppend: "line 1\n", homeAppend: "x\nline 1\ny\n" })));
+});
+
+test("replay does not skip a turn the home removed from its place while a copy of the block is elsewhere", () => {
+	const t = twoTurns("rp-moved", {
+		homeDrops: "t1\n",
+		homeAfter: (dir, doc) => {
+			writeFileSync(doc, readFileSync(doc, "latin1").replace("line 3\n", "line 3\nt1\n"), "latin1");
+			sh(dir, ["commit", "-q", "-am", "person moves it"]);
+		},
+	});
+	assert.ok(conflicts(t));
+});
+
+test("replay does not skip a turn because the doc was deleted and recreated with the block in it", () => {
+	const t = twoTurns("rp-recreated", {
+		homeAfter: (dir, doc) => {
+			sh(dir, ["rm", "-q", DOC]);
+			sh(dir, ["commit", "-q", "-m", "person deletes the doc"]);
+			mkdirSync(join(dir, "kb"), { recursive: true });
+			writeFileSync(doc, "fresh\nt1\nmore\n");
+			sh(dir, ["add", DOC]);
+			sh(dir, ["commit", "-q", "-m", "person recreates it"]);
+		},
+	});
+	assert.ok("conflict" in replay(t.w.a, [t.t1], t.home, AS_TURNS));
+});
+
+test("replay skips a turn at its place with the doc's blank lines and other blocks around it", () => {
+	const t = twoTurns("rp-placed", {
+		diveAppend: "\nt1\n\n",
+		homeAppend: "\nt1\n\n",
+		homeAfter: (dir, doc) => {
+			writeFileSync(doc, readFileSync(doc, "latin1") + "\nt1\n\n", "latin1");
+			sh(dir, ["commit", "-q", "-am", "person repeats it further down"]);
+		},
+	});
+	const replayed = replay(t.w.a, [t.t1], t.home, AS_TURNS);
 	assert.ok(!("conflict" in replayed), JSON.stringify(replayed));
-	if ("conflict" in replayed) return;
-	assert.equal(sh(t.w.a, ["show", `${replayed.tip}:${DOC}`]), LINES.replace("line 1\n", "LINE 1\n") + "t1\nt2\nt1");
+});
+
+// Two turns of one block at one place, which the home holds once, are one turn skipped and one refused: each held copy is used once.
+test("replay skips one of two conflicting identical turn blocks when the home holds one", () => {
+	const w = world("rp-seen");
+	const doc = join(w.a, DOC);
+	mkdirSync(join(w.a, "kb"));
+	const base = commit(w.a, DOC, "a\nz\nz\nz\n");
+	const turn = (text: string) => {
+		writeFileSync(doc, readFileSync(doc, "latin1") + text, "latin1");
+		sh(w.a, ["commit", "-q", "-am", "turn"], NOSEDIVE);
+		return sh(w.a, ["rev-parse", "HEAD"]);
+	};
+	sh(w.a, ["checkout", "-q", "-b", "home"]);
+	const home = turn("z\nY\n");
+	sh(w.a, ["checkout", "-q", "-b", "dive", base]);
+	const first = turn("z\n");
+	const second = turn("z\n");
+	const once = replay(w.a, [first], home, AS_TURNS);
+	assert.ok(!("conflict" in once), "one block held, one turn skipped");
+	if (!("conflict" in once)) assert.deepEqual(once.skipped, [first]);
+	assert.ok("conflict" in replay(w.a, [first, second], home, AS_TURNS), "the second turn has no copy left to be skipped for");
 });
 
 test("ownedRange tells nosedive's commits from a person's", () => {
