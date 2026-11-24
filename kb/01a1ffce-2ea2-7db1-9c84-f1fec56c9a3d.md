@@ -16,7 +16,7 @@ Commands plan, then call `commitPlan` once. Planning writes objects only (`fetch
 
 It never retries and never undoes a push. A refusal has a kind (`stale`, `dirty`, `boundary`, `failed`), the step, how many whole steps were done before it, git's words, and, after a partial local failure, `state`: where refs, HEAD and files are. A push can stop between refs: that recoverable intermediate state contains only the safe prefix already published, while local state and later refs are untouched. A re-plan sees any ref already at its planned sha as done and continues without republishing it. Commands re-plan from a fresh fetch on `stale`, at most 3 times; the same convergence rule covers both partial steps and partial progress across repositories.
 
-`replay`'s `made` holds only shas commit-tree returned, so a pick that changes nothing never approves an upstream commit. Moving HEAD needs git 2.46 or later.
+`replay`'s `made` holds only shas commit-tree returned, so a pick that changes nothing never approves an upstream commit. A commit whose clean pick changes nothing, the tip holding its change already, is put in `skipped`, as is a turn conflict recognised as already on the tip (with `turnsIn`): `skipped` is what the home holds already. A conflict is never skipped except as that turn; otherwise `replay` returns `{ conflict }`. Moving HEAD needs git 2.46 or later.
 
 ## Code
 

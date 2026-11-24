@@ -218,7 +218,7 @@ test("a local ref that moved since the plan is stale with nothing changed anywhe
 	assert.equal(sh(w.a, ["rev-parse", "main"]), person, "the person's commit is still there");
 });
 
-test("T4b: a pick that changes nothing is not in the made set", () => {
+test("T4b: a pick that changes nothing is not in the made set, and is reported skipped", () => {
 	const w = world("pp-t4b");
 	const mine = commit(w.a, "f.txt", "same", true);
 	sh(w.a, ["reset", "-q", "--hard", w.main]);
@@ -230,6 +230,25 @@ test("T4b: a pick that changes nothing is not in the made set", () => {
 	if ("conflict" in replayed) return;
 	assert.equal(replayed.tip, theirs, "upstream already holds the change");
 	assert.equal(replayed.made.size, 0, "so no sha is approved, and the upstream's own commit is not either");
+	assert.deepEqual(replayed.skipped, [mine], "the commit is on the home already, so it is reported skipped");
+});
+
+test("replay reports a clean empty pick skipped and still makes a clean pick that changes something", () => {
+	const w = world("pp-empty-pick");
+	const mine = commit(w.a, "f.txt", "same", true);
+	const more = commit(w.a, "g.txt", "new", true);
+	sh(w.a, ["reset", "-q", "--hard", w.main]);
+	const theirs = commit(w.b, "f.txt", "same");
+	sh(w.b, ["push", "-q", "origin", "main"]);
+	sh(w.a, ["fetch", "-q", "origin"]);
+	const replayed = replay(w.a, [mine, more], theirs);
+	assert.ok(!("conflict" in replayed), JSON.stringify(replayed));
+	if ("conflict" in replayed) return;
+	assert.deepEqual(replayed.skipped, [mine], "only the empty pick is skipped");
+	assert.equal(replayed.made.size, 1, "the pick that changes something is made");
+	assert.ok(replayed.made.has(replayed.tip), "and it is the tip");
+	assert.equal(sh(w.a, ["show", `${replayed.tip}:g.txt`]), "new");
+	assert.equal(sh(w.a, ["rev-list", "--count", `${theirs}..${replayed.tip}`]), "1");
 });
 
 test("replay makes commits with their own committer, or reports the conflict", () => {
@@ -306,7 +325,7 @@ test("replay with turnsIn skips a turn nosedive committed on the home already, a
 	const replayed = replay(t.w.a, t.dive, t.home, AS_TURNS);
 	assert.ok(!("conflict" in replayed), JSON.stringify(replayed));
 	if ("conflict" in replayed) return;
-	assert.deepEqual(replayed.skipped, [t.t1], "the turn that conflicted is reported skipped; the other merged to nothing");
+	assert.deepEqual(replayed.skipped, [t.t1, t.t2], "the turn that conflicted is reported skipped, and so is the other, which merged to nothing");
 	assert.equal(replayed.made.size, 1, "only the person's edit is made again, so only it would be published or counted");
 	assert.equal(sh(t.w.a, ["show", `${replayed.tip}:${DOC}`]), LINES.replace("line 1\n", "LINE 1\n") + "t1\nt2");
 	assert.equal(sh(t.w.a, ["rev-list", "--count", `${t.home}..${replayed.tip}`]), "1");

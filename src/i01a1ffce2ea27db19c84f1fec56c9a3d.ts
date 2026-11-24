@@ -414,9 +414,10 @@ function turnOnTip(dir: string, commit: Sha, onto: Sha, path: string, seen: Map<
 }
 
 /**
- * `shas` made again, in order, on `onto`: the new tip and exactly the shas commit-tree returned, a pick that changes nothing adding none; or the conflict.
- * With `turnsIn`, the path of the dive's record doc, a commit that conflicts only because it is a turn already on the tip as it stands
- * (see turnOnTip) is left out, and listed in `skipped`: it is not made, so it is not published or counted, as it is on the home already.
+ * `shas` made again, in order, on `onto`: the new tip and exactly the shas commit-tree returned; or the conflict. A commit whose clean
+ * pick changes nothing, the tip holding its change already, is not made but listed in `skipped`, as is, with `turnsIn` (the path of the
+ * dive's record doc), a commit that conflicts only because it is a turn already on the tip as it stands (see turnOnTip): it is not
+ * published or counted, as it is on the home already.
  */
 export function replay(dir: string, shas: Sha[], onto: Sha, options: { turnsIn?: string } = {}): { tip: Sha; made: Set<Sha>; skipped: Sha[] } | { conflict: string } {
 	let tip = onto;
@@ -430,7 +431,8 @@ export function replay(dir: string, shas: Sha[], onto: Sha, options: { turnsIn?:
 			skipped.push(commit);
 			continue;
 		}
-		if (next.sha !== tip) made.add(next.sha);
+		if (next.sha === tip) skipped.push(commit);
+		else made.add(next.sha);
 		tip = next.sha;
 	}
 	return { tip, made, skipped };
