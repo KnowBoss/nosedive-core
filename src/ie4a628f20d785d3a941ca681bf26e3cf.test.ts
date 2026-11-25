@@ -60,10 +60,10 @@ test("--workspace makes it able to do work, and a cape root keeps its lockfile c
 	const hero = gitRepo("seed-workspace");
 	ok(await run(["seed", "--workspace"], hero));
 	const { id, roots, text } = configOf(hero);
-	assert.deepEqual(roots, [`self/${id}.md`]);
+	assert.deepEqual(roots, [`kb/${id}.md`]);
 	assert.match(readFileSync(join(hero, roots[0]!), "utf8"), /^---\nkind: hero\n/);
-	assert.equal(existsSync(join(hero, "kb")), false);
-	assert.equal(readFileSync(join(hero, "README.md"), "utf8"), `# [${basename(hero)}](self/${id}.md)\n`);
+	assert.equal(existsSync(join(hero, "self")), false);
+	assert.equal(readFileSync(join(hero, "README.md"), "utf8"), `# [${basename(hero)}](kb/${id}.md)\n`);
 	const cape = gitRepo("seed-cape-beside-hero");
 	ok(await run(["seed", "--root-kind", "cape"], cape));
 	assert.deepEqual(configOf(cape).roots, [`kb/${configOf(cape).id}.md`]);
@@ -104,7 +104,7 @@ test("a new hero mints, reads, edits and renders its home docs through the confi
 	ok(await run(["seed", "--workspace"], hero));
 	const { id, roots } = configOf(hero);
 	const path = ok(await run(["crud", "core:memo", "A home doc", "--name", "home-note"], hero));
-	assert.match(path, /^self\/[0-9a-f-]{36}\.md$/);
+	assert.match(path, /^kb\/[0-9a-f-]{36}\.md$/);
 	const note = basename(path, ".md");
 	assert.match(ok(await run(["crud", note], hero)), /name: home-note/);
 	ok(await run(["crud", note, "--title", "Edited home note"], hero));
@@ -112,7 +112,7 @@ test("a new hero mints, reads, edits and renders its home docs through the confi
 	ok(await run(["crud", id, "--links", "-"], hero, `${path}:\n  rel: notes.feat\n`));
 	assert.match(ok(await run(["seed", "--no-capes"], hero)), /rendered the tree of /);
 	assert.match(readFileSync(join(hero, roots[0]!), "utf8"), new RegExp(`\\[Edited home note\\]\\(${note}\\.md\\)`));
-	assert.equal(existsSync(join(hero, "kb")), false);
+	assert.equal(existsSync(join(hero, "self")), false);
 });
 
 test("builds the capes config names, so their actions run", async () => {
@@ -340,7 +340,7 @@ test("refuses to migrate a repo it knows unasked, changing nothing, and lists ea
 	);
 	assert.equal(state(dir), before);
 	// The link is relative to where seed runs.
-	const sub = join(dir, "self");
+	const sub = join(dir, "kb");
 	const fromSub = (await run(["seed"], sub)).err;
 	assert.ok(fromSub.includes(`[${FENCE.name}](${relative(sub, join(core.repoDir!, "kb", `${FENCE.id}.md`)).replace(/\\/g, "/")})`), fromSub);
 	assert.equal(state(dir), before);
@@ -460,12 +460,12 @@ test("--at refuses a root, the workspace, .nosedive, a root's directory, a neste
 	const hero = await tempBridge("seed-at-refuses");
 	const outside = tempDir("seed-at-outside");
 	const head = git(["rev-parse", "HEAD"], hero);
-	assert.match((await run(["--at", "self", "seed"], hero)).err, /names one of the hero's roots/);
+	assert.match((await run(["--at", "kb", "seed"], hero)).err, /names one of the hero's roots/);
 	assert.match((await run(["--at", outside, "seed", "--root-kind", "cape"], hero)).err, /names one of the hero's roots, by quid/, "the launcher refuses a directory outside the hero");
 	const refusals: [string, RegExp][] = [
 		["workspace/spec", /outside the hero's workspace/],
 		[".nosedive/spec", /outside \.nosedive/],
-		["self/spec", /inside the directory of a root/],
+		["kb/spec", /inside the directory of a root/],
 		[".", /inside the directory of a root|inside the hero/],
 	];
 	for (const [wrong, message] of refusals) assert.match((await run(["--at", wrong, "seed", "--root-kind", "cape"], hero)).err, message, wrong);

@@ -243,7 +243,7 @@ export async function ie4a628f20d785d3a941ca681bf26e3cf(options: { noCapes: bool
 		const pin = pinOf(kind, { roots: [] });
 		mkdirSync(join(dir, ".nosedive"), { recursive: true });
 		const scopes = [{ [CORE_OWNER]: { canonical: true, ...pin } }];
-		const home = workspace && rootKind !== "cape" ? "self" : "kb";
+		const home = "kb";
 		const root = mintKbDoc(join(dir, home), { kind: rootKind, name: repo, gist: `What ${repo} holds`, title: repo, scopes });
 		// The primary root is the one whose id is the repo's.
 		const config = { id: root.id, migrations: MIGRATIONS.map((migration) => migration.id), ...(workspace ? { workspace: "./workspace" } : {}), roots: [`${home}/${root.id}.md`] };
